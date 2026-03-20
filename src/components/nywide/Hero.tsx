@@ -5,44 +5,35 @@ export function Hero() {
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden pt-24 sm:pt-28">
       <div className="absolute inset-0 grid-background" />
       <div className="absolute inset-0 bg-gradient-to-b from-black via-transparent to-black" />
-      <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[500px] bg-primary/8 rounded-full blur-[160px]" />
+      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-primary/10 rounded-full blur-[150px]" />
 
       <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-        <div className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary/10 border border-primary/20 rounded-full mb-10 backdrop-blur-sm">
+        <div className="inline-flex items-center gap-2 px-4 py-2 bg-primary/10 border border-primary/30 rounded-full mb-8 backdrop-blur-sm">
           <Star className="w-4 h-4 text-primary fill-primary" />
-          <span className="text-sm font-medium text-foreground/90">Trusted by 500+ Businesses Worldwide</span>
+          <span className="text-sm font-medium text-foreground">Trusted by 500+ Businesses Worldwide</span>
         </div>
 
-        <h1 className="mb-6" style={{ textWrap: "balance", lineHeight: "1.05" }}>
-          <span
-            className="block font-serif font-black italic text-primary text-glow"
-            style={{ fontSize: "clamp(3.5rem, 8vw, 7rem)", letterSpacing: "-0.02em" }}
-          >
-            DOMINATE
-          </span>
-          <span
-            className="block font-sans font-black text-foreground mt-1"
-            style={{ fontSize: "clamp(2.5rem, 6vw, 5.5rem)", letterSpacing: "-0.02em" }}
-          >
-            THE DIGITAL SPACE
-          </span>
+        <h1 className="font-serif text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-black leading-tight tracking-tight mb-6" style={{ textWrap: "balance" }}>
+          <span className="text-primary text-glow">DOMINATE</span>
+          <br />
+          <span className="text-foreground">THE DIGITAL SPACE</span>
         </h1>
 
-        <p className="text-base sm:text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-10 leading-relaxed">
+        <p className="text-lg sm:text-xl md:text-2xl text-muted-foreground max-w-3xl mx-auto mb-10 leading-relaxed">
           We build high-performance ad campaigns, elite account architecture, and AI-powered strategies that deliver exceptional ROI.
         </p>
 
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
           <a
             href="#contact"
-            className="group relative px-8 py-4 bg-primary text-primary-foreground rounded-full text-base font-bold overflow-hidden inline-flex items-center gap-2.5 glow-gold-hover transition-all duration-300 active:scale-95"
+            className="group relative px-10 py-5 bg-primary text-primary-foreground rounded-full text-lg font-bold overflow-hidden inline-flex items-center gap-3 glow-gold-hover transition-all duration-300 active:scale-95"
           >
             <span>Start Your Campaign</span>
             <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
           </a>
           <a
             href="#services"
-            className="px-8 py-4 border border-foreground/20 text-foreground rounded-full text-base font-bold hover:bg-foreground/5 hover:border-foreground/30 transition-all duration-300 active:scale-95"
+            className="px-10 py-5 border border-foreground/20 text-foreground rounded-full text-lg font-bold hover:bg-foreground/10 hover:border-primary/50 transition-all duration-300 active:scale-95"
           >
             Explore Services
           </a>
