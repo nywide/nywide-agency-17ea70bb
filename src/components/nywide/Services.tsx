@@ -11,7 +11,8 @@ const services = [
       { icon: RefreshCw, label: "Instant Replacement" },
       { icon: Headphones, label: "24/7 WhatsApp Support" },
     ],
-    cta: "Try Free Trial",
+    cta: "Get Started",
+    href: "#signup",
   },
   {
     icon: Megaphone,
@@ -23,7 +24,8 @@ const services = [
       { icon: Palette, label: "High-Converting Creatives" },
       { icon: UserCheck, label: "Dedicated Account Manager" },
     ],
-    cta: "Book Strategy Call",
+    cta: "See Pricing",
+    href: "#products",
   },
   {
     icon: Video,
@@ -35,7 +37,8 @@ const services = [
       { icon: PenTool, label: "Graphic Design" },
       { icon: Users, label: "Influencer Sourcing" },
     ],
-    cta: "Get a Quote",
+    cta: "See Pricing",
+    href: "#products",
   },
 ];
 
@@ -86,9 +89,9 @@ export function Services() {
               </div>
 
               <a
-                href="https://wa.me/37253957002"
-                target="_blank"
-                rel="noopener noreferrer"
+                href={service.href}
+                target={service.href.startsWith("http") ? "_blank" : undefined}
+                rel={service.href.startsWith("http") ? "noopener noreferrer" : undefined}
                 className="relative inline-flex items-center justify-center gap-2 w-full px-6 py-4 bg-primary/10 hover:bg-primary border border-primary/30 hover:border-primary rounded-xl text-primary hover:text-black font-bold text-sm transition-all duration-300 active:scale-95"
               >
                 <span>{service.cta}</span>
