@@ -1,12 +1,12 @@
-import { Mail, Phone, MapPin, ArrowRight, Twitter, Instagram } from "lucide-react";
+import { Mail, Phone, MapPin, ArrowRight, Instagram, Send } from "lucide-react";
 import { Linkedin } from "lucide-react";
 
 const footerLinks = {
   services: [
-    { label: "Ad Account Setup", href: "#" },
-    { label: "Campaign Management", href: "#" },
-    { label: "Creative Services", href: "#" },
-    { label: "AI Optimization", href: "#" },
+    { label: "Facebook Ad Account Rental", href: "#services" },
+    { label: "Marketing Management", href: "#services" },
+    { label: "Creative Content Production", href: "#services" },
+    { label: "Influencer Collaboration", href: "#services" },
   ],
   company: [
     { label: "About Us", href: "#" },
@@ -22,9 +22,9 @@ const footerLinks = {
 };
 
 const socialLinks = [
-  { icon: Twitter, href: "#", label: "Twitter" },
   { icon: Linkedin, href: "#", label: "LinkedIn" },
   { icon: Instagram, href: "#", label: "Instagram" },
+  { icon: Send, href: "#", label: "Telegram" },
 ];
 
 export function Footer() {
@@ -41,7 +41,7 @@ export function Footer() {
               <p className="text-xl text-muted-foreground">Let's discuss how we can help you achieve extraordinary results.</p>
             </div>
             <div className="flex flex-col sm:flex-row gap-4 lg:justify-end">
-              <a href="mailto:hello@nywide.agency" className="group inline-flex items-center justify-center gap-3 px-8 py-5 bg-primary text-primary-foreground rounded-full text-lg font-bold glow-gold-hover transition-all duration-300 active:scale-95">
+              <a href="mailto:contact@nywide.agency" className="group inline-flex items-center justify-center gap-3 px-8 py-5 bg-primary text-primary-foreground rounded-full text-lg font-bold glow-gold-hover transition-all duration-300 active:scale-95">
                 <span>Get Free Consultation</span>
                 <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
               </a>
@@ -90,9 +90,9 @@ export function Footer() {
           <div>
             <h4 className="font-bold text-foreground mb-4">Contact</h4>
             <ul className="space-y-3">
-              <li><a href="mailto:hello@nywide.agency" className="flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors"><Mail className="w-4 h-4" /><span>hello@nywide.agency</span></a></li>
-              <li><a href="tel:+1234567890" className="flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors"><Phone className="w-4 h-4" /><span>+1 (234) 567-890</span></a></li>
-              <li><div className="flex items-start gap-2 text-muted-foreground"><MapPin className="w-4 h-4 mt-1" /><span>New York, NY 10001</span></div></li>
+              <li><a href="mailto:contact@nywide.agency" className="flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors"><Mail className="w-4 h-4" /><span>contact@nywide.agency</span></a></li>
+              <li><a href="tel:+37253957002" className="flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors"><Phone className="w-4 h-4" /><span>+372 5395 7002</span></a></li>
+              <li><div className="flex items-start gap-2 text-muted-foreground"><MapPin className="w-4 h-4 mt-1 shrink-0" /><span>Saani tn 2/2-26, Tallinn, 10149, Estonia</span></div></li>
             </ul>
           </div>
         </div>

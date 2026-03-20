@@ -1,23 +1,46 @@
-import { Settings, Cpu, Palette, ArrowUpRight } from "lucide-react";
+import { Monitor, Megaphone, Video, ArrowUpRight, Check } from "lucide-react";
 
 const services = [
   {
-    icon: Settings,
-    title: "Ad Account Architecture",
-    description: "Enterprise-grade account structures optimized for scalability. Custom Business Manager setups, pixel configurations, and conversion API integrations.",
+    icon: Monitor,
+    title: "Rent Facebook Agency Accounts – 6% Commission Only",
+    description: "No monthly fees. Pay only on ad spend.",
     color: "from-primary to-yellow-600",
+    features: [
+      "24-hour free trial for one account",
+      "High-trust accounts: no bans, unlimited daily spending, global targeting",
+      "Top-up methods: Cards, bank transfer, USDT/crypto, Wise, Payoneer. Min top-up: $10",
+      "Instant top-up, fast replacement if account is disabled",
+      "24/7 WhatsApp support",
+      "Client dashboard with real-time data, low-balance alerts, invoice generation",
+      "Accounting integration (Xero/QuickBooks ready)",
+    ],
   },
   {
-    icon: Cpu,
-    title: "AI-Powered Campaigns",
-    description: "Leverage cutting-edge AI and machine learning for predictive bidding, audience optimization, and creative testing at scale.",
+    icon: Megaphone,
+    title: "Done-For-You Marketing Management",
+    description: "Custom quote starting from $250/month.",
     color: "from-primary to-amber-500",
+    features: [
+      "Custom marketing strategy & planning",
+      "Social media presence setup",
+      "Ad creative production (videos, images, copy)",
+      "Full campaign management & daily optimization",
+      "Dedicated account manager",
+      "Dashboard with KPIs and business growth tracking",
+    ],
   },
   {
-    icon: Palette,
-    title: "Creative & Content",
-    description: "High-converting ad creatives, UGC production, and content strategies that stop the scroll and drive action.",
+    icon: Video,
+    title: "Creative Content & Influencer Collaboration",
+    description: "Custom quote based on project scope.",
     color: "from-primary to-orange-500",
+    features: [
+      "Video production (ads, reels, explainers)",
+      "Graphic design (static ads, banners)",
+      "Copywriting (ad copy, captions)",
+      "Influencer sourcing on Facebook, Instagram, TikTok",
+    ],
   },
 ];
 
@@ -42,8 +65,16 @@ export function Services() {
               <div className={`relative w-16 h-16 rounded-2xl bg-gradient-to-br ${service.color} flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300`}>
                 <service.icon className="w-8 h-8 text-black" />
               </div>
-              <h3 className="relative text-2xl font-serif font-bold text-foreground mb-4 group-hover:text-primary transition-colors duration-300">{service.title}</h3>
-              <p className="relative text-muted-foreground leading-relaxed mb-6">{service.description}</p>
+              <h3 className="relative text-xl font-serif font-bold text-foreground mb-3 group-hover:text-primary transition-colors duration-300">{service.title}</h3>
+              <p className="relative text-muted-foreground leading-relaxed mb-5">{service.description}</p>
+              <ul className="relative space-y-2.5 mb-6">
+                {service.features.map((feature, i) => (
+                  <li key={i} className="flex items-start gap-2.5 text-sm text-muted-foreground">
+                    <Check className="w-4 h-4 text-primary mt-0.5 shrink-0" />
+                    <span>{feature}</span>
+                  </li>
+                ))}
+              </ul>
               <div className="relative flex items-center gap-2 text-primary font-semibold opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0 transition-all duration-300">
                 <span>Learn More</span>
                 <ArrowUpRight className="w-4 h-4" />
