@@ -14,16 +14,248 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      account_requests: {
+        Row: {
+          created_at: string
+          id: string
+          platform: string
+          preferred_limit: string | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          platform?: string
+          preferred_limit?: string | null
+          status?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          platform?: string
+          preferred_limit?: string | null
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "account_requests_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ad_accounts: {
+        Row: {
+          account_id: string
+          account_name: string
+          assigned_at: string | null
+          created_at: string
+          currency: string
+          current_spend: number
+          id: string
+          platform: string
+          spend_limit: number
+          status: string
+          timezone: string
+          user_id: string | null
+        }
+        Insert: {
+          account_id: string
+          account_name: string
+          assigned_at?: string | null
+          created_at?: string
+          currency?: string
+          current_spend?: number
+          id?: string
+          platform?: string
+          spend_limit?: number
+          status?: string
+          timezone?: string
+          user_id?: string | null
+        }
+        Update: {
+          account_id?: string
+          account_name?: string
+          assigned_at?: string | null
+          created_at?: string
+          currency?: string
+          current_spend?: number
+          id?: string
+          platform?: string
+          spend_limit?: number
+          status?: string
+          timezone?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ad_accounts_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      commission_settings: {
+        Row: {
+          id: string
+          rate: number
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          rate?: number
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          rate?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      invoices: {
+        Row: {
+          amount: number
+          created_at: string
+          currency: string
+          id: string
+          invoice_number: string
+          pdf_url: string | null
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          currency?: string
+          id?: string
+          invoice_number: string
+          pdf_url?: string | null
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          currency?: string
+          id?: string
+          invoice_number?: string
+          pdf_url?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoices_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          full_name: string | null
+          id: string
+          wallet_balance: number
+        }
+        Insert: {
+          created_at?: string
+          full_name?: string | null
+          id: string
+          wallet_balance?: number
+        }
+        Update: {
+          created_at?: string
+          full_name?: string | null
+          id?: string
+          wallet_balance?: number
+        }
+        Relationships: []
+      }
+      transactions: {
+        Row: {
+          amount: number
+          created_at: string
+          currency: string
+          id: string
+          payment_method: string | null
+          status: string
+          stripe_payment_id: string | null
+          type: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          currency?: string
+          id?: string
+          payment_method?: string | null
+          status?: string
+          stripe_payment_id?: string | null
+          type: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          currency?: string
+          id?: string
+          payment_method?: string | null
+          status?: string
+          stripe_payment_id?: string | null
+          type?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transactions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_roles: {
+        Row: {
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "user"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +382,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "user"],
+    },
   },
 } as const
