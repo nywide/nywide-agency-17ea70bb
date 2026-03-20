@@ -106,12 +106,20 @@ export function Header() {
           )}
         </div>
 
-        <a
-          href="#contact"
-          className="relative z-10 px-4 sm:px-5 py-2 bg-primary text-primary-foreground rounded-full text-sm font-bold hover:shadow-[0_0_20px_rgba(255,184,0,0.4)] transition-all duration-300 active:scale-95"
-        >
-          Get Started
-        </a>
+        <div className="relative z-10 flex items-center gap-2">
+          <a
+            href="#login"
+            className="px-4 sm:px-5 py-2 border border-primary/50 text-muted-foreground hover:text-primary hover:border-primary rounded-full text-sm font-bold transition-all duration-300 active:scale-95"
+          >
+            Log in
+          </a>
+          <a
+            href="#signup"
+            className="px-4 sm:px-5 py-2 bg-primary text-primary-foreground rounded-full text-sm font-bold hover:shadow-[0_0_20px_rgba(255,184,0,0.4)] transition-all duration-300 active:scale-95"
+          >
+            Sign up
+          </a>
+        </div>
       </nav>
     </header>
   );
