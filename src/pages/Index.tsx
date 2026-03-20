@@ -1,16 +1,25 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+import { Header } from "@/components/nywide/Header";
+import { Hero } from "@/components/nywide/Hero";
+import { Services } from "@/components/nywide/Services";
+import { Stats } from "@/components/nywide/Stats";
+import { Products } from "@/components/nywide/Products";
+import { Testimonials } from "@/components/nywide/Testimonials";
+import { Footer } from "@/components/nywide/Footer";
+import { TechBackground } from "@/components/nywide/TechBackground";
 
-// IMPORTANT: Fully REPLACE this with your own code
-const PlaceholderIndex = () => {
-  // PLACEHOLDER: Replace this entire return statement with the user's app.
-  // The inline background color is intentionally not part of the design system.
+export default function Index() {
   return (
-    <div className="flex min-h-screen items-center justify-center" style={{ backgroundColor: '#fcfbf8' }}>
-      <img data-lovable-blank-page-placeholder="REMOVE_THIS" src="/placeholder.svg" alt="Your app will live here!" />
-    </div>
+    <main className="relative min-h-screen bg-card text-foreground overflow-x-hidden selection:bg-primary selection:text-primary-foreground">
+      <TechBackground />
+      <div className="relative z-10">
+        <Header />
+        <Hero />
+        <Services />
+        <Stats />
+        <Products />
+        <Testimonials />
+        <Footer />
+      </div>
+    </main>
   );
-};
-
-const Index = PlaceholderIndex;
-
-export default Index;
+}
