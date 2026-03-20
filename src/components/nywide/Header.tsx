@@ -1,8 +1,17 @@
 import { useState, useEffect } from "react";
 import { NLogo } from "./NLogo";
+import { Globe } from "lucide-react";
+
+const languages = [
+  { code: "en", label: "EN" },
+  { code: "ar", label: "AR" },
+  { code: "fr", label: "FR" },
+];
 
 export function Header() {
   const [isAnimated, setIsAnimated] = useState(false);
+  const [currentLang, setCurrentLang] = useState("en");
+  const [langOpen, setLangOpen] = useState(false);
 
   useEffect(() => {
     const timer = setTimeout(() => setIsAnimated(true), 100);
@@ -26,14 +35,15 @@ export function Header() {
           backdropFilter: "blur(12px)",
           WebkitBackdropFilter: "blur(12px)",
           boxShadow: isAnimated
-            ? "0 0 0 1px rgba(255, 184, 0, 0.15), 0 4px 30px rgba(0, 0, 0, 0.5), 0 0 60px rgba(255, 184, 0, 0.05)"
+            ? "0 0 0 1px rgba(255, 184, 0, 0.25), 0 4px 30px rgba(0, 0, 0, 0.5), 0 0 40px rgba(255, 184, 0, 0.12), 0 0 80px rgba(255, 184, 0, 0.06)"
             : "none",
           transitionTimingFunction: "cubic-bezier(0.34, 1.56, 0.64, 1)",
         }}
       >
+        {/* Gold glow overlay */}
         <div
           className="absolute inset-0 rounded-[50px] sm:rounded-[60px] pointer-events-none overflow-hidden"
-          style={{ background: "linear-gradient(180deg, rgba(255, 184, 0, 0.03) 0%, transparent 50%)" }}
+          style={{ background: "linear-gradient(180deg, rgba(255, 184, 0, 0.06) 0%, transparent 50%)" }}
         />
 
         <a href="#" className="relative z-10 flex items-center gap-2 group transition-transform duration-300 hover:scale-105" aria-label="NYWIDE Home">
@@ -59,6 +69,42 @@ export function Header() {
         </div>
 
         <div className="hidden md:block w-px h-6 bg-foreground/10" />
+
+        {/* Language Switcher */}
+        <div className="relative z-10">
+          <button
+            onClick={() => setLangOpen(!langOpen)}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors duration-300 rounded-full hover:bg-foreground/5"
+            aria-label="Switch language"
+          >
+            <Globe className="w-4 h-4" />
+            <span className="uppercase text-xs font-semibold tracking-wide">{currentLang}</span>
+          </button>
+          {langOpen && (
+            <div
+              className="absolute top-full right-0 mt-2 py-1 rounded-xl min-w-[80px] border border-border/50"
+              style={{
+                background: "rgba(15, 15, 15, 0.95)",
+                backdropFilter: "blur(12px)",
+                boxShadow: "0 8px 32px rgba(0, 0, 0, 0.5), 0 0 20px rgba(255, 184, 0, 0.08)",
+              }}
+            >
+              {languages.map((lang) => (
+                <button
+                  key={lang.code}
+                  onClick={() => { setCurrentLang(lang.code); setLangOpen(false); }}
+                  className={`block w-full px-4 py-2 text-left text-sm font-medium transition-colors duration-200 ${
+                    currentLang === lang.code
+                      ? "text-primary"
+                      : "text-muted-foreground hover:text-foreground hover:bg-foreground/5"
+                  }`}
+                >
+                  {lang.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
 
         <a
           href="#contact"
