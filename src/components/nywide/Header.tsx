@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { NLogo } from "./NLogo";
-import { Globe } from "lucide-react";
+import { Globe, LogOut, LayoutDashboard } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { Link } from "react-router-dom";
 
 const languages = [
   { code: "en", label: "EN" },
@@ -12,6 +14,7 @@ export function Header() {
   const [isAnimated, setIsAnimated] = useState(false);
   const [currentLang, setCurrentLang] = useState("en");
   const [langOpen, setLangOpen] = useState(false);
+  const { user, role, profile, signOut } = useAuth();
 
   useEffect(() => {
     const timer = setTimeout(() => setIsAnimated(true), 100);
@@ -106,19 +109,41 @@ export function Header() {
           )}
         </div>
 
+        {/* Auth Buttons */}
         <div className="relative z-10 flex items-center gap-2">
-          <a
-            href="#login"
-            className="px-4 sm:px-5 py-2 border border-primary/50 text-muted-foreground hover:text-primary hover:border-primary rounded-full text-sm font-bold transition-all duration-300 active:scale-95"
-          >
-            Log in
-          </a>
-          <a
-            href="#signup"
-            className="px-4 sm:px-5 py-2 bg-primary text-primary-foreground rounded-full text-sm font-bold hover:shadow-[0_0_20px_rgba(255,184,0,0.4)] transition-all duration-300 active:scale-95"
-          >
-            Sign up
-          </a>
+          {user ? (
+            <>
+              <Link
+                to={role === "admin" ? "/admin" : "/dashboard"}
+                className="flex items-center gap-1.5 px-4 sm:px-5 py-2 border border-primary/50 text-muted-foreground hover:text-primary hover:border-primary rounded-full text-sm font-bold transition-all duration-300 active:scale-95"
+              >
+                <LayoutDashboard className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">{role === "admin" ? "Admin" : "Dashboard"}</span>
+              </Link>
+              <button
+                onClick={signOut}
+                className="px-4 sm:px-5 py-2 bg-primary text-primary-foreground rounded-full text-sm font-bold hover:shadow-[0_0_20px_rgba(255,184,0,0.4)] transition-all duration-300 active:scale-95 flex items-center gap-1.5"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Log out</span>
+              </button>
+            </>
+          ) : (
+            <>
+              <Link
+                to="/login"
+                className="px-4 sm:px-5 py-2 border border-primary/50 text-muted-foreground hover:text-primary hover:border-primary rounded-full text-sm font-bold transition-all duration-300 active:scale-95"
+              >
+                Log in
+              </Link>
+              <Link
+                to="/signup"
+                className="px-4 sm:px-5 py-2 bg-primary text-primary-foreground rounded-full text-sm font-bold hover:shadow-[0_0_20px_rgba(255,184,0,0.4)] transition-all duration-300 active:scale-95"
+              >
+                Sign up
+              </Link>
+            </>
+          )}
         </div>
       </nav>
     </header>
