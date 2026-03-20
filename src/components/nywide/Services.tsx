@@ -1,46 +1,47 @@
-import { Monitor, Megaphone, Video, ArrowUpRight, Check } from "lucide-react";
+import { Monitor, Megaphone, Video, ArrowUpRight } from "lucide-react";
 
 const services = [
   {
     icon: Monitor,
-    title: "Rent Facebook Agency Accounts – 6% Commission Only",
-    description: "No monthly fees. Pay only on ad spend.",
+    title: "Rent High‑Trust Facebook Ad Accounts – Scale Without Limits",
     color: "from-primary to-yellow-600",
     features: [
-      "24-hour free trial for one account",
-      "High-trust accounts: no bans, unlimited daily spending, global targeting",
-      "Top-up methods: Cards, bank transfer, USDT/crypto, Wise, Payoneer. Min top-up: $10",
-      "Instant top-up, fast replacement if account is disabled",
-      "24/7 WhatsApp support",
-      "Client dashboard with real-time data, low-balance alerts, invoice generation",
-      "Accounting integration (Xero/QuickBooks ready)",
+      "⚡ Stop Getting Banned. We provide elite, whitelisted accounts.",
+      "💰 No Monthly Fees. Pay only for what you spend.",
+      "🚀 Launch in 24 Hours (free trial available).",
+      "🌍 Target Any Country, Unlimited Daily Budget.",
+      "🛡️ Instant Replacement if an account is disabled.",
+      "📞 24/7 WhatsApp Support (because time is money).",
     ],
+    pricing: "Custom Pricing – Starting from 6% commission. Contact us for a tailored plan.",
+    cta: "Request Your Free Trial",
   },
   {
     icon: Megaphone,
-    title: "Done-For-You Marketing Management",
-    description: "Custom quote starting from $250/month.",
+    title: "Done‑For‑You Marketing – We Build Your Entire Funnel",
     color: "from-primary to-amber-500",
     features: [
-      "Custom marketing strategy & planning",
-      "Social media presence setup",
-      "Ad creative production (videos, images, copy)",
-      "Full campaign management & daily optimization",
-      "Dedicated account manager",
-      "Dashboard with KPIs and business growth tracking",
+      "🎯 Tired of Wasting Money on Ads? We create a winning strategy from scratch.",
+      "📱 We Build Your Social Presence (Facebook, Instagram, TikTok).",
+      "🎬 High‑Converting Creatives (videos, images, copy) – no need to hire freelancers.",
+      "📈 Daily Optimization: We maximize your ROAS while you sleep.",
+      "👤 Dedicated Account Manager – one person to handle everything.",
     ],
+    pricing: "Pricing starts at $250/month – tailored to your goals. Book a free consultation.",
+    cta: "Book a Strategy Call",
   },
   {
     icon: Video,
-    title: "Creative Content & Influencer Collaboration",
-    description: "Custom quote based on project scope.",
+    title: "Creative Content & Influencer Campaigns – Stop Scrolling, Start Selling",
     color: "from-primary to-orange-500",
     features: [
-      "Video production (ads, reels, explainers)",
-      "Graphic design (static ads, banners)",
-      "Copywriting (ad copy, captions)",
-      "Influencer sourcing on Facebook, Instagram, TikTok",
+      "🎥 Scroll‑Stopping Video Ads (Reels, TikTok, YouTube).",
+      "🎨 Professional Graphic Design (static ads, carousels, banners).",
+      "✍️ Copy That Converts (ad copy, captions, landing pages).",
+      "🌟 Influencer Sourcing: We connect you with the right creators on Facebook, Instagram, and TikTok.",
     ],
+    pricing: "Project‑Based Pricing. Tell us your needs and we'll provide a custom quote.",
+    cta: "Get a Free Quote",
   },
 ];
 
@@ -54,31 +55,37 @@ export function Services() {
             ELITE <span className="text-primary text-glow">SOLUTIONS</span>
           </h2>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-            Comprehensive digital marketing services designed to maximize your ROI and dominate your market.
+            Stop guessing. Start scaling. We handle the hard part so you can focus on growing your business.
           </p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8">
           {services.map((service, index) => (
-            <div key={index} className="group relative bg-card rounded-3xl p-8 lg:p-10 border border-border hover:border-primary/50 transition-all duration-500 overflow-hidden">
+            <div key={index} className="group relative bg-card rounded-3xl p-8 lg:p-10 border border-border hover:border-primary/50 transition-all duration-500 overflow-hidden flex flex-col">
               <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
               <div className={`relative w-16 h-16 rounded-2xl bg-gradient-to-br ${service.color} flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300`}>
                 <service.icon className="w-8 h-8 text-black" />
               </div>
-              <h3 className="relative text-xl font-serif font-bold text-foreground mb-3 group-hover:text-primary transition-colors duration-300">{service.title}</h3>
-              <p className="relative text-muted-foreground leading-relaxed mb-5">{service.description}</p>
-              <ul className="relative space-y-2.5 mb-6">
+              <h3 className="relative text-xl font-serif font-bold text-foreground mb-5 group-hover:text-primary transition-colors duration-300">{service.title}</h3>
+              <ul className="relative space-y-3 mb-6 flex-1">
                 {service.features.map((feature, i) => (
-                  <li key={i} className="flex items-start gap-2.5 text-sm text-muted-foreground">
-                    <Check className="w-4 h-4 text-primary mt-0.5 shrink-0" />
-                    <span>{feature}</span>
+                  <li key={i} className="text-sm text-muted-foreground leading-relaxed">
+                    {feature}
                   </li>
                 ))}
               </ul>
-              <div className="relative flex items-center gap-2 text-primary font-semibold opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0 transition-all duration-300">
-                <span>Learn More</span>
+              <p className="relative text-xs text-primary/80 font-medium mb-5 border-t border-border pt-5">
+                {service.pricing}
+              </p>
+              <a
+                href="https://wa.me/37253957002"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="relative inline-flex items-center justify-center gap-2 w-full px-6 py-3 bg-primary/10 hover:bg-primary/20 border border-primary/30 hover:border-primary/60 rounded-xl text-primary font-semibold text-sm transition-all duration-300 group-hover:bg-primary group-hover:text-black"
+              >
+                <span>{service.cta}</span>
                 <ArrowUpRight className="w-4 h-4" />
-              </div>
+              </a>
               <div className="absolute top-8 right-8 opacity-10 group-hover:opacity-100 transition-opacity duration-500">
                 <ArrowUpRight className="w-8 h-8 text-primary" />
               </div>
