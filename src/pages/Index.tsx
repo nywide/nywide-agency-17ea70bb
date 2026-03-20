@@ -1,8 +1,9 @@
 import { Header } from "@/components/nywide/Header";
 import { Hero } from "@/components/nywide/Hero";
 import { Services } from "@/components/nywide/Services";
-import { Stats } from "@/components/nywide/Stats";
+import { PainPoints } from "@/components/nywide/PainPoints";
 import { Products } from "@/components/nywide/Products";
+import { Stats } from "@/components/nywide/Stats";
 import { Testimonials } from "@/components/nywide/Testimonials";
 import { Footer } from "@/components/nywide/Footer";
 import { TechBackground } from "@/components/nywide/TechBackground";
@@ -15,8 +16,9 @@ export default function Index() {
         <Header />
         <Hero />
         <Services />
-        <Stats />
+        <PainPoints />
         <Products />
+        <Stats />
         <Testimonials />
         <Footer />
       </div>

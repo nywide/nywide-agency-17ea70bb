@@ -1,47 +1,41 @@
-import { Monitor, Megaphone, Video, ArrowUpRight } from "lucide-react";
+import { Monitor, Megaphone, Video, ArrowRight, Zap, RefreshCw, Headphones, Target, Palette, UserCheck, PlayCircle, PenTool, Users } from "lucide-react";
 
 const services = [
   {
     icon: Monitor,
-    title: "Rent High‑Trust Facebook Ad Accounts – Scale Without Limits",
-    color: "from-primary to-yellow-600",
+    title: "Rent High-Trust Facebook Accounts",
+    problem: "Tired of bans, spending limits, and unstable accounts?",
+    solution: "We provide elite, whitelisted accounts with unlimited daily spend. No monthly fees — pay only for what you use.",
     features: [
-      "⚡ Stop Getting Banned. We provide elite, whitelisted accounts.",
-      "💰 No Monthly Fees. Pay only for what you spend.",
-      "🚀 Launch in 24 Hours (free trial available).",
-      "🌍 Target Any Country, Unlimited Daily Budget.",
-      "🛡️ Instant Replacement if an account is disabled.",
-      "📞 24/7 WhatsApp Support (because time is money).",
+      { icon: Zap, label: "Launch in 24 Hours" },
+      { icon: RefreshCw, label: "Instant Replacement" },
+      { icon: Headphones, label: "24/7 WhatsApp Support" },
     ],
-    pricing: "Custom Pricing – Starting from 6% commission. Contact us for a tailored plan.",
-    cta: "Request Your Free Trial",
+    cta: "Try Free Trial",
   },
   {
     icon: Megaphone,
-    title: "Done‑For‑You Marketing – We Build Your Entire Funnel",
-    color: "from-primary to-amber-500",
+    title: "Done-For-You Marketing",
+    problem: "Struggling with strategy, creatives, or campaign performance?",
+    solution: "We handle everything — from strategy to daily optimization — while you focus on your business.",
     features: [
-      "🎯 Tired of Wasting Money on Ads? We create a winning strategy from scratch.",
-      "📱 We Build Your Social Presence (Facebook, Instagram, TikTok).",
-      "🎬 High‑Converting Creatives (videos, images, copy) – no need to hire freelancers.",
-      "📈 Daily Optimization: We maximize your ROAS while you sleep.",
-      "👤 Dedicated Account Manager – one person to handle everything.",
+      { icon: Target, label: "Custom Strategy" },
+      { icon: Palette, label: "High-Converting Creatives" },
+      { icon: UserCheck, label: "Dedicated Account Manager" },
     ],
-    pricing: "Pricing starts at $250/month – tailored to your goals. Book a free consultation.",
-    cta: "Book a Strategy Call",
+    cta: "Book Strategy Call",
   },
   {
     icon: Video,
-    title: "Creative Content & Influencer Campaigns – Stop Scrolling, Start Selling",
-    color: "from-primary to-orange-500",
+    title: "Creative Content & Influencers",
+    problem: "Ads not converting? Need scroll-stopping creatives?",
+    solution: "We produce viral videos, professional graphics, and connect you with the right influencers.",
     features: [
-      "🎥 Scroll‑Stopping Video Ads (Reels, TikTok, YouTube).",
-      "🎨 Professional Graphic Design (static ads, carousels, banners).",
-      "✍️ Copy That Converts (ad copy, captions, landing pages).",
-      "🌟 Influencer Sourcing: We connect you with the right creators on Facebook, Instagram, and TikTok.",
+      { icon: PlayCircle, label: "Video Production" },
+      { icon: PenTool, label: "Graphic Design" },
+      { icon: Users, label: "Influencer Sourcing" },
     ],
-    pricing: "Project‑Based Pricing. Tell us your needs and we'll provide a custom quote.",
-    cta: "Get a Free Quote",
+    cta: "Get a Quote",
   },
 ];
 
@@ -63,32 +57,43 @@ export function Services() {
           {services.map((service, index) => (
             <div key={index} className="group relative bg-card rounded-3xl p-8 lg:p-10 border border-border hover:border-primary/50 transition-all duration-500 overflow-hidden flex flex-col">
               <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-              <div className={`relative w-16 h-16 rounded-2xl bg-gradient-to-br ${service.color} flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300`}>
+
+              <div className="relative w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-yellow-600 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
                 <service.icon className="w-8 h-8 text-black" />
               </div>
-              <h3 className="relative text-xl font-serif font-bold text-foreground mb-5 group-hover:text-primary transition-colors duration-300">{service.title}</h3>
-              <ul className="relative space-y-3 mb-6 flex-1">
-                {service.features.map((feature, i) => (
-                  <li key={i} className="text-sm text-muted-foreground leading-relaxed">
-                    {feature}
-                  </li>
-                ))}
-              </ul>
-              <p className="relative text-xs text-primary/80 font-medium mb-5 border-t border-border pt-5">
-                {service.pricing}
+
+              <h3 className="relative text-xl font-serif font-bold text-foreground mb-4 group-hover:text-primary transition-colors duration-300">
+                {service.title}
+              </h3>
+
+              <p className="relative text-primary/80 font-medium text-sm mb-3 italic">
+                "{service.problem}"
               </p>
+
+              <p className="relative text-muted-foreground text-sm leading-relaxed mb-6">
+                {service.solution}
+              </p>
+
+              <div className="relative space-y-3 mb-8 flex-1">
+                {service.features.map((feature, i) => (
+                  <div key={i} className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                      <feature.icon className="w-4 h-4 text-primary" />
+                    </div>
+                    <span className="text-sm text-foreground font-medium">{feature.label}</span>
+                  </div>
+                ))}
+              </div>
+
               <a
                 href="https://wa.me/37253957002"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="relative inline-flex items-center justify-center gap-2 w-full px-6 py-3 bg-primary/10 hover:bg-primary/20 border border-primary/30 hover:border-primary/60 rounded-xl text-primary font-semibold text-sm transition-all duration-300 group-hover:bg-primary group-hover:text-black"
+                className="relative inline-flex items-center justify-center gap-2 w-full px-6 py-4 bg-primary/10 hover:bg-primary border border-primary/30 hover:border-primary rounded-xl text-primary hover:text-black font-bold text-sm transition-all duration-300 active:scale-95"
               >
                 <span>{service.cta}</span>
-                <ArrowUpRight className="w-4 h-4" />
+                <ArrowRight className="w-4 h-4" />
               </a>
-              <div className="absolute top-8 right-8 opacity-10 group-hover:opacity-100 transition-opacity duration-500">
-                <ArrowUpRight className="w-8 h-8 text-primary" />
-              </div>
             </div>
           ))}
         </div>
