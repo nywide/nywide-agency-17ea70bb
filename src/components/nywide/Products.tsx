@@ -1,20 +1,26 @@
-import { Check, Zap, Crown, Shield, ArrowRight } from "lucide-react";
+import { Monitor, Megaphone, Video, ArrowRight } from "lucide-react";
 
-const products = [
+const plans = [
   {
-    name: "Starter", price: "$99", description: "Perfect for small businesses getting started",
-    features: ["1 Ad Account Setup", "Basic Pixel Configuration", "5 Campaign Templates", "Email Support", "Monthly Reporting"],
-    popular: false, icon: Zap,
+    icon: Monitor,
+    title: "Facebook Ad Account Rental",
+    description: "Commission-based: Starting from 6% of ad spend. No monthly fees. Free trial available.",
+    cta: "Get Quote",
+    href: "https://wa.me/37253957002",
   },
   {
-    name: "Elite", price: "$250", description: "Our most popular choice for growing brands",
-    features: ["3 Ad Account Setup", "Advanced Pixel + CAPI", "Unlimited Campaigns", "Priority Support 24/7", "Weekly Reporting", "AI Audience Builder", "Creative Templates Pack"],
-    popular: true, icon: Crown,
+    icon: Megaphone,
+    title: "Done-For-You Marketing",
+    description: "Custom pricing based on your scope and goals. Free consultation to define your needs.",
+    cta: "Book a Call",
+    href: "https://wa.me/37253957002",
   },
   {
-    name: "Enterprise", price: "Custom", description: "Full-scale solution for large operations",
-    features: ["Unlimited Ad Accounts", "Full Tech Integration", "Dedicated Account Manager", "White-Glove Setup", "Real-time Dashboard", "Custom AI Models", "On-site Training", "SLA Guarantee"],
-    popular: false, icon: Shield,
+    icon: Video,
+    title: "Creative Content & Influencer Campaigns",
+    description: "Project-based pricing. Tell us your requirements and we'll provide a custom quote.",
+    cta: "Request Quote",
+    href: "https://wa.me/37253957002",
   },
 ];
 
@@ -25,39 +31,39 @@ export function Products() {
         <div className="text-center mb-16">
           <span className="inline-block px-4 py-2 bg-primary/10 border border-primary/30 rounded-full text-primary text-sm font-semibold tracking-wider uppercase mb-4">Pricing</span>
           <h2 className="font-serif text-4xl sm:text-5xl lg:text-6xl font-black text-foreground mb-6" style={{ textWrap: "balance" }}>
-            AD ACCOUNT <span className="text-primary text-glow">PACKAGES</span>
+            PRICING THAT FITS YOUR{" "}
+            <span className="text-primary text-glow">GOALS</span>
           </h2>
-          <p className="text-xl text-muted-foreground max-w-2xl mx-auto">Choose the perfect package to accelerate your digital growth.</p>
+          <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+            No surprises. Pay only for what you need.
+          </p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8">
-          {products.map((product, index) => (
-            <div key={index} className={`group relative rounded-3xl p-8 lg:p-10 border transition-all duration-500 ${product.popular ? "bg-primary/10 border-primary glow-gold" : "bg-card border-border hover:border-primary/50"}`}>
-              {product.popular && (
-                <div className="absolute -top-4 left-1/2 -translate-x-1/2 px-4 py-1 bg-primary text-primary-foreground text-sm font-bold rounded-full">Most Popular</div>
-              )}
-              <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-6 ${product.popular ? "bg-primary text-primary-foreground" : "bg-primary/10 text-primary"}`}>
-                <product.icon className="w-7 h-7" />
+          {plans.map((plan, index) => (
+            <div key={index} className="group relative bg-card rounded-3xl p-8 lg:p-10 border border-border hover:border-primary/50 transition-all duration-500 overflow-hidden flex flex-col text-center">
+              <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+
+              <div className="relative w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-yellow-600 flex items-center justify-center mb-6 mx-auto group-hover:scale-110 transition-transform duration-300">
+                <plan.icon className="w-8 h-8 text-black" />
               </div>
-              <h3 className="text-2xl font-serif font-bold text-foreground mb-2">{product.name}</h3>
-              <div className="flex items-baseline gap-1 mb-4">
-                <span className={`text-5xl font-serif font-black ${product.popular ? "text-primary text-glow" : "text-foreground"}`}>{product.price}</span>
-                {product.price !== "Custom" && <span className="text-muted-foreground">/month</span>}
-              </div>
-              <p className="text-muted-foreground mb-8">{product.description}</p>
-              <ul className="space-y-4 mb-8">
-                {product.features.map((feature, i) => (
-                  <li key={i} className="flex items-center gap-3">
-                    <div className={`w-5 h-5 rounded-full flex items-center justify-center ${product.popular ? "bg-primary text-primary-foreground" : "bg-primary/20 text-primary"}`}>
-                      <Check className="w-3 h-3" />
-                    </div>
-                    <span className="text-foreground">{feature}</span>
-                  </li>
-                ))}
-              </ul>
-              <a href="#contact" className={`w-full flex items-center justify-center gap-2 px-6 py-4 rounded-full font-bold transition-all duration-300 active:scale-95 ${product.popular ? "bg-primary text-primary-foreground glow-gold-hover" : "bg-foreground/10 text-foreground hover:bg-primary hover:text-primary-foreground"}`}>
-                <span>Get Started</span>
-                <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+
+              <h3 className="relative text-xl font-serif font-bold text-foreground mb-4 group-hover:text-primary transition-colors duration-300">
+                {plan.title}
+              </h3>
+
+              <p className="relative text-muted-foreground text-sm leading-relaxed mb-8 flex-1">
+                {plan.description}
+              </p>
+
+              <a
+                href={plan.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="relative inline-flex items-center justify-center gap-2 w-full px-6 py-4 bg-primary/10 hover:bg-primary border border-primary/30 hover:border-primary rounded-xl text-primary hover:text-black font-bold text-sm transition-all duration-300 active:scale-95"
+              >
+                <span>{plan.cta}</span>
+                <ArrowRight className="w-4 h-4" />
               </a>
             </div>
           ))}
