@@ -90,8 +90,6 @@ export function Services() {
 
               <a
                 href={service.href}
-                target={service.href.startsWith("http") ? "_blank" : undefined}
-                rel={service.href.startsWith("http") ? "noopener noreferrer" : undefined}
                 className="relative inline-flex items-center justify-center gap-2 w-full px-6 py-4 bg-primary/10 hover:bg-primary border border-primary/30 hover:border-primary rounded-xl text-primary hover:text-black font-bold text-sm transition-all duration-300 active:scale-95"
               >
                 <span>{service.cta}</span>

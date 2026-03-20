@@ -41,8 +41,8 @@ export function Footer() {
               <p className="text-xl text-muted-foreground">Let's discuss how we can help you achieve extraordinary results.</p>
             </div>
             <div className="flex flex-col sm:flex-row gap-4 lg:justify-end">
-              <a href="mailto:contact@nywide.agency" className="group inline-flex items-center justify-center gap-3 px-8 py-5 bg-primary text-primary-foreground rounded-full text-lg font-bold glow-gold-hover transition-all duration-300 active:scale-95">
-                <span>Get Free Consultation</span>
+              <a href="https://wa.me/3725395702" target="_blank" rel="noopener noreferrer" className="group inline-flex items-center justify-center gap-3 px-8 py-5 bg-primary text-primary-foreground rounded-full text-lg font-bold glow-gold-hover transition-all duration-300 active:scale-95">
+                <span>Contact Us</span>
                 <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
               </a>
             </div>
