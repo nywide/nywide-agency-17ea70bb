@@ -12,6 +12,7 @@ import SignupCustom from "./pages/SignupCustom.tsx";
 import Dashboard from "./pages/Dashboard.tsx";
 import Admin from "./pages/Admin.tsx";
 import NotFound from "./pages/NotFound.tsx";
+import Unsubscribe from "./pages/Unsubscribe.tsx";
 
 const queryClient = new QueryClient();
 
