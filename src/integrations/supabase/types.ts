@@ -334,6 +334,35 @@ export type Database = {
           },
         ]
       }
+      user_commission_overrides: {
+        Row: {
+          id: string
+          rate: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          rate: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          id?: string
+          rate?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_commission_overrides_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           id: string

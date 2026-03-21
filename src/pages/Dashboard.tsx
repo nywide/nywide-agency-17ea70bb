@@ -66,7 +66,14 @@ export default function Dashboard() {
     }
   };
 
+  const hasActiveAccounts = adAccounts.some(a => a.status === "active");
+
   const handleRequestAccount = async () => {
+    // If user already has active accounts, preferred limit is required
+    if (hasActiveAccounts && !preferredLimit) {
+      toast({ title: "Initial Balance required", description: "Please specify an initial balance for additional accounts.", variant: "destructive" });
+      return;
+    }
     setLoading(true);
     const { error } = await supabase.from("account_requests").insert({
       user_id: user!.id,
@@ -115,7 +122,6 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
       <header className="border-b border-border bg-card/80 backdrop-blur-sm sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2">
@@ -133,7 +139,6 @@ export default function Dashboard() {
       <div className="max-w-7xl mx-auto px-4 py-8">
         <h1 className="text-3xl font-bold text-foreground mb-8">Dashboard</h1>
 
-        {/* Tabs */}
         <div className="flex gap-2 mb-8 overflow-x-auto pb-2">
           {tabs.map((tab) => (
             <button
@@ -167,7 +172,6 @@ export default function Dashboard() {
                 </Button>
               </div>
             </div>
-            {/* Quick stats */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="bg-card border border-border rounded-xl p-5">
                 <p className="text-muted-foreground text-sm">Active Accounts</p>
@@ -200,28 +204,45 @@ export default function Dashboard() {
                 <p className="text-muted-foreground">No ad accounts yet. Request one to get started!</p>
               </div>
             ) : (
-              <div className="grid gap-4">
-                {adAccounts.map((acc) => (
-                  <div key={acc.id} className="bg-card border border-border rounded-xl p-5">
-                    <div className="flex items-start justify-between mb-3">
-                      <div>
-                        <h3 className="font-bold text-foreground">{acc.account_name}</h3>
-                        <p className="text-sm text-muted-foreground">ID: {acc.account_id} · {acc.currency} · {acc.timezone}</p>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        {statusIcon(acc.status)}
-                        <span className="text-sm capitalize text-muted-foreground">{acc.status}</span>
-                      </div>
-                    </div>
-                    <div className="space-y-1.5">
-                      <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">Spend</span>
-                        <span className="text-foreground">${Number(acc.current_spend).toFixed(2)} / ${Number(acc.spend_limit).toFixed(2)}</span>
-                      </div>
-                      <Progress value={acc.spend_limit > 0 ? (acc.current_spend / acc.spend_limit) * 100 : 0} className="h-2" />
-                    </div>
-                  </div>
-                ))}
+              <div className="bg-card border border-border rounded-xl overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border">
+                        <th className="text-left p-4 text-muted-foreground font-medium">Account Name</th>
+                        <th className="text-left p-4 text-muted-foreground font-medium">Account ID</th>
+                        <th className="text-left p-4 text-muted-foreground font-medium">Currency</th>
+                        <th className="text-left p-4 text-muted-foreground font-medium">Timezone</th>
+                        <th className="text-left p-4 text-muted-foreground font-medium">Spending Limit</th>
+                        <th className="text-left p-4 text-muted-foreground font-medium">Current Spend</th>
+                        <th className="text-left p-4 text-muted-foreground font-medium">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {adAccounts.map((acc) => (
+                        <tr key={acc.id} className="border-b border-border/50 hover:bg-secondary/50">
+                          <td className="p-4 text-foreground font-medium">{acc.account_name}</td>
+                          <td className="p-4 text-foreground font-mono text-xs">{acc.account_id}</td>
+                          <td className="p-4 text-foreground">{acc.currency}</td>
+                          <td className="p-4 text-foreground text-xs">{acc.timezone}</td>
+                          <td className="p-4 text-foreground">${Number(acc.spend_limit).toFixed(2)}</td>
+                          <td className="p-4">
+                            <div className="space-y-1">
+                              <span className="text-foreground">${Number(acc.current_spend).toFixed(2)}</span>
+                              <Progress value={acc.spend_limit > 0 ? (acc.current_spend / acc.spend_limit) * 100 : 0} className="h-1.5" />
+                            </div>
+                          </td>
+                          <td className="p-4">
+                            <span className="flex items-center gap-1.5">
+                              {statusIcon(acc.status)}
+                              <span className="capitalize text-muted-foreground">{acc.status}</span>
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             )}
           </div>
@@ -358,8 +379,19 @@ export default function Dashboard() {
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label className="text-foreground">Preferred Spending Limit (USD)</Label>
-              <Input placeholder="e.g. 1000 or Unlimited" value={preferredLimit} onChange={(e) => setPreferredLimit(e.target.value)} className="bg-secondary border-border text-foreground" />
+              <Label className="text-foreground">
+                Initial Balance (USD){hasActiveAccounts ? " *" : " (optional)"}
+              </Label>
+              <Input
+                placeholder={hasActiveAccounts ? "Required for additional accounts" : "e.g. 1000 or leave empty"}
+                value={preferredLimit}
+                onChange={(e) => setPreferredLimit(e.target.value)}
+                className="bg-secondary border-border text-foreground"
+                required={hasActiveAccounts}
+              />
+              {!hasActiveAccounts && (
+                <p className="text-xs text-muted-foreground">Optional for your first account request.</p>
+              )}
             </div>
             <Button onClick={handleRequestAccount} disabled={loading} className="w-full bg-primary text-primary-foreground font-bold rounded-full">
               {loading ? "Submitting..." : "Submit Request"}
