@@ -11,8 +11,8 @@ const services = [
       { icon: RefreshCw, label: "Instant Replacement" },
       { icon: Headphones, label: "24/7 WhatsApp Support" },
     ],
-    cta: "Get Started",
-    href: "#signup",
+    cta: "See Pricing",
+    href: "#products",
   },
   {
     icon: Megaphone,
