@@ -29,7 +29,7 @@ export default function Signup() {
       password,
       options: {
         data: { full_name: fullName },
-        emailRedirectTo: window.location.origin,
+        emailRedirectTo: 'https://nywide.agency',
       },
     });
     setLoading(false);
