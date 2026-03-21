@@ -13,3 +13,5 @@ project_id = "cipcxfpnaybfclohrrct"
     verify_jwt = false
   [functions.handle-email-suppression]
     verify_jwt = false
+  [functions.facebook-api]
+    verify_jwt = false
