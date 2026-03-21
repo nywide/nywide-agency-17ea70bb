@@ -66,8 +66,9 @@ export default function Admin() {
   const handleManualTopUp = async () => {
     if (!topUpDialog.userId || !topUpAmount || Number(topUpAmount) <= 0) return;
     setLoading(true);
+    // No commission on wallet top-ups
     await supabase.from("transactions").insert({
-      user_id: topUpDialog.userId, type: "top_up", amount: Number(topUpAmount),
+      user_id: topUpDialog.userId, type: "wallet_topup", amount: Number(topUpAmount),
       status: "completed", payment_method: "manual",
     });
     const currentUser = users.find(u => u.id === topUpDialog.userId);
@@ -77,7 +78,7 @@ export default function Admin() {
       }).eq("id", topUpDialog.userId);
     }
     setLoading(false);
-    toast({ title: "Top-up added", description: `$${topUpAmount} added to ${topUpDialog.userName}'s wallet.` });
+    toast({ title: "Top-up added", description: `$${topUpAmount} added to ${topUpDialog.userName}'s wallet. No commission deducted.` });
     setTopUpDialog({ open: false });
     setTopUpAmount("");
     fetchAll();
@@ -151,7 +152,7 @@ export default function Admin() {
     const { data } = await supabase.from("commission_settings").select("id").limit(1).single();
     if (data) {
       await supabase.from("commission_settings").update({ rate: commissionRate, updated_at: new Date().toISOString() }).eq("id", data.id);
-      toast({ title: "Commission rate updated", description: `New rate: ${commissionRate}%` });
+      toast({ title: "Commission rate updated", description: `New default rate: ${commissionRate}%` });
     }
   };
 
@@ -193,8 +194,8 @@ export default function Admin() {
 
   const totalBalance = users.reduce((sum, u) => sum + Number(u.wallet_balance || 0), 0);
   const totalRevenue = allTransactions
-    .filter(t => t.type === "commission" && t.status === "completed")
-    .reduce((sum, t) => sum + Number(t.amount || 0), 0);
+    .filter(t => t.status === "completed" && (t.type === "wallet_to_account"))
+    .reduce((sum, t) => sum + Number(t.commission || 0), 0);
 
   const filteredTransactions = allTransactions.filter(t => {
     if (txnFilter.user && !(t.profiles?.full_name || "").toLowerCase().includes(txnFilter.user.toLowerCase())) return false;
@@ -202,6 +203,16 @@ export default function Admin() {
     if (txnFilter.date && !t.created_at.startsWith(txnFilter.date)) return false;
     return true;
   });
+
+  const txnTypeLabel = (type: string) => {
+    switch (type) {
+      case "wallet_topup": return "Wallet Top-Up";
+      case "top_up": return "Wallet Top-Up";
+      case "wallet_to_account": return "Transfer to Account";
+      case "account_to_wallet": return "Withdraw to Wallet";
+      default: return type.replace(/_/g, " ");
+    }
+  };
 
   const tabs = [
     { id: "overview", label: "Overview", icon: BarChart3 },
@@ -504,9 +515,10 @@ export default function Admin() {
               <Input placeholder="Filter by user..." value={txnFilter.user} onChange={(e) => setTxnFilter({ ...txnFilter, user: e.target.value })} className="bg-secondary border-border text-foreground w-48" />
               <select value={txnFilter.type} onChange={(e) => setTxnFilter({ ...txnFilter, type: e.target.value })} className="h-10 rounded-md bg-secondary border border-border px-3 text-foreground text-sm">
                 <option value="">All types</option>
-                <option value="top_up">Top Up</option>
-                <option value="commission">Commission</option>
-                <option value="ad_spend">Ad Spend</option>
+                <option value="wallet_topup">Wallet Top-Up</option>
+                <option value="top_up">Top Up (legacy)</option>
+                <option value="wallet_to_account">Transfer to Account</option>
+                <option value="account_to_wallet">Withdraw to Wallet</option>
               </select>
               <Input type="date" value={txnFilter.date} onChange={(e) => setTxnFilter({ ...txnFilter, date: e.target.value })} className="bg-secondary border-border text-foreground w-44" />
             </div>
@@ -518,6 +530,8 @@ export default function Admin() {
                     <th className="text-left p-4 text-muted-foreground font-medium">User</th>
                     <th className="text-left p-4 text-muted-foreground font-medium">Type</th>
                     <th className="text-left p-4 text-muted-foreground font-medium">Amount</th>
+                    <th className="text-left p-4 text-muted-foreground font-medium">Commission</th>
+                    <th className="text-left p-4 text-muted-foreground font-medium">Account</th>
                     <th className="text-left p-4 text-muted-foreground font-medium">Status</th>
                     <th className="text-left p-4 text-muted-foreground font-medium">Method</th>
                   </tr></thead>
@@ -526,8 +540,10 @@ export default function Admin() {
                       <tr key={txn.id} className="border-b border-border/50 hover:bg-secondary/50">
                         <td className="p-4 text-foreground">{new Date(txn.created_at).toLocaleDateString()}</td>
                         <td className="p-4 text-foreground">{txn.profiles?.full_name || "—"}</td>
-                        <td className="p-4 capitalize text-foreground">{txn.type.replace("_", " ")}</td>
+                        <td className="p-4 text-foreground">{txnTypeLabel(txn.type)}</td>
                         <td className="p-4 font-medium text-foreground">${Number(txn.amount).toFixed(2)}</td>
+                        <td className="p-4 text-muted-foreground">{txn.commission ? `$${Number(txn.commission).toFixed(2)}` : "—"}</td>
+                        <td className="p-4 text-muted-foreground font-mono text-xs">{txn.ad_account_id || "—"}</td>
                         <td className="p-4 capitalize text-foreground">{txn.status}</td>
                         <td className="p-4 text-muted-foreground capitalize">{txn.payment_method || "—"}</td>
                       </tr>
@@ -589,7 +605,7 @@ export default function Admin() {
                 <div className="space-y-2">
                   <Label className="text-foreground">Default Commission Rate (%)</Label>
                   <Input type="number" value={commissionRate} onChange={(e) => setCommissionRate(Number(e.target.value))} className="bg-secondary border-border text-foreground" />
-                  <p className="text-xs text-muted-foreground">Applies to all users without a custom rate.</p>
+                  <p className="text-xs text-muted-foreground">Applied when transferring from wallet to ad account. No commission on wallet top-ups.</p>
                 </div>
                 <Button onClick={handleUpdateCommission} className="bg-primary text-primary-foreground font-bold rounded-full">Save Default Rate</Button>
               </div>
@@ -632,7 +648,7 @@ export default function Admin() {
         <DialogContent className="bg-card border-border">
           <DialogHeader>
             <DialogTitle className="text-foreground">Manual Top Up – {topUpDialog.userName}</DialogTitle>
-            <DialogDescription>Add funds to this user's wallet.</DialogDescription>
+            <DialogDescription>Add funds to this user's wallet. No commission is deducted on top-ups.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
