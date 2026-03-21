@@ -41,11 +41,14 @@ export default function Signup() {
   };
 
   const handleGoogleSignup = async () => {
-    const { error } = await lovable.auth.signInWithOAuth("google", {
-      redirect_uri: window.location.origin,
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: window.location.origin,
+      },
     });
     if (error) {
-      toast({ title: "Google signup failed", description: String(error), variant: "destructive" });
+      toast({ title: "Google signup failed", description: error.message, variant: "destructive" });
     }
   };
 

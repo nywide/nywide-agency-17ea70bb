@@ -18,7 +18,7 @@ const plans = [
       "Generate invoices for tax purposes (VAT-ready)",
     ],
     cta: "Get Started",
-    href: "#signup",
+    href: "/signup",
   },
   {
     icon: Megaphone,
