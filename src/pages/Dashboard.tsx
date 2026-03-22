@@ -37,7 +37,10 @@ export default function Dashboard() {
   const [topUpMethod, setTopUpMethod] = useState("manual");
   const [transferAmount, setTransferAmount] = useState("");
   const [withdrawAmount, setWithdrawAmount] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [topUpLoading, setTopUpLoading] = useState(false);
+  const [requestLoading, setRequestLoading] = useState(false);
+  const [transferLoading, setTransferLoading] = useState(false);
+  const [withdrawLoading, setWithdrawLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("dashboard");
   const [commissionRate, setCommissionRate] = useState(6);
   const [txnSearch, setTxnSearch] = useState("");

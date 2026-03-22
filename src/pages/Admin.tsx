@@ -56,7 +56,11 @@ export default function Admin() {
   });
   const [editAccountDialog, setEditAccountDialog] = useState<{ open: boolean; account?: any }>({ open: false });
   const [overrideDialog, setOverrideDialog] = useState<{ open: boolean; userId?: string; userName?: string; rate?: string }>({ open: false });
-  const [loading, setLoading] = useState(false);
+  const [addingAccount, setAddingAccount] = useState(false);
+  const [toppingUp, setToppingUp] = useState(false);
+  const [approvingId, setApprovingId] = useState<string | null>(null);
+  const [savingOverride, setSavingOverride] = useState(false);
+  const [updatingAccount, setUpdatingAccount] = useState(false);
 
   const [allUsersForDropdown, setAllUsersForDropdown] = useState<any[]>([]);
 
