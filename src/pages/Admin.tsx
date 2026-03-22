@@ -501,6 +501,7 @@ export default function Admin() {
     }
   };
 
+  const handleApproveRequest = async (req: any) => {
     setApprovingId(req.id);
     await supabase.from("ad_accounts").insert({
       account_id: `FB-${Date.now().toString(36).toUpperCase()}`,
