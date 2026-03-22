@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, lazy, Suspense } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -35,8 +35,6 @@ export default function Dashboard() {
   const [withdrawOpen, setWithdrawOpen] = useState<{ open: boolean; account?: any }>({ open: false });
   const [topUpAmount, setTopUpAmount] = useState("");
   const [topUpMethod, setTopUpMethod] = useState("manual");
-  const [preferredLimit, setPreferredLimit] = useState("");
-  const [requestPlatform, setRequestPlatform] = useState("facebook");
   const [transferAmount, setTransferAmount] = useState("");
   const [withdrawAmount, setWithdrawAmount] = useState("");
   const [loading, setLoading] = useState(false);
@@ -48,6 +46,13 @@ export default function Dashboard() {
   const [fbBalances, setFbBalances] = useState<Record<string, { spend_cap: number; amount_spent: number }>>({});
   const [refreshingAccount, setRefreshingAccount] = useState<string | null>(null);
   const [dashStats, setDashStats] = useState({ totalSpent: 0, txnCount: 0, invCount: 0 });
+
+  // Account request form fields
+  const [requestPlatform, setRequestPlatform] = useState("facebook");
+  const [requestAccountName, setRequestAccountName] = useState("");
+  const [requestCurrency, setRequestCurrency] = useState("USD");
+  const [requestTimezone, setRequestTimezone] = useState("America/New_York");
+  const [requestPreferredLimit, setRequestPreferredLimit] = useState("");
 
   useEffect(() => {
     if (user) {
@@ -69,7 +74,6 @@ export default function Dashboard() {
     const { data } = await supabase.from("ad_accounts").select("*").eq("user_id", user!.id).order("created_at", { ascending: false });
     if (data) {
       setAdAccounts(data);
-      // Fetch FB balances via cached edge function
       const accountIds = data.map((a: any) => a.account_id);
       if (accountIds.length > 0) {
         try {
@@ -141,40 +145,76 @@ export default function Dashboard() {
       return;
     }
     setLoading(true);
-    const { error } = await supabase.from("transactions").insert({
-      user_id: user!.id, type: "wallet_topup", amount: Number(topUpAmount),
-      status: topUpMethod === "manual" ? "pending" : "pending", payment_method: topUpMethod,
-    });
-    setLoading(false);
-    if (error) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+    if (topUpMethod === "manual") {
+      // Create a topup request for admin approval
+      const { error } = await supabase.from("topup_requests").insert({
+        user_id: user!.id, amount: Number(topUpAmount), currency: "USD", payment_method: topUpMethod, status: "pending",
+      } as any);
+      setLoading(false);
+      if (error) {
+        toast({ title: "Error", description: error.message, variant: "destructive" });
+      } else {
+        toast({ title: "Top-up request submitted", description: "Admin will review and approve your request." });
+        setTopUpOpen(false);
+        setTopUpAmount("");
+      }
     } else {
-      toast({ title: "Top-up request submitted", description: topUpMethod === "manual" ? "Admin will process your request." : "Processing payment..." });
-      setTopUpOpen(false);
-      setTopUpAmount("");
-      fetchDashStats();
+      // Stripe flow (placeholder - creates pending transaction)
+      const { error } = await supabase.from("transactions").insert({
+        user_id: user!.id, type: "wallet_topup", amount: Number(topUpAmount),
+        status: "pending", payment_method: topUpMethod,
+      });
+      setLoading(false);
+      if (error) {
+        toast({ title: "Error", description: error.message, variant: "destructive" });
+      } else {
+        toast({ title: "Top-up request submitted", description: "Processing payment..." });
+        setTopUpOpen(false);
+        setTopUpAmount("");
+        fetchDashStats();
+      }
     }
   };
 
   const hasActiveAccounts = adAccounts.some(a => a.status === "active");
 
   const handleRequestAccount = async () => {
-    if (hasActiveAccounts && !preferredLimit) {
+    if (!requestAccountName) {
+      toast({ title: "Account Name is required", variant: "destructive" });
+      return;
+    }
+    if (!requestCurrency) {
+      toast({ title: "Currency is required", variant: "destructive" });
+      return;
+    }
+    if (!requestTimezone) {
+      toast({ title: "Timezone is required", variant: "destructive" });
+      return;
+    }
+    if (hasActiveAccounts && !requestPreferredLimit) {
       toast({ title: "Initial Balance required", description: "Please specify an initial balance for additional accounts.", variant: "destructive" });
       return;
     }
     setLoading(true);
     const { error } = await supabase.from("account_requests").insert({
-      user_id: user!.id, platform: requestPlatform, preferred_limit: preferredLimit || null,
-    });
+      user_id: user!.id,
+      platform: requestPlatform,
+      preferred_limit: requestPreferredLimit || null,
+      account_name: requestAccountName,
+      currency: requestCurrency,
+      timezone: requestTimezone,
+    } as any);
     setLoading(false);
     if (error) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     } else {
       toast({ title: "Request submitted", description: "Admin will review your request." });
       setRequestOpen(false);
-      setPreferredLimit("");
+      setRequestPreferredLimit("");
       setRequestPlatform("facebook");
+      setRequestAccountName("");
+      setRequestCurrency("USD");
+      setRequestTimezone("America/New_York");
     }
   };
 
@@ -357,7 +397,6 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {/* Ad Accounts Summary */}
             {adAccounts.length > 0 && (
               <div>
                 <h2 className="text-lg font-bold text-foreground mb-3">Ad Accounts</h2>
@@ -366,7 +405,7 @@ export default function Dashboard() {
                     <div key={acc.id} className="bg-card border border-border rounded-xl p-4 flex items-center justify-between">
                       <div>
                         <p className="font-medium text-foreground">{acc.account_name}</p>
-                        <p className="text-sm text-muted-foreground">{acc.account_id} · {acc.currency}</p>
+                        <p className="text-sm text-muted-foreground">{acc.account_id} · {acc.platform} · {acc.currency}</p>
                       </div>
                       <div className="text-right flex items-center gap-2">
                         <div>
@@ -408,7 +447,7 @@ export default function Dashboard() {
                   return (
                     <div key={acc.id} className="bg-card border border-border rounded-xl p-5">
                       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                        <div className="flex-1 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+                        <div className="flex-1 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-4">
                           <div>
                             <p className="text-xs text-muted-foreground">Account Name</p>
                             <p className="text-sm font-medium text-foreground">{acc.account_name}</p>
@@ -418,12 +457,20 @@ export default function Dashboard() {
                             <p className="text-sm font-mono text-foreground">{acc.account_id}</p>
                           </div>
                           <div>
+                            <p className="text-xs text-muted-foreground">Platform</p>
+                            <p className="text-sm text-foreground capitalize">{acc.platform}</p>
+                          </div>
+                          <div>
                             <p className="text-xs text-muted-foreground">Account Balance</p>
                             <p className="text-sm font-medium text-foreground">${balance.toFixed(2)}</p>
                           </div>
                           <div>
-                            <p className="text-xs text-muted-foreground">Currency / TZ</p>
-                            <p className="text-sm text-foreground">{acc.currency} · {acc.timezone}</p>
+                            <p className="text-xs text-muted-foreground">Currency</p>
+                            <p className="text-sm text-foreground">{acc.currency}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Timezone</p>
+                            <p className="text-sm text-foreground text-xs">{acc.timezone}</p>
                           </div>
                           <div>
                             <p className="text-xs text-muted-foreground">Status</p>
@@ -611,6 +658,7 @@ export default function Dashboard() {
                   </button>
                 ))}
               </div>
+              {topUpMethod === "manual" && <p className="text-xs text-muted-foreground">Your request will be sent to admin for approval.</p>}
             </div>
             <Button onClick={handleTopUp} disabled={loading || !topUpAmount} className="w-full bg-primary text-primary-foreground font-bold rounded-full">
               {loading ? "Processing..." : "Submit Top Up"}
@@ -696,24 +744,38 @@ export default function Dashboard() {
         <DialogContent className="bg-card border-border">
           <DialogHeader>
             <DialogTitle className="text-foreground">Request Ad Account</DialogTitle>
-            <DialogDescription>Request a new ad account. Fill in the details below.</DialogDescription>
+            <DialogDescription>Fill in all details below. Admin will review and create the account.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label className="text-foreground">Platform</Label>
+              <Label className="text-foreground">Platform *</Label>
               <select value={requestPlatform} onChange={(e) => setRequestPlatform(e.target.value)} className="w-full h-10 rounded-md bg-secondary border border-border px-3 text-foreground text-sm">
                 <option value="facebook">Facebook</option>
-                <option value="google">Google Ads</option>
                 <option value="tiktok">TikTok</option>
+                <option value="google">Google</option>
                 <option value="snapchat">Snapchat</option>
               </select>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-foreground">Account Name *</Label>
+              <Input placeholder="e.g. Client X - US Campaign" value={requestAccountName} onChange={(e) => setRequestAccountName(e.target.value)} className="bg-secondary border-border text-foreground" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label className="text-foreground">Currency *</Label>
+                <Input placeholder="USD, EUR..." value={requestCurrency} onChange={(e) => setRequestCurrency(e.target.value)} className="bg-secondary border-border text-foreground" />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-foreground">Timezone *</Label>
+                <Input placeholder="America/New_York" value={requestTimezone} onChange={(e) => setRequestTimezone(e.target.value)} className="bg-secondary border-border text-foreground" />
+              </div>
             </div>
             <div className="space-y-2">
               <Label className="text-foreground">
                 Initial Balance (USD){hasActiveAccounts ? " *" : " (optional)"}
               </Label>
-              <Input placeholder={hasActiveAccounts ? "Required for additional accounts" : "e.g. 1000 or leave empty"}
-                value={preferredLimit} onChange={(e) => setPreferredLimit(e.target.value)}
+              <Input type="number" placeholder={hasActiveAccounts ? "Required for additional accounts" : "e.g. 1000 or leave empty"}
+                value={requestPreferredLimit} onChange={(e) => setRequestPreferredLimit(e.target.value)}
                 className="bg-secondary border-border text-foreground" required={hasActiveAccounts} />
               {!hasActiveAccounts && <p className="text-xs text-muted-foreground">Optional for your first account request.</p>}
             </div>
