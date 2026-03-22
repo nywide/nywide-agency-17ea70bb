@@ -223,16 +223,21 @@ export default function Admin() {
     const { data, count } = await supabase.from("ad_accounts").select("*, profiles(full_name, email)", { count: "exact" })
       .order("created_at", { ascending: false }).range(accPage * PAGE_SIZE, (accPage + 1) * PAGE_SIZE - 1);
     if (data) {
+      console.log("=== Ad accounts from database ===");
+      data.forEach(acc => {
+        console.log(`Account ${acc.account_name}: spend_limit stored = ${acc.spend_limit} (should be dollars)`);
+      });
       setAdAccounts(data);
-      // Fetch cached FB data in background
+      // totalAccounts is tracked via overviewStats
+      // Background fetch from Facebook for cached spend data
       const fbAccountIds = data.filter(a => a.platform === "facebook").map(a => a.account_id);
       if (fbAccountIds.length > 0) {
         supabase.functions.invoke("facebook-api", {
           body: { action: "batch_get_spend_limits", account_ids: fbAccountIds },
         }).then(({ data: fbData }) => {
           if (fbData?.results) {
-            setAccountCache(fbData.results);
-            // Update local state with fresh data
+            console.log("=== Cached/fetched spend data from Facebook ===");
+            console.log("Raw results:", JSON.stringify(fbData.results));
             setAdAccounts(prev => prev.map(acc => {
               const cached = fbData.results[acc.account_id];
               if (cached) {
@@ -242,11 +247,13 @@ export default function Admin() {
                 let amountSpent = cached.amount_spent ?? acc.current_spend;
                 // Values > 10x the DB value and > 100 likely stored in cents
                 const dbVal = Number(acc.spend_limit);
+                console.log(`Account ${acc.account_name}: DB=${dbVal}, cached spend_cap=${cached.spend_cap}, cached amount_spent=${cached.amount_spent}`);
                 if (dbVal > 0 && spendCap > dbVal * 5 && spendCap >= 100) {
                   console.warn(`[Admin] Cache value ${spendCap} seems like cents for account ${acc.account_id}, converting to dollars`);
                   spendCap = spendCap / 100;
                   amountSpent = amountSpent / 100;
                 }
+                console.log(`Account ${acc.account_name}: final display spend_limit=${spendCap}, current_spend=${amountSpent}`);
                 return { ...acc, spend_limit: spendCap, current_spend: amountSpent };
               }
               return acc;
@@ -410,6 +417,8 @@ export default function Admin() {
     setAddingAccount(true);
     try {
       const spendLimit = Number(newAccount.spend_limit) || 0;
+      console.log("=== Sending to Facebook ===");
+      console.log("Original balance in dollars (from form):", spendLimit);
       const insertData = {
         account_id: newAccount.account_id.trim(),
         account_name: newAccount.account_name.trim(),
@@ -424,6 +433,7 @@ export default function Admin() {
       // If Facebook account with balance, set spend limit on FB first
       if (spendLimit > 0 && insertData.platform === "facebook") {
         console.log("[Admin] Setting Facebook spend limit to $" + spendLimit);
+        console.log("Sending to Facebook API (will be converted to cents on server):", spendLimit, "dollars →", spendLimit * 100, "cents");
         const { data: fbData, error: fbError } = await supabase.functions.invoke("facebook-api", {
           body: { action: "set_spend_limit", ad_account_id: insertData.account_id, amount: spendLimit },
         });
@@ -439,6 +449,8 @@ export default function Admin() {
           setAddingAccount(false);
           return;
         }
+        console.log("=== Response from Facebook ===");
+        console.log("Response data:", fbData);
         console.log("[Admin] Facebook spend limit set successfully");
       }
 
