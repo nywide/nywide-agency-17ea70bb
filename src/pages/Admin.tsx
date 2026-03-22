@@ -157,19 +157,31 @@ export default function Admin() {
   };
 
   const fetchUsers = async () => {
-    let query = supabase.from("profiles").select("*, user_roles(role)", { count: "exact" });
-    if (searchTerm) query = query.or(`full_name.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`);
-    const { data, count } = await query.order("created_at", { ascending: false }).range(userPage * PAGE_SIZE, (userPage + 1) * PAGE_SIZE - 1);
-    if (data) {
-      setUsers(data);
-      // Fetch total spent for these users
-      const userIds = data.map((u: any) => u.id);
-      const { data: spentData } = await supabase.from("transactions").select("user_id, amount").eq("type", "wallet_to_account").eq("status", "completed").in("user_id", userIds);
-      const spentMap: Record<string, number> = {};
-      (spentData || []).forEach((t: any) => { spentMap[t.user_id] = (spentMap[t.user_id] || 0) + Number(t.amount); });
-      setUserTotalSpent(spentMap);
+    console.log("[Admin] fetchUsers called, page:", userPage, "search:", searchTerm);
+    try {
+      let query = supabase.from("profiles").select("*, user_roles(role)", { count: "exact" });
+      if (searchTerm) query = query.or(`full_name.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`);
+      const { data, count, error } = await query.order("created_at", { ascending: false }).range(userPage * PAGE_SIZE, (userPage + 1) * PAGE_SIZE - 1);
+      console.log("[Admin] fetchUsers result:", { data, count, error });
+      if (error) {
+        console.error("[Admin] fetchUsers error:", error);
+        toast({ title: "Error loading users", description: error.message, variant: "destructive" });
+        return;
+      }
+      if (data) {
+        setUsers(data);
+        const userIds = data.map((u: any) => u.id);
+        if (userIds.length > 0) {
+          const { data: spentData } = await supabase.from("transactions").select("user_id, amount").eq("type", "wallet_to_account").eq("status", "completed").in("user_id", userIds);
+          const spentMap: Record<string, number> = {};
+          (spentData || []).forEach((t: any) => { spentMap[t.user_id] = (spentMap[t.user_id] || 0) + Number(t.amount); });
+          setUserTotalSpent(spentMap);
+        }
+      }
+      setUserCount(count || 0);
+    } catch (err: any) {
+      console.error("[Admin] fetchUsers exception:", err);
     }
-    setUserCount(count || 0);
   };
 
   const fetchAccounts = async () => {
