@@ -663,8 +663,8 @@ export default function Dashboard() {
               </div>
               {topUpMethod === "manual" && <p className="text-xs text-muted-foreground">Your request will be sent to admin for approval.</p>}
             </div>
-            <Button onClick={handleTopUp} disabled={loading || !topUpAmount} className="w-full bg-primary text-primary-foreground font-bold rounded-full">
-              {loading ? "Processing..." : "Submit Top Up"}
+            <Button onClick={handleTopUp} disabled={topUpLoading || !topUpAmount} className="w-full bg-primary text-primary-foreground font-bold rounded-full">
+              {topUpLoading ? "Processing..." : "Submit Top Up"}
             </Button>
           </div>
         </DialogContent>
@@ -699,8 +699,8 @@ export default function Dashboard() {
                 </div>
               </div>
             )}
-            <Button onClick={handleTransferToAccount} disabled={loading || !transferAmount || Number(transferAmount) <= 0 || Number(transferAmount) > Number(profile?.wallet_balance || 0)} className="w-full bg-primary text-primary-foreground font-bold rounded-full">
-              {loading ? "Processing..." : "Transfer to Account"}
+            <Button onClick={handleTransferToAccount} disabled={transferLoading || !transferAmount || Number(transferAmount) <= 0 || Number(transferAmount) > Number(profile?.wallet_balance || 0)} className="w-full bg-primary text-primary-foreground font-bold rounded-full">
+              {transferLoading ? "Processing..." : "Transfer to Account"}
             </Button>
           </div>
         </DialogContent>
@@ -735,8 +735,8 @@ export default function Dashboard() {
                 </div>
               </div>
             )}
-            <Button onClick={handleWithdrawToWallet} disabled={loading || !withdrawAmount || Number(withdrawAmount) <= 0} className="w-full bg-primary text-primary-foreground font-bold rounded-full">
-              {loading ? "Processing..." : "Withdraw to Wallet"}
+            <Button onClick={handleWithdrawToWallet} disabled={withdrawLoading || !withdrawAmount || Number(withdrawAmount) <= 0} className="w-full bg-primary text-primary-foreground font-bold rounded-full">
+              {withdrawLoading ? "Processing..." : "Withdraw to Wallet"}
             </Button>
           </div>
         </DialogContent>
@@ -782,8 +782,8 @@ export default function Dashboard() {
                 className="bg-secondary border-border text-foreground" required={hasActiveAccounts} />
               {!hasActiveAccounts && <p className="text-xs text-muted-foreground">Optional for your first account request.</p>}
             </div>
-            <Button onClick={handleRequestAccount} disabled={loading} className="w-full bg-primary text-primary-foreground font-bold rounded-full">
-              {loading ? "Submitting..." : "Submit Request"}
+            <Button onClick={handleRequestAccount} disabled={requestLoading} className="w-full bg-primary text-primary-foreground font-bold rounded-full">
+              {requestLoading ? "Submitting..." : "Submit Request"}
             </Button>
           </div>
         </DialogContent>
