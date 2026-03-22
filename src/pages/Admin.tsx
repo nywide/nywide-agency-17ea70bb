@@ -1162,7 +1162,7 @@ export default function Admin() {
             </div>
             <div className="space-y-2">
               <Label className="text-foreground">Balance (USD)</Label>
-              <Input type="number" placeholder="1000" value={newAccount.spend_limit} onChange={(e) => setNewAccount({ ...newAccount, spend_limit: e.target.value })} className="bg-secondary border-border text-foreground" />
+              <Input type="number" placeholder="10" value={newAccount.spend_limit} onChange={(e) => setNewAccount({ ...newAccount, spend_limit: e.target.value })} className="bg-secondary border-border text-foreground" />
             </div>
             <div className="space-y-2">
               <Label className="text-foreground">Assign to User (optional)</Label>
