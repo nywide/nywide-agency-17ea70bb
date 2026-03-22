@@ -223,16 +223,21 @@ export default function Admin() {
     const { data, count } = await supabase.from("ad_accounts").select("*, profiles(full_name, email)", { count: "exact" })
       .order("created_at", { ascending: false }).range(accPage * PAGE_SIZE, (accPage + 1) * PAGE_SIZE - 1);
     if (data) {
+      console.log("=== Ad accounts from database ===");
+      data.forEach(acc => {
+        console.log(`Account ${acc.account_name}: spend_limit stored = ${acc.spend_limit} (should be dollars)`);
+      });
       setAdAccounts(data);
-      // Fetch cached FB data in background
+      setTotalAccounts(count || 0);
+      // Background fetch from Facebook for cached spend data
       const fbAccountIds = data.filter(a => a.platform === "facebook").map(a => a.account_id);
       if (fbAccountIds.length > 0) {
         supabase.functions.invoke("facebook-api", {
           body: { action: "batch_get_spend_limits", account_ids: fbAccountIds },
         }).then(({ data: fbData }) => {
           if (fbData?.results) {
-            setAccountCache(fbData.results);
-            // Update local state with fresh data
+            console.log("=== Cached/fetched spend data from Facebook ===");
+            console.log("Raw results:", JSON.stringify(fbData.results));
             setAdAccounts(prev => prev.map(acc => {
               const cached = fbData.results[acc.account_id];
               if (cached) {
@@ -242,11 +247,13 @@ export default function Admin() {
                 let amountSpent = cached.amount_spent ?? acc.current_spend;
                 // Values > 10x the DB value and > 100 likely stored in cents
                 const dbVal = Number(acc.spend_limit);
+                console.log(`Account ${acc.account_name}: DB=${dbVal}, cached spend_cap=${cached.spend_cap}, cached amount_spent=${cached.amount_spent}`);
                 if (dbVal > 0 && spendCap > dbVal * 5 && spendCap >= 100) {
                   console.warn(`[Admin] Cache value ${spendCap} seems like cents for account ${acc.account_id}, converting to dollars`);
                   spendCap = spendCap / 100;
                   amountSpent = amountSpent / 100;
                 }
+                console.log(`Account ${acc.account_name}: final display spend_limit=${spendCap}, current_spend=${amountSpent}`);
                 return { ...acc, spend_limit: spendCap, current_spend: amountSpent };
               }
               return acc;
