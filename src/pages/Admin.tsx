@@ -267,8 +267,19 @@ export default function Admin() {
       if (error || data?.error) {
         toast({ title: "Refresh failed", description: data?.error || error?.message, variant: "destructive" });
       } else {
-        setAdAccounts(prev => prev.map(acc =>
-          acc.account_id === accountId ? { ...acc, spend_limit: data.spend_cap, current_spend: data.amount_spent } : acc
+        setAdAccounts(prev => prev.map(acc => {
+          if (acc.account_id !== accountId) return acc;
+          let spendCap = data.spend_cap;
+          let amountSpent = data.amount_spent;
+          // Safety: if refresh returns cents, normalize
+          const dbVal = Number(acc.spend_limit);
+          if (dbVal > 0 && spendCap > dbVal * 5 && spendCap >= 100) {
+            console.warn(`[Admin] Refresh value ${spendCap} seems like cents, converting`);
+            spendCap = spendCap / 100;
+            amountSpent = amountSpent / 100;
+          }
+          return { ...acc, spend_limit: spendCap, current_spend: amountSpent };
+        }
         ));
         toast({ title: "Account refreshed" });
       }
