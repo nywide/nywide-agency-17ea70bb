@@ -805,8 +805,14 @@ export default function Admin() {
                         </td>
                         <td className="p-4 capitalize text-foreground">{acc.status}</td>
                         <td className="p-4 text-muted-foreground">{acc.profiles?.full_name || "Unassigned"}</td>
-                        <td className="p-4">
+                        <td className="p-4 flex gap-1">
                           <Button size="sm" variant="ghost" className="text-primary" onClick={() => setEditAccountDialog({ open: true, account: { ...acc } })}>Edit</Button>
+                          {acc.platform === "facebook" && (
+                            <Button size="sm" variant="ghost" className="text-muted-foreground" disabled={refreshingAccountId === acc.account_id}
+                              onClick={() => handleRefreshAccount(acc.account_id)}>
+                              {refreshingAccountId === acc.account_id ? "..." : "↻"}
+                            </Button>
+                          )}
                         </td>
                       </tr>
                     ))}
