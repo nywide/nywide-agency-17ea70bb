@@ -163,14 +163,16 @@ export default function Admin() {
       let query = supabase.from("profiles").select("*, user_roles(role)", { count: "exact" });
       if (searchTerm) query = query.or(`full_name.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`);
       const { data, count, error } = await query.order("created_at", { ascending: false }).range(userPage * PAGE_SIZE, (userPage + 1) * PAGE_SIZE - 1);
-      console.log("[Admin] fetchUsers result:", { data, count, error });
+      console.log("[Admin] fetchUsers result - data length:", data?.length, "count:", count, "error:", error);
       if (error) {
         console.error("[Admin] fetchUsers error:", error);
         toast({ title: "Error loading users", description: error.message, variant: "destructive" });
         return;
       }
       if (data) {
+        console.log("[Admin] Setting users state with", data.length, "users:", data.map(u => ({ id: u.id, name: u.full_name, email: u.email })));
         setUsers(data);
+        setUserCount(count || data.length);
         const userIds = data.map((u: any) => u.id);
         if (userIds.length > 0) {
           const { data: spentData } = await supabase.from("transactions").select("user_id, amount").eq("type", "wallet_to_account").eq("status", "completed").in("user_id", userIds);
@@ -178,10 +180,14 @@ export default function Admin() {
           (spentData || []).forEach((t: any) => { spentMap[t.user_id] = (spentMap[t.user_id] || 0) + Number(t.amount); });
           setUserTotalSpent(spentMap);
         }
+      } else {
+        console.warn("[Admin] fetchUsers returned null data");
+        setUsers([]);
+        setUserCount(count || 0);
       }
-      setUserCount(count || 0);
     } catch (err: any) {
       console.error("[Admin] fetchUsers exception:", err);
+      toast({ title: "Error loading users", description: err.message, variant: "destructive" });
     }
   };
 
@@ -280,7 +286,7 @@ export default function Admin() {
 
   const handleAddAccount = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    console.log("[Admin] handleAddAccount called", newAccount);
+    console.log("[Admin] handleAddAccount called with data:", JSON.stringify(newAccount));
     if (!newAccount.account_id || !newAccount.account_name) {
       console.log("[Admin] Validation failed: missing account_id or account_name");
       toast({ title: "Account ID and Name are required", variant: "destructive" });
@@ -289,8 +295,8 @@ export default function Admin() {
     setAddingAccount(true);
     try {
       const insertData = {
-        account_id: newAccount.account_id,
-        account_name: newAccount.account_name,
+        account_id: newAccount.account_id.trim(),
+        account_name: newAccount.account_name.trim(),
         currency: newAccount.currency || "USD",
         timezone: newAccount.timezone || "America/New_York",
         spend_limit: Number(newAccount.spend_limit) || 0,
@@ -298,16 +304,16 @@ export default function Admin() {
         user_id: newAccount.user_id || null,
         assigned_at: newAccount.user_id ? new Date().toISOString() : null,
       };
-      console.log("[Admin] Inserting ad account:", insertData);
+      console.log("[Admin] Inserting ad account:", JSON.stringify(insertData));
       const { data, error } = await supabase.from("ad_accounts").insert(insertData).select();
-      console.log("[Admin] Insert result:", { data, error });
+      console.log("[Admin] Insert result:", JSON.stringify({ data, error }));
       if (error) {
         console.error("[Admin] Insert error:", error);
         toast({ title: "Error creating account", description: error.message, variant: "destructive" });
         return;
       }
 
-      // Try to set Facebook spend limit via edge function
+      // Try to set Facebook spend limit (non-blocking)
       if (insertData.spend_limit > 0 && insertData.platform === "facebook") {
         try {
           console.log("[Admin] Setting Facebook spend limit...");
@@ -1008,7 +1014,7 @@ export default function Admin() {
                 {allUsersForDropdown.map(u => <option key={u.id} value={u.id}>{u.full_name || u.email || u.id}</option>)}
               </select>
             </div>
-            <Button type="submit" disabled={addingAccount} className="w-full bg-primary text-primary-foreground font-bold rounded-full">
+            <Button type="submit" disabled={addingAccount} onClick={(e) => { e.preventDefault(); handleAddAccount(); }} className="w-full bg-primary text-primary-foreground font-bold rounded-full">
               {addingAccount ? "Creating..." : "Create Account"}
             </Button>
           </form>
