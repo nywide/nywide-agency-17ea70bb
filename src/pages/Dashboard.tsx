@@ -349,9 +349,6 @@ export default function Dashboard() {
     const fb = fbBalances[acc.account_id];
     if (!fb) return Number(acc.current_spend);
     let val = fb.amount_spent;
-    const dbVal = Number(acc.spend_limit);
-    const spendCap = fb.spend_cap;
-    if (dbVal > 0 && spendCap > dbVal * 5 && spendCap >= 100) val = val / 100;
     return val;
   };
 

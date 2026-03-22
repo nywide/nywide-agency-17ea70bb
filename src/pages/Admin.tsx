@@ -414,7 +414,7 @@ export default function Admin() {
       // If Facebook account with balance, set spend limit on FB first
       if (spendLimit > 0 && insertData.platform === "facebook") {
         console.log("[Admin] Setting Facebook spend limit to $" + spendLimit);
-        console.log("Sending to Facebook API (will be converted to cents on server):", spendLimit, "dollars →", spendLimit * 100, "cents");
+        console.log("Sending to Facebook API (dollars):", spendLimit);
         const { data: fbData, error: fbError } = await supabase.functions.invoke("facebook-api", {
           body: { action: "set_spend_limit", ad_account_id: insertData.account_id, amount: spendLimit },
         });
