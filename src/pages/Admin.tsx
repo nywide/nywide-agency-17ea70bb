@@ -195,7 +195,7 @@ export default function Admin() {
 
   const handleManualTopUp = async () => {
     if (!topUpDialog.userId || !topUpAmount || Number(topUpAmount) <= 0) return;
-    setLoading(true);
+    setToppingUp(true);
     await supabase.from("transactions").insert({
       user_id: topUpDialog.userId, type: "wallet_topup", amount: Number(topUpAmount),
       status: "completed", payment_method: "manual",
@@ -206,7 +206,7 @@ export default function Admin() {
         wallet_balance: Number(prof.wallet_balance) + Number(topUpAmount),
       }).eq("id", topUpDialog.userId);
     }
-    setLoading(false);
+    setToppingUp(false);
     toast({ title: "Top-up added", description: `$${topUpAmount} added to ${topUpDialog.userName}'s wallet.` });
     setTopUpDialog({ open: false });
     setTopUpAmount("");
