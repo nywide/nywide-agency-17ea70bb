@@ -370,15 +370,40 @@ export default function Admin() {
     if (!editAccountDialog.account) return;
     setUpdatingAccount(true);
     const acc = editAccountDialog.account;
-    await supabase.from("ad_accounts").update({
-      spend_limit: Number(acc.spend_limit), current_spend: Number(acc.current_spend),
-      status: acc.status, user_id: acc.user_id || null,
-      assigned_at: acc.user_id ? new Date().toISOString() : null,
-    }).eq("id", acc.id);
-    setUpdatingAccount(false);
-    toast({ title: "Account updated" });
-    setEditAccountDialog({ open: false });
-    fetchAccounts();
+    try {
+      const newSpendLimit = Number(acc.spend_limit);
+      // Update Facebook spend limit if it's a facebook account
+      if (acc.platform === "facebook" && newSpendLimit >= 0) {
+        console.log("[Admin] Updating Facebook spend limit to $" + newSpendLimit);
+        const { data: fbData, error: fbError } = await supabase.functions.invoke("facebook-api", {
+          body: { action: "set_spend_limit", ad_account_id: acc.account_id, amount: newSpendLimit },
+        });
+        if (fbError || fbData?.error) {
+          const msg = fbError?.message || fbData?.error;
+          console.error("[Admin] FB API error on update:", msg);
+          toast({ title: "Facebook API error", description: msg, variant: "destructive" });
+          setUpdatingAccount(false);
+          return;
+        }
+      }
+      const { error } = await supabase.from("ad_accounts").update({
+        spend_limit: newSpendLimit, current_spend: Number(acc.current_spend),
+        status: acc.status, user_id: acc.user_id || null,
+        assigned_at: acc.user_id ? new Date().toISOString() : null,
+      }).eq("id", acc.id);
+      if (error) {
+        toast({ title: "Error updating account", description: error.message, variant: "destructive" });
+      } else {
+        toast({ title: "Account updated" });
+      }
+    } catch (err: any) {
+      console.error("[Admin] handleUpdateAccount exception:", err);
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally {
+      setUpdatingAccount(false);
+      setEditAccountDialog({ open: false });
+      fetchAccounts();
+    }
   };
 
   const handleApproveRequest = async (req: any) => {
