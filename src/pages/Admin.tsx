@@ -1185,7 +1185,7 @@ export default function Admin() {
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">
-                  <Label className="text-foreground">Spending Limit</Label>
+                  <Label className="text-foreground">Balance</Label>
                   <Input type="number" value={editAccountDialog.account.spend_limit} onChange={(e) => setEditAccountDialog({ ...editAccountDialog, account: { ...editAccountDialog.account, spend_limit: e.target.value } })} className="bg-secondary border-border text-foreground" />
                 </div>
                 <div className="space-y-2">
