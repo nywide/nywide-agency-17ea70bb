@@ -1032,7 +1032,7 @@ export default function Admin() {
                 {allUsersForDropdown.map(u => <option key={u.id} value={u.id}>{u.full_name || u.email || u.id}</option>)}
               </select>
             </div>
-            <Button type="submit" disabled={addingAccount} onClick={(e) => { e.preventDefault(); handleAddAccount(); }} className="w-full bg-primary text-primary-foreground font-bold rounded-full">
+            <Button type="button" disabled={addingAccount} onClick={() => handleAddAccount()} className="w-full bg-primary text-primary-foreground font-bold rounded-full">
               {addingAccount ? "Creating..." : "Create Account"}
             </Button>
           </form>
