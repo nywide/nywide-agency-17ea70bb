@@ -168,18 +168,29 @@ export default function Admin() {
   const fetchUsers = async () => {
     console.log("[Admin] fetchUsers called, page:", userPage, "search:", searchTerm);
     try {
-      let query = supabase.from("profiles").select("*, user_roles(role)", { count: "exact" });
+      let query = supabase.from("profiles").select("*", { count: "exact" });
       if (searchTerm) query = query.or(`full_name.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`);
-      const { data, count, error } = await query.order("created_at", { ascending: false }).range(userPage * PAGE_SIZE, (userPage + 1) * PAGE_SIZE - 1);
+      const [profilesResult, rolesResult] = await Promise.all([
+        query.order("created_at", { ascending: false }).range(userPage * PAGE_SIZE, (userPage + 1) * PAGE_SIZE - 1),
+        supabase.from("user_roles").select("user_id, role"),
+      ]);
+      const { data, count, error } = profilesResult;
       console.log("[Admin] fetchUsers result - data length:", data?.length, "count:", count, "error:", error);
       if (error) {
         console.error("[Admin] fetchUsers error:", error);
         toast({ title: "Error loading users", description: error.message, variant: "destructive" });
         return;
       }
+      // Build roles map
+      const rolesMap: Record<string, string[]> = {};
+      (rolesResult.data || []).forEach((r: any) => {
+        if (!rolesMap[r.user_id]) rolesMap[r.user_id] = [];
+        rolesMap[r.user_id].push(r.role);
+      });
       if (data) {
-        console.log("[Admin] Setting users state with", data.length, "users:", data.map(u => ({ id: u.id, name: u.full_name, email: u.email })));
-        setUsers(data);
+        const enriched = data.map(u => ({ ...u, _roles: rolesMap[u.id] || ["user"] }));
+        console.log("[Admin] Setting users state with", enriched.length, "users");
+        setUsers(enriched);
         setUserCount(count || data.length);
         const userIds = data.map((u: any) => u.id);
         if (userIds.length > 0) {
@@ -189,7 +200,6 @@ export default function Admin() {
           setUserTotalSpent(spentMap);
         }
       } else {
-        console.warn("[Admin] fetchUsers returned null data");
         setUsers([]);
         setUserCount(count || 0);
       }
