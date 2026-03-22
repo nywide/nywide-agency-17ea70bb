@@ -68,6 +68,7 @@ export default function Admin() {
   const [userTotalSpent, setUserTotalSpent] = useState<Record<string, number>>({});
 
   useEffect(() => {
+    if (!user) return;
     fetchOverviewStats();
     fetchCommission();
     fetchAllUsersForDropdown();
@@ -86,7 +87,7 @@ export default function Admin() {
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     if (activeTab === "users") fetchUsers();
