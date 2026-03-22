@@ -182,6 +182,7 @@ export default function Dashboard() {
   const hasActiveAccounts = adAccounts.some(a => a.status === "active");
 
   const handleRequestAccount = async () => {
+    console.log("[Dashboard] handleRequestAccount called");
     if (!requestAccountName) {
       toast({ title: "Account Name is required", variant: "destructive" });
       return;
@@ -199,27 +200,34 @@ export default function Dashboard() {
       return;
     }
     setRequestLoading(true);
-    console.log("Submitting account request:", { user_id: user!.id, platform: requestPlatform, account_name: requestAccountName, currency: requestCurrency, timezone: requestTimezone });
-    const { error } = await supabase.from("account_requests").insert({
-      user_id: user!.id,
-      platform: requestPlatform,
-      preferred_limit: requestPreferredLimit || null,
-      account_name: requestAccountName,
-      currency: requestCurrency,
-      timezone: requestTimezone,
-    } as any);
-    setRequestLoading(false);
-    if (error) {
-      console.error("Account request error:", error);
-      toast({ title: "Error", description: error.message, variant: "destructive" });
-    } else {
-      toast({ title: "Request submitted", description: "Admin will review your request." });
-      setRequestOpen(false);
-      setRequestPreferredLimit("");
-      setRequestPlatform("facebook");
-      setRequestAccountName("");
-      setRequestCurrency("USD");
-      setRequestTimezone("America/New_York");
+    try {
+      const insertData = {
+        user_id: user!.id,
+        platform: requestPlatform,
+        preferred_limit: requestPreferredLimit || null,
+        account_name: requestAccountName,
+        currency: requestCurrency,
+        timezone: requestTimezone,
+      };
+      console.log("[Dashboard] Inserting account request:", insertData);
+      const { data, error } = await supabase.from("account_requests").insert(insertData as any).select();
+      console.log("[Dashboard] Insert result:", { data, error });
+      if (error) {
+        toast({ title: "Error", description: error.message, variant: "destructive" });
+      } else {
+        toast({ title: "Request submitted", description: "Admin will review your request." });
+        setRequestOpen(false);
+        setRequestPreferredLimit("");
+        setRequestPlatform("facebook");
+        setRequestAccountName("");
+        setRequestCurrency("USD");
+        setRequestTimezone("America/New_York");
+      }
+    } catch (err: any) {
+      console.error("[Dashboard] handleRequestAccount exception:", err);
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally {
+      setRequestLoading(false);
     }
   };
 
