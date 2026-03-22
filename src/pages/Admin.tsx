@@ -236,7 +236,18 @@ export default function Admin() {
             setAdAccounts(prev => prev.map(acc => {
               const cached = fbData.results[acc.account_id];
               if (cached) {
-                return { ...acc, spend_limit: cached.spend_cap ?? acc.spend_limit, current_spend: cached.amount_spent ?? acc.current_spend };
+                // Sanity check: if cached spend_cap is unreasonably large compared to DB value,
+                // it might be in cents from a stale cache — normalize to dollars
+                let spendCap = cached.spend_cap ?? acc.spend_limit;
+                let amountSpent = cached.amount_spent ?? acc.current_spend;
+                // Values > 10x the DB value and > 100 likely stored in cents
+                const dbVal = Number(acc.spend_limit);
+                if (dbVal > 0 && spendCap > dbVal * 5 && spendCap >= 100) {
+                  console.warn(`[Admin] Cache value ${spendCap} seems like cents for account ${acc.account_id}, converting to dollars`);
+                  spendCap = spendCap / 100;
+                  amountSpent = amountSpent / 100;
+                }
+                return { ...acc, spend_limit: spendCap, current_spend: amountSpent };
               }
               return acc;
             }));
@@ -256,8 +267,19 @@ export default function Admin() {
       if (error || data?.error) {
         toast({ title: "Refresh failed", description: data?.error || error?.message, variant: "destructive" });
       } else {
-        setAdAccounts(prev => prev.map(acc =>
-          acc.account_id === accountId ? { ...acc, spend_limit: data.spend_cap, current_spend: data.amount_spent } : acc
+        setAdAccounts(prev => prev.map(acc => {
+          if (acc.account_id !== accountId) return acc;
+          let spendCap = data.spend_cap;
+          let amountSpent = data.amount_spent;
+          // Safety: if refresh returns cents, normalize
+          const dbVal = Number(acc.spend_limit);
+          if (dbVal > 0 && spendCap > dbVal * 5 && spendCap >= 100) {
+            console.warn(`[Admin] Refresh value ${spendCap} seems like cents, converting`);
+            spendCap = spendCap / 100;
+            amountSpent = amountSpent / 100;
+          }
+          return { ...acc, spend_limit: spendCap, current_spend: amountSpent };
+        }
         ));
         toast({ title: "Account refreshed" });
       }
@@ -1162,7 +1184,7 @@ export default function Admin() {
             </div>
             <div className="space-y-2">
               <Label className="text-foreground">Balance (USD)</Label>
-              <Input type="number" placeholder="1000" value={newAccount.spend_limit} onChange={(e) => setNewAccount({ ...newAccount, spend_limit: e.target.value })} className="bg-secondary border-border text-foreground" />
+              <Input type="number" placeholder="10" value={newAccount.spend_limit} onChange={(e) => setNewAccount({ ...newAccount, spend_limit: e.target.value })} className="bg-secondary border-border text-foreground" />
             </div>
             <div className="space-y-2">
               <Label className="text-foreground">Assign to User (optional)</Label>

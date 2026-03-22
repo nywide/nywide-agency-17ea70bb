@@ -1,0 +1,1 @@
+DELETE FROM ad_account_cache;
