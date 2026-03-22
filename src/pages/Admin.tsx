@@ -241,19 +241,9 @@ export default function Admin() {
             setAdAccounts(prev => prev.map(acc => {
               const cached = fbData.results[acc.account_id];
               if (cached) {
-                // Sanity check: if cached spend_cap is unreasonably large compared to DB value,
-                // it might be in cents from a stale cache — normalize to dollars
-                let spendCap = cached.spend_cap ?? acc.spend_limit;
-                let amountSpent = cached.amount_spent ?? acc.current_spend;
-                // Values > 10x the DB value and > 100 likely stored in cents
-                const dbVal = Number(acc.spend_limit);
-                console.log(`Account ${acc.account_name}: DB=${dbVal}, cached spend_cap=${cached.spend_cap}, cached amount_spent=${cached.amount_spent}`);
-                if (dbVal > 0 && spendCap > dbVal * 5 && spendCap >= 100) {
-                  console.warn(`[Admin] Cache value ${spendCap} seems like cents for account ${acc.account_id}, converting to dollars`);
-                  spendCap = spendCap / 100;
-                  amountSpent = amountSpent / 100;
-                }
-                console.log(`Account ${acc.account_name}: final display spend_limit=${spendCap}, current_spend=${amountSpent}`);
+                const spendCap = cached.spend_cap ?? acc.spend_limit;
+                const amountSpent = cached.amount_spent ?? acc.current_spend;
+                console.log(`Account ${acc.account_name}: spend_limit=${spendCap}, current_spend=${amountSpent}`);
                 return { ...acc, spend_limit: spendCap, current_spend: amountSpent };
               }
               return acc;
