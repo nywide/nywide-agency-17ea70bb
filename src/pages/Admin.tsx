@@ -215,29 +215,28 @@ export default function Admin() {
   };
 
   const handleApproveTopup = async (req: any) => {
-    setLoading(true);
-    // Add amount to user wallet
+    setApprovingId(req.id);
     const { data: prof } = await supabase.from("profiles").select("wallet_balance").eq("id", req.user_id).single();
     if (prof) {
       await supabase.from("profiles").update({
         wallet_balance: Number(prof.wallet_balance) + Number(req.amount),
       }).eq("id", req.user_id);
     }
-    // Create transaction
     await supabase.from("transactions").insert({
       user_id: req.user_id, type: "wallet_topup", amount: Number(req.amount),
       status: "completed", payment_method: req.payment_method || "manual",
     });
-    // Update request status
     await supabase.from("topup_requests").update({ status: "approved" } as any).eq("id", req.id);
-    setLoading(false);
+    setApprovingId(null);
     toast({ title: "Top-up approved", description: `$${Number(req.amount).toFixed(2)} added to ${req.profiles?.full_name || "user"}'s wallet.` });
     fetchTopupRequests();
     fetchOverviewStats();
   };
 
   const handleRejectTopup = async (req: any) => {
+    setApprovingId(req.id);
     await supabase.from("topup_requests").update({ status: "rejected" } as any).eq("id", req.id);
+    setApprovingId(null);
     toast({ title: "Top-up rejected" });
     fetchTopupRequests();
   };
