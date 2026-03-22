@@ -665,7 +665,7 @@ export default function Admin() {
                     <div className="flex items-center gap-2">
                       {req.status === "pending" ? (
                         <>
-                          <Button size="sm" onClick={() => handleApproveRequest(req)} disabled={loading} className="bg-green-600 hover:bg-green-700 text-foreground rounded-full">
+                          <Button size="sm" onClick={() => handleApproveRequest(req)} disabled={approvingId === req.id} className="bg-green-600 hover:bg-green-700 text-foreground rounded-full">
                             <CheckCircle className="w-3.5 h-3.5 mr-1" />Approve
                           </Button>
                           <Button size="sm" variant="destructive" onClick={() => handleRejectRequest(req)} className="rounded-full">
@@ -727,10 +727,10 @@ export default function Admin() {
                           <td className="p-4">
                             {req.status === "pending" && (
                               <div className="flex gap-2">
-                                <Button size="sm" onClick={() => handleApproveTopup(req)} disabled={loading} className="bg-green-600 hover:bg-green-700 text-foreground rounded-full">
+                                <Button size="sm" onClick={() => handleApproveTopup(req)} disabled={approvingId === req.id} className="bg-green-600 hover:bg-green-700 text-foreground rounded-full">
                                   <CheckCircle className="w-3.5 h-3.5 mr-1" />Approve
                                 </Button>
-                                <Button size="sm" variant="destructive" onClick={() => handleRejectTopup(req)} disabled={loading} className="rounded-full">
+                                <Button size="sm" variant="destructive" onClick={() => handleRejectTopup(req)} disabled={approvingId === req.id} className="rounded-full">
                                   <XCircle className="w-3.5 h-3.5 mr-1" />Reject
                                 </Button>
                               </div>
@@ -899,8 +899,8 @@ export default function Admin() {
                 <Input type="number" min="1" placeholder="100" value={topUpAmount} onChange={(e) => setTopUpAmount(e.target.value)} className="pl-10 bg-secondary border-border text-foreground" />
               </div>
             </div>
-            <Button onClick={handleManualTopUp} disabled={loading} className="w-full bg-primary text-primary-foreground font-bold rounded-full">
-              {loading ? "Processing..." : "Add Funds"}
+            <Button onClick={handleManualTopUp} disabled={toppingUp} className="w-full bg-primary text-primary-foreground font-bold rounded-full">
+              {toppingUp ? "Processing..." : "Add Funds"}
             </Button>
           </div>
         </DialogContent>
@@ -955,8 +955,8 @@ export default function Admin() {
                 {allUsersForDropdown.map(u => <option key={u.id} value={u.id}>{u.full_name || u.email || u.id}</option>)}
               </select>
             </div>
-            <Button onClick={handleAddAccount} disabled={loading} className="w-full bg-primary text-primary-foreground font-bold rounded-full">
-              {loading ? "Creating..." : "Create Account"}
+            <Button onClick={handleAddAccount} disabled={addingAccount} className="w-full bg-primary text-primary-foreground font-bold rounded-full">
+              {addingAccount ? "Creating..." : "Create Account"}
             </Button>
           </div>
         </DialogContent>
@@ -994,8 +994,8 @@ export default function Admin() {
                   {allUsersForDropdown.map(u => <option key={u.id} value={u.id}>{u.full_name || u.email || u.id}</option>)}
                 </select>
               </div>
-              <Button onClick={handleUpdateAccount} disabled={loading} className="w-full bg-primary text-primary-foreground font-bold rounded-full">
-                {loading ? "Saving..." : "Save Changes"}
+              <Button onClick={handleUpdateAccount} disabled={updatingAccount} className="w-full bg-primary text-primary-foreground font-bold rounded-full">
+                {updatingAccount ? "Saving..." : "Save Changes"}
               </Button>
             </div>
           )}
@@ -1014,8 +1014,8 @@ export default function Admin() {
               <Label className="text-foreground">Commission Rate (%)</Label>
               <Input type="number" min="0" max="100" step="0.5" value={overrideDialog.rate || ""} onChange={(e) => setOverrideDialog({ ...overrideDialog, rate: e.target.value })} className="bg-secondary border-border text-foreground" />
             </div>
-            <Button onClick={handleSaveOverride} disabled={loading} className="w-full bg-primary text-primary-foreground font-bold rounded-full">
-              {loading ? "Saving..." : "Save Custom Rate"}
+            <Button onClick={handleSaveOverride} disabled={savingOverride} className="w-full bg-primary text-primary-foreground font-bold rounded-full">
+              {savingOverride ? "Saving..." : "Save Custom Rate"}
             </Button>
           </div>
         </DialogContent>

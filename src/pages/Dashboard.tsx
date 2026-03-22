@@ -147,13 +147,13 @@ export default function Dashboard() {
       toast({ title: "Minimum $10", variant: "destructive" });
       return;
     }
-    setLoading(true);
+    setTopUpLoading(true);
     if (topUpMethod === "manual") {
       // Create a topup request for admin approval
       const { error } = await supabase.from("topup_requests").insert({
         user_id: user!.id, amount: Number(topUpAmount), currency: "USD", payment_method: topUpMethod, status: "pending",
       } as any);
-      setLoading(false);
+      setTopUpLoading(false);
       if (error) {
         toast({ title: "Error", description: error.message, variant: "destructive" });
       } else {
@@ -167,7 +167,7 @@ export default function Dashboard() {
         user_id: user!.id, type: "wallet_topup", amount: Number(topUpAmount),
         status: "pending", payment_method: topUpMethod,
       });
-      setLoading(false);
+      setTopUpLoading(false);
       if (error) {
         toast({ title: "Error", description: error.message, variant: "destructive" });
       } else {
@@ -198,7 +198,7 @@ export default function Dashboard() {
       toast({ title: "Initial Balance required", description: "Please specify an initial balance for additional accounts.", variant: "destructive" });
       return;
     }
-    setLoading(true);
+    setRequestLoading(true);
     const { error } = await supabase.from("account_requests").insert({
       user_id: user!.id,
       platform: requestPlatform,
@@ -207,7 +207,7 @@ export default function Dashboard() {
       currency: requestCurrency,
       timezone: requestTimezone,
     } as any);
-    setLoading(false);
+    setRequestLoading(false);
     if (error) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     } else {
@@ -228,7 +228,7 @@ export default function Dashboard() {
       toast({ title: "Insufficient balance", variant: "destructive" });
       return;
     }
-    setLoading(true);
+    setTransferLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke("facebook-api", {
         body: { action: "wallet_to_account", ad_account_id: transferOpen.account.account_id, amount },
@@ -244,13 +244,13 @@ export default function Dashboard() {
     } catch (err: any) {
       toast({ title: "Transfer failed", description: err.message, variant: "destructive" });
     }
-    setLoading(false);
+    setTransferLoading(false);
   };
 
   const handleWithdrawToWallet = async () => {
     const amount = Number(withdrawAmount);
     if (!amount || amount <= 0) return;
-    setLoading(true);
+    setWithdrawLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke("facebook-api", {
         body: { action: "account_to_wallet", ad_account_id: withdrawOpen.account.account_id, amount },
@@ -266,7 +266,7 @@ export default function Dashboard() {
     } catch (err: any) {
       toast({ title: "Withdrawal failed", description: err.message, variant: "destructive" });
     }
-    setLoading(false);
+    setWithdrawLoading(false);
   };
 
   const handleGenerateInvoice = async (txn: any) => {
