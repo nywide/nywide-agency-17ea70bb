@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, lazy, Suspense } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -14,15 +14,21 @@ import { Label } from "@/components/ui/label";
 import {
   Wallet, Monitor, FileText, Receipt, Plus, LogOut, Home,
   DollarSign, Clock, CheckCircle, XCircle, AlertCircle,
-  ArrowUpRight, ArrowDownLeft, Search, LayoutDashboard
+  ArrowUpRight, ArrowDownLeft, Search, LayoutDashboard, RefreshCw
 } from "lucide-react";
+
+const PAGE_SIZE = 50;
 
 export default function Dashboard() {
   const { user, profile, signOut, refreshProfile } = useAuth();
   const { toast } = useToast();
   const [adAccounts, setAdAccounts] = useState<any[]>([]);
   const [transactions, setTransactions] = useState<any[]>([]);
+  const [txnCount, setTxnCount] = useState(0);
+  const [txnPage, setTxnPage] = useState(0);
   const [invoices, setInvoices] = useState<any[]>([]);
+  const [invCount, setInvCount] = useState(0);
+  const [invPage, setInvPage] = useState(0);
   const [topUpOpen, setTopUpOpen] = useState(false);
   const [requestOpen, setRequestOpen] = useState(false);
   const [transferOpen, setTransferOpen] = useState<{ open: boolean; account?: any }>({ open: false });
@@ -39,27 +45,94 @@ export default function Dashboard() {
   const [txnSearch, setTxnSearch] = useState("");
   const [txnTypeFilter, setTxnTypeFilter] = useState("");
   const [invoiceSearch, setInvoiceSearch] = useState("");
+  const [fbBalances, setFbBalances] = useState<Record<string, { spend_cap: number; amount_spent: number }>>({});
+  const [refreshingAccount, setRefreshingAccount] = useState<string | null>(null);
+  const [dashStats, setDashStats] = useState({ totalSpent: 0, txnCount: 0, invCount: 0 });
 
   useEffect(() => {
-    if (user) fetchData();
+    if (user) {
+      fetchAccounts();
+      fetchCommission();
+      fetchDashStats();
+    }
   }, [user]);
 
-  const fetchData = async () => {
-    const [accounts, txns, invs, overrideRes, settingsRes] = await Promise.all([
-      supabase.from("ad_accounts").select("*").eq("user_id", user!.id).order("created_at", { ascending: false }),
-      supabase.from("transactions").select("*").eq("user_id", user!.id).order("created_at", { ascending: false }),
-      supabase.from("invoices").select("*").eq("user_id", user!.id).order("created_at", { ascending: false }),
+  useEffect(() => {
+    if (user && activeTab === "transactions") fetchTransactions();
+  }, [user, activeTab, txnPage, txnSearch, txnTypeFilter]);
+
+  useEffect(() => {
+    if (user && activeTab === "invoices") fetchInvoices();
+  }, [user, activeTab, invPage, invoiceSearch]);
+
+  const fetchAccounts = async () => {
+    const { data } = await supabase.from("ad_accounts").select("*").eq("user_id", user!.id).order("created_at", { ascending: false });
+    if (data) {
+      setAdAccounts(data);
+      // Fetch FB balances via cached edge function
+      const accountIds = data.map((a: any) => a.account_id);
+      if (accountIds.length > 0) {
+        try {
+          const { data: fbData } = await supabase.functions.invoke("facebook-api", {
+            body: { action: "batch_get_spend_limits", account_ids: accountIds },
+          });
+          if (fbData?.results) setFbBalances(fbData.results);
+        } catch { /* use local data */ }
+      }
+    }
+  };
+
+  const fetchCommission = async () => {
+    const [overrideRes, settingsRes] = await Promise.all([
       supabase.from("user_commission_overrides").select("rate").eq("user_id", user!.id).maybeSingle(),
       supabase.from("commission_settings").select("rate").limit(1).single(),
     ]);
-    if (accounts.data) setAdAccounts(accounts.data);
-    if (txns.data) setTransactions(txns.data);
-    if (invs.data) setInvoices(invs.data);
-    if (overrideRes.data) {
-      setCommissionRate(overrideRes.data.rate);
-    } else if (settingsRes.data) {
-      setCommissionRate(settingsRes.data.rate);
-    }
+    if (overrideRes.data) setCommissionRate(overrideRes.data.rate);
+    else if (settingsRes.data) setCommissionRate(settingsRes.data.rate);
+  };
+
+  const fetchDashStats = async () => {
+    const [txnRes, invRes, spentRes] = await Promise.all([
+      supabase.from("transactions").select("id", { count: "exact", head: true }).eq("user_id", user!.id),
+      supabase.from("invoices").select("id", { count: "exact", head: true }).eq("user_id", user!.id),
+      supabase.from("transactions").select("amount").eq("user_id", user!.id).eq("type", "wallet_to_account").eq("status", "completed"),
+    ]);
+    setDashStats({
+      txnCount: txnRes.count || 0,
+      invCount: invRes.count || 0,
+      totalSpent: (spentRes.data || []).reduce((s: number, t: any) => s + Number(t.amount), 0),
+    });
+  };
+
+  const fetchTransactions = async () => {
+    let query = supabase.from("transactions").select("*", { count: "exact" }).eq("user_id", user!.id);
+    if (txnTypeFilter) query = query.eq("type", txnTypeFilter);
+    if (txnSearch) query = query.or(`ad_account_id.ilike.%${txnSearch}%,type.ilike.%${txnSearch}%`);
+    const { data, count } = await query.order("created_at", { ascending: false }).range(txnPage * PAGE_SIZE, (txnPage + 1) * PAGE_SIZE - 1);
+    if (data) setTransactions(data);
+    setTxnCount(count || 0);
+  };
+
+  const fetchInvoices = async () => {
+    let query = supabase.from("invoices").select("*", { count: "exact" }).eq("user_id", user!.id);
+    if (invoiceSearch) query = query.ilike("invoice_number", `%${invoiceSearch}%`);
+    const { data, count } = await query.order("created_at", { ascending: false }).range(invPage * PAGE_SIZE, (invPage + 1) * PAGE_SIZE - 1);
+    if (data) setInvoices(data);
+    setInvCount(count || 0);
+  };
+
+  const refreshAccountBalance = async (accountId: string) => {
+    setRefreshingAccount(accountId);
+    try {
+      const { data } = await supabase.functions.invoke("facebook-api", {
+        body: { action: "refresh_balance", ad_account_id: accountId },
+      });
+      if (data && !data.error) {
+        setFbBalances(prev => ({ ...prev, [accountId]: { spend_cap: data.spend_cap, amount_spent: data.amount_spent } }));
+        toast({ title: "Balance refreshed" });
+      }
+    } catch { /* ignore */ }
+    setRefreshingAccount(null);
   };
 
   const handleTopUp = async () => {
@@ -79,7 +152,7 @@ export default function Dashboard() {
       toast({ title: "Top-up request submitted", description: topUpMethod === "manual" ? "Admin will process your request." : "Processing payment..." });
       setTopUpOpen(false);
       setTopUpAmount("");
-      fetchData();
+      fetchDashStats();
     }
   };
 
@@ -123,7 +196,8 @@ export default function Dashboard() {
       setTransferOpen({ open: false });
       setTransferAmount("");
       await refreshProfile();
-      fetchData();
+      fetchAccounts();
+      fetchDashStats();
     } catch (err: any) {
       toast({ title: "Transfer failed", description: err.message, variant: "destructive" });
     }
@@ -144,7 +218,8 @@ export default function Dashboard() {
       setWithdrawOpen({ open: false });
       setWithdrawAmount("");
       await refreshProfile();
-      fetchData();
+      fetchAccounts();
+      fetchDashStats();
     } catch (err: any) {
       toast({ title: "Withdrawal failed", description: err.message, variant: "destructive" });
     }
@@ -160,7 +235,8 @@ export default function Dashboard() {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     } else {
       toast({ title: "Invoice generated", description: `Invoice ${invoiceNumber} created.` });
-      fetchData();
+      fetchInvoices();
+      fetchDashStats();
     }
   };
 
@@ -202,18 +278,18 @@ export default function Dashboard() {
   const transferNet = Number(transferAmount) - transferCommission;
   const withdrawRefund = Number(withdrawAmount) / (1 - commissionRate / 100);
 
-  const filteredTransactions = transactions.filter(t => {
-    if (txnSearch && !txnTypeLabel(t.type).toLowerCase().includes(txnSearch.toLowerCase()) && !t.ad_account_id?.toLowerCase().includes(txnSearch.toLowerCase())) return false;
-    if (txnTypeFilter && t.type !== txnTypeFilter) return false;
-    return true;
-  });
+  const getAccountBalance = (acc: any) => {
+    const fb = fbBalances[acc.account_id];
+    return fb ? fb.spend_cap : Number(acc.spend_limit);
+  };
 
-  const filteredInvoices = invoices.filter(inv => {
-    if (invoiceSearch && !inv.invoice_number.toLowerCase().includes(invoiceSearch.toLowerCase())) return false;
-    return true;
-  });
+  const getAccountSpent = (acc: any) => {
+    const fb = fbBalances[acc.account_id];
+    return fb ? fb.amount_spent : Number(acc.current_spend);
+  };
 
-  const totalSpent = transactions.filter(t => t.type === "wallet_to_account" && t.status === "completed").reduce((s, t) => s + Number(t.amount), 0);
+  const txnTotalPages = Math.ceil(txnCount / PAGE_SIZE);
+  const invTotalPages = Math.ceil(invCount / PAGE_SIZE);
 
   return (
     <div className="min-h-screen bg-background">
@@ -269,48 +345,17 @@ export default function Dashboard() {
               </div>
               <div className="bg-card border border-border rounded-xl p-5">
                 <p className="text-muted-foreground text-sm">Total Spent</p>
-                <p className="text-2xl font-bold text-foreground">${totalSpent.toFixed(2)}</p>
+                <p className="text-2xl font-bold text-foreground">${dashStats.totalSpent.toFixed(2)}</p>
               </div>
               <div className="bg-card border border-border rounded-xl p-5">
                 <p className="text-muted-foreground text-sm">Total Transactions</p>
-                <p className="text-2xl font-bold text-foreground">{transactions.length}</p>
+                <p className="text-2xl font-bold text-foreground">{dashStats.txnCount}</p>
               </div>
               <div className="bg-card border border-border rounded-xl p-5">
                 <p className="text-muted-foreground text-sm">Total Invoices</p>
-                <p className="text-2xl font-bold text-foreground">{invoices.length}</p>
+                <p className="text-2xl font-bold text-foreground">{dashStats.invCount}</p>
               </div>
             </div>
-
-            {/* Recent Transactions */}
-            {transactions.length > 0 && (
-              <div>
-                <h2 className="text-lg font-bold text-foreground mb-3">Recent Transactions</h2>
-                <div className="bg-card border border-border rounded-xl overflow-hidden">
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead><tr className="border-b border-border">
-                        <th className="text-left p-4 text-muted-foreground font-medium">Date</th>
-                        <th className="text-left p-4 text-muted-foreground font-medium">Type</th>
-                        <th className="text-left p-4 text-muted-foreground font-medium">Amount</th>
-                        <th className="text-left p-4 text-muted-foreground font-medium">Status</th>
-                      </tr></thead>
-                      <tbody>
-                        {transactions.slice(0, 5).map((txn) => (
-                          <tr key={txn.id} className="border-b border-border/50 hover:bg-secondary/50">
-                            <td className="p-4 text-foreground">{new Date(txn.created_at).toLocaleDateString()}</td>
-                            <td className="p-4 text-foreground">{txnTypeLabel(txn.type)}</td>
-                            <td className="p-4 font-medium">
-                              <span className={txnAmountColor(txn.type)}>{txnAmountPrefix(txn.type)}${Number(txn.amount).toFixed(2)}</span>
-                            </td>
-                            <td className="p-4"><span className="flex items-center gap-1.5">{statusIcon(txn.status)}<span className="capitalize">{txn.status}</span></span></td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
-            )}
 
             {/* Ad Accounts Summary */}
             {adAccounts.length > 0 && (
@@ -323,9 +368,15 @@ export default function Dashboard() {
                         <p className="font-medium text-foreground">{acc.account_name}</p>
                         <p className="text-sm text-muted-foreground">{acc.account_id} · {acc.currency}</p>
                       </div>
-                      <div className="text-right">
-                        <p className="font-bold text-foreground">${Number(acc.spend_limit).toFixed(2)}</p>
-                        <span className="flex items-center gap-1 text-xs">{statusIcon(acc.status)}<span className="capitalize text-muted-foreground">{acc.status}</span></span>
+                      <div className="text-right flex items-center gap-2">
+                        <div>
+                          <p className="font-bold text-foreground">${getAccountBalance(acc).toFixed(2)}</p>
+                          <span className="flex items-center gap-1 text-xs">{statusIcon(acc.status)}<span className="capitalize text-muted-foreground">{acc.status}</span></span>
+                        </div>
+                        <Button size="icon" variant="ghost" onClick={() => refreshAccountBalance(acc.account_id)}
+                          disabled={refreshingAccount === acc.account_id} className="h-8 w-8">
+                          <RefreshCw className={`w-3.5 h-3.5 ${refreshingAccount === acc.account_id ? "animate-spin" : ""}`} />
+                        </Button>
                       </div>
                     </div>
                   ))}
@@ -351,58 +402,68 @@ export default function Dashboard() {
               </div>
             ) : (
               <div className="grid gap-4">
-                {adAccounts.map((acc) => (
-                  <div key={acc.id} className="bg-card border border-border rounded-xl p-5">
-                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                      <div className="flex-1 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-                        <div>
-                          <p className="text-xs text-muted-foreground">Account Name</p>
-                          <p className="text-sm font-medium text-foreground">{acc.account_name}</p>
+                {adAccounts.map((acc) => {
+                  const balance = getAccountBalance(acc);
+                  const spent = getAccountSpent(acc);
+                  return (
+                    <div key={acc.id} className="bg-card border border-border rounded-xl p-5">
+                      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                        <div className="flex-1 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+                          <div>
+                            <p className="text-xs text-muted-foreground">Account Name</p>
+                            <p className="text-sm font-medium text-foreground">{acc.account_name}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Account ID</p>
+                            <p className="text-sm font-mono text-foreground">{acc.account_id}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Account Balance</p>
+                            <p className="text-sm font-medium text-foreground">${balance.toFixed(2)}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Currency / TZ</p>
+                            <p className="text-sm text-foreground">{acc.currency} · {acc.timezone}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Status</p>
+                            <span className="flex items-center gap-1.5 text-sm">
+                              {statusIcon(acc.status)}
+                              <span className="capitalize text-muted-foreground">{acc.status}</span>
+                            </span>
+                          </div>
                         </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground">Account ID</p>
-                          <p className="text-sm font-mono text-foreground">{acc.account_id}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground">Account Balance</p>
-                          <p className="text-sm font-medium text-foreground">${Number(acc.spend_limit).toFixed(2)}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground">Currency / TZ</p>
-                          <p className="text-sm text-foreground">{acc.currency} · {acc.timezone}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground">Status</p>
-                          <span className="flex items-center gap-1.5 text-sm">
-                            {statusIcon(acc.status)}
-                            <span className="capitalize text-muted-foreground">{acc.status}</span>
-                          </span>
+                        <div className="flex gap-2">
+                          <Button size="sm" variant="ghost" onClick={() => refreshAccountBalance(acc.account_id)}
+                            disabled={refreshingAccount === acc.account_id} className="rounded-full">
+                            <RefreshCw className={`w-3.5 h-3.5 ${refreshingAccount === acc.account_id ? "animate-spin" : ""}`} />
+                          </Button>
+                          {acc.status === "active" && (
+                            <>
+                              <Button size="sm" onClick={() => { setTransferOpen({ open: true, account: acc }); setTransferAmount(""); }}
+                                className="bg-primary text-primary-foreground font-bold rounded-full">
+                                <ArrowUpRight className="w-3.5 h-3.5 mr-1" />Add Funds
+                              </Button>
+                              <Button size="sm" variant="outline" onClick={() => { setWithdrawOpen({ open: true, account: acc }); setWithdrawAmount(""); }}
+                                className="rounded-full border-primary text-primary">
+                                <ArrowDownLeft className="w-3.5 h-3.5 mr-1" />Withdraw
+                              </Button>
+                            </>
+                          )}
                         </div>
                       </div>
-                      {acc.status === "active" && (
-                        <div className="flex gap-2">
-                          <Button size="sm" onClick={() => { setTransferOpen({ open: true, account: acc }); setTransferAmount(""); }}
-                            className="bg-primary text-primary-foreground font-bold rounded-full">
-                            <ArrowUpRight className="w-3.5 h-3.5 mr-1" />Add Funds
-                          </Button>
-                          <Button size="sm" variant="outline" onClick={() => { setWithdrawOpen({ open: true, account: acc }); setWithdrawAmount(""); }}
-                            className="rounded-full border-primary text-primary">
-                            <ArrowDownLeft className="w-3.5 h-3.5 mr-1" />Withdraw
-                          </Button>
+                      {balance > 0 && (
+                        <div className="mt-3">
+                          <div className="flex justify-between text-xs text-muted-foreground mb-1">
+                            <span>Spent: ${spent.toFixed(2)}</span>
+                            <span>Balance: ${balance.toFixed(2)}</span>
+                          </div>
+                          <Progress value={balance > 0 ? (spent / balance) * 100 : 0} className="h-1.5" />
                         </div>
                       )}
                     </div>
-                    {acc.spend_limit > 0 && (
-                      <div className="mt-3">
-                        <div className="flex justify-between text-xs text-muted-foreground mb-1">
-                          <span>Spent: ${Number(acc.current_spend).toFixed(2)}</span>
-                          <span>Balance: ${Number(acc.spend_limit).toFixed(2)}</span>
-                        </div>
-                        <Progress value={acc.spend_limit > 0 ? (acc.current_spend / acc.spend_limit) * 100 : 0} className="h-1.5" />
-                      </div>
-                    )}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -415,57 +476,68 @@ export default function Dashboard() {
             <div className="flex flex-wrap gap-3">
               <div className="relative flex-1 min-w-[200px] max-w-sm">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input placeholder="Search transactions..." value={txnSearch} onChange={(e) => setTxnSearch(e.target.value)} className="pl-10 bg-secondary border-border text-foreground" />
+                <Input placeholder="Search transactions..." value={txnSearch} onChange={(e) => { setTxnSearch(e.target.value); setTxnPage(0); }} className="pl-10 bg-secondary border-border text-foreground" />
               </div>
-              <select value={txnTypeFilter} onChange={(e) => setTxnTypeFilter(e.target.value)} className="h-10 rounded-md bg-secondary border border-border px-3 text-foreground text-sm">
+              <select value={txnTypeFilter} onChange={(e) => { setTxnTypeFilter(e.target.value); setTxnPage(0); }} className="h-10 rounded-md bg-secondary border border-border px-3 text-foreground text-sm">
                 <option value="">All types</option>
                 <option value="wallet_topup">Wallet Top-Up</option>
                 <option value="wallet_to_account">Transfer to Account</option>
                 <option value="account_to_wallet">Withdraw to Wallet</option>
               </select>
             </div>
-            {filteredTransactions.length === 0 ? (
+            {transactions.length === 0 ? (
               <div className="bg-card border border-border rounded-2xl p-12 text-center">
                 <FileText className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
                 <p className="text-muted-foreground">No transactions found.</p>
               </div>
             ) : (
-              <div className="bg-card border border-border rounded-xl overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead><tr className="border-b border-border">
-                      <th className="text-left p-4 text-muted-foreground font-medium">Date</th>
-                      <th className="text-left p-4 text-muted-foreground font-medium">Type</th>
-                      <th className="text-left p-4 text-muted-foreground font-medium">Amount</th>
-                      <th className="text-left p-4 text-muted-foreground font-medium">Commission</th>
-                      <th className="text-left p-4 text-muted-foreground font-medium">Status</th>
-                      <th className="text-left p-4 text-muted-foreground font-medium">Account</th>
-                      <th className="text-left p-4 text-muted-foreground font-medium">Action</th>
-                    </tr></thead>
-                    <tbody>
-                      {filteredTransactions.map((txn) => (
-                        <tr key={txn.id} className="border-b border-border/50 hover:bg-secondary/50">
-                          <td className="p-4 text-foreground">{new Date(txn.created_at).toLocaleDateString()}</td>
-                          <td className="p-4 text-foreground">{txnTypeLabel(txn.type)}</td>
-                          <td className="p-4 font-medium">
-                            <span className={txnAmountColor(txn.type)}>{txnAmountPrefix(txn.type)}${Number(txn.amount).toFixed(2)}</span>
-                          </td>
-                          <td className="p-4 text-muted-foreground">{txn.commission ? `$${Number(txn.commission).toFixed(2)}` : "—"}</td>
-                          <td className="p-4"><span className="flex items-center gap-1.5">{statusIcon(txn.status)}<span className="capitalize">{txn.status}</span></span></td>
-                          <td className="p-4 text-muted-foreground font-mono text-xs">{txn.ad_account_id || "—"}</td>
-                          <td className="p-4">
-                            {txn.status === "completed" && (
-                              <Button size="sm" variant="ghost" onClick={() => handleGenerateInvoice(txn)} className="text-primary hover:text-primary">
-                                <Receipt className="w-3.5 h-3.5 mr-1" />Invoice
-                              </Button>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+              <>
+                <div className="bg-card border border-border rounded-xl overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead><tr className="border-b border-border">
+                        <th className="text-left p-4 text-muted-foreground font-medium">Date</th>
+                        <th className="text-left p-4 text-muted-foreground font-medium">Type</th>
+                        <th className="text-left p-4 text-muted-foreground font-medium">Amount</th>
+                        <th className="text-left p-4 text-muted-foreground font-medium">Commission</th>
+                        <th className="text-left p-4 text-muted-foreground font-medium">Status</th>
+                        <th className="text-left p-4 text-muted-foreground font-medium">Account</th>
+                        <th className="text-left p-4 text-muted-foreground font-medium">Action</th>
+                      </tr></thead>
+                      <tbody>
+                        {transactions.map((txn) => (
+                          <tr key={txn.id} className="border-b border-border/50 hover:bg-secondary/50">
+                            <td className="p-4 text-foreground">{new Date(txn.created_at).toLocaleDateString()}</td>
+                            <td className="p-4 text-foreground">{txnTypeLabel(txn.type)}</td>
+                            <td className="p-4 font-medium">
+                              <span className={txnAmountColor(txn.type)}>{txnAmountPrefix(txn.type)}${Number(txn.amount).toFixed(2)}</span>
+                            </td>
+                            <td className="p-4 text-muted-foreground">{txn.commission ? `$${Number(txn.commission).toFixed(2)}` : "—"}</td>
+                            <td className="p-4"><span className="flex items-center gap-1.5">{statusIcon(txn.status)}<span className="capitalize">{txn.status}</span></span></td>
+                            <td className="p-4 text-muted-foreground font-mono text-xs">{txn.ad_account_id || "—"}</td>
+                            <td className="p-4">
+                              {txn.status === "completed" && (
+                                <Button size="sm" variant="ghost" onClick={() => handleGenerateInvoice(txn)} className="text-primary hover:text-primary">
+                                  <Receipt className="w-3.5 h-3.5 mr-1" />Invoice
+                                </Button>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
-              </div>
+                {txnTotalPages > 1 && (
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm text-muted-foreground">Page {txnPage + 1} of {txnTotalPages} ({txnCount} total)</p>
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="outline" disabled={txnPage === 0} onClick={() => setTxnPage(p => p - 1)} className="rounded-full border-border">Previous</Button>
+                      <Button size="sm" variant="outline" disabled={txnPage >= txnTotalPages - 1} onClick={() => setTxnPage(p => p + 1)} className="rounded-full border-border">Next</Button>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}
@@ -476,27 +548,38 @@ export default function Dashboard() {
             <h2 className="text-xl font-bold text-foreground">Invoices</h2>
             <div className="relative max-w-sm">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input placeholder="Search invoices..." value={invoiceSearch} onChange={(e) => setInvoiceSearch(e.target.value)} className="pl-10 bg-secondary border-border text-foreground" />
+              <Input placeholder="Search invoices..." value={invoiceSearch} onChange={(e) => { setInvoiceSearch(e.target.value); setInvPage(0); }} className="pl-10 bg-secondary border-border text-foreground" />
             </div>
-            {filteredInvoices.length === 0 ? (
+            {invoices.length === 0 ? (
               <div className="bg-card border border-border rounded-2xl p-12 text-center">
                 <Receipt className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
                 <p className="text-muted-foreground">No invoices found.</p>
               </div>
             ) : (
-              <div className="grid gap-3">
-                {filteredInvoices.map((inv) => (
-                  <div key={inv.id} className="bg-card border border-border rounded-xl p-4 flex items-center justify-between">
-                    <div>
-                      <p className="font-medium text-foreground">{inv.invoice_number}</p>
-                      <p className="text-sm text-muted-foreground">{new Date(inv.created_at).toLocaleDateString()} · ${Number(inv.amount).toFixed(2)} {inv.currency}</p>
+              <>
+                <div className="grid gap-3">
+                  {invoices.map((inv) => (
+                    <div key={inv.id} className="bg-card border border-border rounded-xl p-4 flex items-center justify-between">
+                      <div>
+                        <p className="font-medium text-foreground">{inv.invoice_number}</p>
+                        <p className="text-sm text-muted-foreground">{new Date(inv.created_at).toLocaleDateString()} · ${Number(inv.amount).toFixed(2)} {inv.currency}</p>
+                      </div>
+                      <Button size="sm" variant="outline" className="rounded-full border-border" disabled={!inv.pdf_url}>
+                        {inv.pdf_url ? "Download" : "PDF Pending"}
+                      </Button>
                     </div>
-                    <Button size="sm" variant="outline" className="rounded-full border-border" disabled={!inv.pdf_url}>
-                      {inv.pdf_url ? "Download" : "PDF Pending"}
-                    </Button>
+                  ))}
+                </div>
+                {invTotalPages > 1 && (
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm text-muted-foreground">Page {invPage + 1} of {invTotalPages} ({invCount} total)</p>
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="outline" disabled={invPage === 0} onClick={() => setInvPage(p => p - 1)} className="rounded-full border-border">Previous</Button>
+                      <Button size="sm" variant="outline" disabled={invPage >= invTotalPages - 1} onClick={() => setInvPage(p => p + 1)} className="rounded-full border-border">Next</Button>
+                    </div>
                   </div>
-                ))}
-              </div>
+                )}
+              </>
             )}
           </div>
         )}
@@ -586,7 +669,7 @@ export default function Dashboard() {
                 <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input type="number" min="1" placeholder="30" value={withdrawAmount} onChange={(e) => setWithdrawAmount(e.target.value)} className="pl-10 bg-secondary border-border text-foreground" />
               </div>
-              <p className="text-xs text-muted-foreground">Account Balance: ${Number(withdrawOpen.account?.spend_limit || 0).toFixed(2)}</p>
+              <p className="text-xs text-muted-foreground">Account Balance: ${getAccountBalance(withdrawOpen.account || {}).toFixed(2)}</p>
             </div>
             {Number(withdrawAmount) > 0 && (
               <div className="bg-secondary rounded-xl p-4 space-y-1 text-sm">

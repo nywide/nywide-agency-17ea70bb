@@ -49,6 +49,30 @@ export type Database = {
           },
         ]
       }
+      ad_account_cache: {
+        Row: {
+          account_id: string
+          amount_spent: number | null
+          id: string
+          last_fetched_at: string | null
+          spend_cap: number | null
+        }
+        Insert: {
+          account_id: string
+          amount_spent?: number | null
+          id?: string
+          last_fetched_at?: string | null
+          spend_cap?: number | null
+        }
+        Update: {
+          account_id?: string
+          amount_spent?: number | null
+          id?: string
+          last_fetched_at?: string | null
+          spend_cap?: number | null
+        }
+        Relationships: []
+      }
       ad_accounts: {
         Row: {
           account_id: string
