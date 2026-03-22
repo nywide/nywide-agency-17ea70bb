@@ -282,21 +282,21 @@ export default function Admin() {
 
   const handleUpdateAccount = async () => {
     if (!editAccountDialog.account) return;
-    setLoading(true);
+    setUpdatingAccount(true);
     const acc = editAccountDialog.account;
     await supabase.from("ad_accounts").update({
       spend_limit: Number(acc.spend_limit), current_spend: Number(acc.current_spend),
       status: acc.status, user_id: acc.user_id || null,
       assigned_at: acc.user_id ? new Date().toISOString() : null,
     }).eq("id", acc.id);
-    setLoading(false);
+    setUpdatingAccount(false);
     toast({ title: "Account updated" });
     setEditAccountDialog({ open: false });
     fetchAccounts();
   };
 
   const handleApproveRequest = async (req: any) => {
-    setLoading(true);
+    setApprovingId(req.id);
     await supabase.from("ad_accounts").insert({
       account_id: `FB-${Date.now().toString(36).toUpperCase()}`,
       account_name: (req as any).account_name || `Account for ${req.profiles?.full_name || "User"}`,
@@ -307,7 +307,7 @@ export default function Admin() {
       assigned_at: new Date().toISOString(),
     });
     await supabase.from("account_requests").update({ status: "approved" }).eq("id", req.id);
-    setLoading(false);
+    setApprovingId(null);
     toast({ title: "Request approved", description: "Ad account created and assigned." });
     fetchRequests();
     fetchOverviewStats();
@@ -329,14 +329,14 @@ export default function Admin() {
 
   const handleSaveOverride = async () => {
     if (!overrideDialog.userId || !overrideDialog.rate) return;
-    setLoading(true);
+    setSavingOverride(true);
     const existing = commissionOverrides.find(o => o.user_id === overrideDialog.userId);
     if (existing) {
       await supabase.from("user_commission_overrides").update({ rate: Number(overrideDialog.rate), updated_at: new Date().toISOString() }).eq("id", existing.id);
     } else {
       await supabase.from("user_commission_overrides").insert({ user_id: overrideDialog.userId, rate: Number(overrideDialog.rate) } as any);
     }
-    setLoading(false);
+    setSavingOverride(false);
     toast({ title: "Custom rate saved", description: `${overrideDialog.userName}: ${overrideDialog.rate}%` });
     setOverrideDialog({ open: false });
     fetchCommission();
