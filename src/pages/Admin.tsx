@@ -71,6 +71,20 @@ export default function Admin() {
     fetchOverviewStats();
     fetchCommission();
     fetchAllUsersForDropdown();
+    fetchTopupRequests();
+
+    // Realtime subscription for profiles changes (new signups)
+    const channel = supabase
+      .channel('admin-profiles')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => {
+        console.log("[Admin] Profiles table changed, refreshing...");
+        fetchOverviewStats();
+        fetchAllUsersForDropdown();
+        if (activeTab === "users") fetchUsers();
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
   }, []);
 
   useEffect(() => {
@@ -252,31 +266,40 @@ export default function Admin() {
   };
 
   const handleAddAccount = async () => {
+    console.log("[Admin] handleAddAccount called", newAccount);
     if (!newAccount.account_id || !newAccount.account_name) {
       toast({ title: "Account ID and Name are required", variant: "destructive" });
       return;
     }
     setAddingAccount(true);
-    console.log("Creating ad account:", newAccount);
-    const { error } = await supabase.from("ad_accounts").insert({
-      account_id: newAccount.account_id, account_name: newAccount.account_name,
-      currency: newAccount.currency, timezone: newAccount.timezone,
-      spend_limit: Number(newAccount.spend_limit) || 0,
-      platform: newAccount.platform,
-      user_id: newAccount.user_id || null,
-      assigned_at: newAccount.user_id ? new Date().toISOString() : null,
-    });
-    setAddingAccount(false);
-    if (error) {
-      console.error("Error creating ad account:", error);
-      toast({ title: "Error", description: error.message, variant: "destructive" });
-    } else {
-      console.log("Ad account created successfully");
-      toast({ title: "Account created successfully" });
-      setAddAccountDialog(false);
-      setNewAccount({ account_id: "", account_name: "", currency: "USD", timezone: "America/New_York", spend_limit: "", user_id: "", platform: "facebook" });
-      fetchAccounts();
-      fetchOverviewStats();
+    try {
+      const insertData = {
+        account_id: newAccount.account_id,
+        account_name: newAccount.account_name,
+        currency: newAccount.currency || "USD",
+        timezone: newAccount.timezone || "America/New_York",
+        spend_limit: Number(newAccount.spend_limit) || 0,
+        platform: newAccount.platform || "facebook",
+        user_id: newAccount.user_id || null,
+        assigned_at: newAccount.user_id ? new Date().toISOString() : null,
+      };
+      console.log("[Admin] Inserting ad account:", insertData);
+      const { data, error } = await supabase.from("ad_accounts").insert(insertData).select();
+      console.log("[Admin] Insert result:", { data, error });
+      if (error) {
+        toast({ title: "Error creating account", description: error.message, variant: "destructive" });
+      } else {
+        toast({ title: "Account created successfully" });
+        setAddAccountDialog(false);
+        setNewAccount({ account_id: "", account_name: "", currency: "USD", timezone: "America/New_York", spend_limit: "", user_id: "", platform: "facebook" });
+        fetchAccounts();
+        fetchOverviewStats();
+      }
+    } catch (err: any) {
+      console.error("[Admin] handleAddAccount exception:", err);
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally {
+      setAddingAccount(false);
     }
   };
 
