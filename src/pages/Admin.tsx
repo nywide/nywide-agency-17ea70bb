@@ -163,14 +163,16 @@ export default function Admin() {
       let query = supabase.from("profiles").select("*, user_roles(role)", { count: "exact" });
       if (searchTerm) query = query.or(`full_name.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`);
       const { data, count, error } = await query.order("created_at", { ascending: false }).range(userPage * PAGE_SIZE, (userPage + 1) * PAGE_SIZE - 1);
-      console.log("[Admin] fetchUsers result:", { data, count, error });
+      console.log("[Admin] fetchUsers result - data length:", data?.length, "count:", count, "error:", error);
       if (error) {
         console.error("[Admin] fetchUsers error:", error);
         toast({ title: "Error loading users", description: error.message, variant: "destructive" });
         return;
       }
       if (data) {
+        console.log("[Admin] Setting users state with", data.length, "users:", data.map(u => ({ id: u.id, name: u.full_name, email: u.email })));
         setUsers(data);
+        setUserCount(count || data.length);
         const userIds = data.map((u: any) => u.id);
         if (userIds.length > 0) {
           const { data: spentData } = await supabase.from("transactions").select("user_id, amount").eq("type", "wallet_to_account").eq("status", "completed").in("user_id", userIds);
@@ -178,10 +180,14 @@ export default function Admin() {
           (spentData || []).forEach((t: any) => { spentMap[t.user_id] = (spentMap[t.user_id] || 0) + Number(t.amount); });
           setUserTotalSpent(spentMap);
         }
+      } else {
+        console.warn("[Admin] fetchUsers returned null data");
+        setUsers([]);
+        setUserCount(count || 0);
       }
-      setUserCount(count || 0);
     } catch (err: any) {
       console.error("[Admin] fetchUsers exception:", err);
+      toast({ title: "Error loading users", description: err.message, variant: "destructive" });
     }
   };
 
