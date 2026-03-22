@@ -481,7 +481,26 @@ export default function Admin() {
     }
   };
 
-  const handleApproveRequest = async (req: any) => {
+  const handleDeleteAccount = async () => {
+    if (!deleteConfirm.account) return;
+    setDeletingAccount(true);
+    try {
+      const { error } = await supabase.from("ad_accounts").delete().eq("id", deleteConfirm.account.id);
+      if (error) {
+        toast({ title: "Error deleting account", description: error.message, variant: "destructive" });
+      } else {
+        toast({ title: "Account deleted" });
+        fetchAccounts();
+        fetchOverviewStats();
+      }
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally {
+      setDeletingAccount(false);
+      setDeleteConfirm({ open: false });
+    }
+  };
+
     setApprovingId(req.id);
     await supabase.from("ad_accounts").insert({
       account_id: `FB-${Date.now().toString(36).toUpperCase()}`,
