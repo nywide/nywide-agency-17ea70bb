@@ -265,9 +265,11 @@ export default function Admin() {
     fetchUsers();
   };
 
-  const handleAddAccount = async () => {
+  const handleAddAccount = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     console.log("[Admin] handleAddAccount called", newAccount);
     if (!newAccount.account_id || !newAccount.account_name) {
+      console.log("[Admin] Validation failed: missing account_id or account_name");
       toast({ title: "Account ID and Name are required", variant: "destructive" });
       return;
     }
@@ -287,14 +289,29 @@ export default function Admin() {
       const { data, error } = await supabase.from("ad_accounts").insert(insertData).select();
       console.log("[Admin] Insert result:", { data, error });
       if (error) {
+        console.error("[Admin] Insert error:", error);
         toast({ title: "Error creating account", description: error.message, variant: "destructive" });
-      } else {
-        toast({ title: "Account created successfully" });
-        setAddAccountDialog(false);
-        setNewAccount({ account_id: "", account_name: "", currency: "USD", timezone: "America/New_York", spend_limit: "", user_id: "", platform: "facebook" });
-        fetchAccounts();
-        fetchOverviewStats();
+        return;
       }
+
+      // Try to set Facebook spend limit via edge function
+      if (insertData.spend_limit > 0 && insertData.platform === "facebook") {
+        try {
+          console.log("[Admin] Setting Facebook spend limit...");
+          const { data: fbData, error: fbError } = await supabase.functions.invoke("facebook-api", {
+            body: { action: "get_spend_limit", ad_account_id: insertData.account_id },
+          });
+          console.log("[Admin] Facebook API response:", { fbData, fbError });
+        } catch (fbErr) {
+          console.warn("[Admin] Facebook API call failed (non-blocking):", fbErr);
+        }
+      }
+
+      toast({ title: "Account created successfully" });
+      setAddAccountDialog(false);
+      setNewAccount({ account_id: "", account_name: "", currency: "USD", timezone: "America/New_York", spend_limit: "", user_id: "", platform: "facebook" });
+      fetchAccounts();
+      fetchOverviewStats();
     } catch (err: any) {
       console.error("[Admin] handleAddAccount exception:", err);
       toast({ title: "Error", description: err.message, variant: "destructive" });
