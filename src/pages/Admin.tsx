@@ -19,7 +19,7 @@ import {
 const PAGE_SIZE = 50;
 
 export default function Admin() {
-  const { signOut } = useAuth();
+  const { user, signOut } = useAuth();
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("overview");
 
@@ -68,6 +68,7 @@ export default function Admin() {
   const [userTotalSpent, setUserTotalSpent] = useState<Record<string, number>>({});
 
   useEffect(() => {
+    if (!user) return;
     fetchOverviewStats();
     fetchCommission();
     fetchAllUsersForDropdown();
@@ -86,35 +87,35 @@ export default function Admin() {
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, []);
+  }, [user]);
 
   useEffect(() => {
-    if (activeTab === "users") fetchUsers();
-  }, [activeTab, userPage, searchTerm]);
+    if (user && activeTab === "users") fetchUsers();
+  }, [user, activeTab, userPage, searchTerm]);
 
   useEffect(() => {
-    if (activeTab === "accounts") fetchAccounts();
-  }, [activeTab, accPage]);
+    if (user && activeTab === "accounts") fetchAccounts();
+  }, [user, activeTab, accPage]);
 
   useEffect(() => {
-    if (activeTab === "requests") fetchRequests();
-  }, [activeTab]);
+    if (user && activeTab === "requests") fetchRequests();
+  }, [user, activeTab]);
 
   useEffect(() => {
-    if (activeTab === "topups") fetchTopupRequests();
-  }, [activeTab]);
+    if (user && activeTab === "topups") fetchTopupRequests();
+  }, [user, activeTab]);
 
   useEffect(() => {
-    if (activeTab === "transactions") fetchTransactions();
-  }, [activeTab, txnPage, txnFilter]);
+    if (user && activeTab === "transactions") fetchTransactions();
+  }, [user, activeTab, txnPage, txnFilter]);
 
   useEffect(() => {
-    if (activeTab === "invoices") fetchInvoices();
-  }, [activeTab, invPage, invoiceSearch]);
+    if (user && activeTab === "invoices") fetchInvoices();
+  }, [user, activeTab, invPage, invoiceSearch]);
 
   useEffect(() => {
-    if (activeTab === "overview") fetchOverviewUsers();
-  }, [activeTab]);
+    if (user && activeTab === "overview") fetchOverviewUsers();
+  }, [user, activeTab]);
 
   const fetchOverviewStats = async () => {
     const [balRes, revRes, userCountRes, accCountRes] = await Promise.all([
@@ -1032,7 +1033,7 @@ export default function Admin() {
                 {allUsersForDropdown.map(u => <option key={u.id} value={u.id}>{u.full_name || u.email || u.id}</option>)}
               </select>
             </div>
-            <Button type="button" disabled={addingAccount} onClick={() => handleAddAccount()} className="w-full bg-primary text-primary-foreground font-bold rounded-full">
+            <Button type="submit" disabled={addingAccount} className="w-full bg-primary text-primary-foreground font-bold rounded-full">
               {addingAccount ? "Creating..." : "Create Account"}
             </Button>
           </form>
