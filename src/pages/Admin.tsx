@@ -210,11 +210,56 @@ export default function Admin() {
     }
   };
 
+  const [refreshingAccountId, setRefreshingAccountId] = useState<string | null>(null);
+  const [accountCache, setAccountCache] = useState<Record<string, { spend_cap: number; amount_spent: number }>>({});
+
   const fetchAccounts = async () => {
     const { data, count } = await supabase.from("ad_accounts").select("*, profiles(full_name, email)", { count: "exact" })
       .order("created_at", { ascending: false }).range(accPage * PAGE_SIZE, (accPage + 1) * PAGE_SIZE - 1);
-    if (data) setAdAccounts(data);
+    if (data) {
+      setAdAccounts(data);
+      // Fetch cached FB data in background
+      const fbAccountIds = data.filter(a => a.platform === "facebook").map(a => a.account_id);
+      if (fbAccountIds.length > 0) {
+        supabase.functions.invoke("facebook-api", {
+          body: { action: "batch_get_spend_limits", account_ids: fbAccountIds },
+        }).then(({ data: fbData }) => {
+          if (fbData?.results) {
+            setAccountCache(fbData.results);
+            // Update local state with fresh data
+            setAdAccounts(prev => prev.map(acc => {
+              const cached = fbData.results[acc.account_id];
+              if (cached) {
+                return { ...acc, spend_limit: cached.spend_cap ?? acc.spend_limit, current_spend: cached.amount_spent ?? acc.current_spend };
+              }
+              return acc;
+            }));
+          }
+        }).catch(err => console.warn("[Admin] Cache fetch failed:", err));
+      }
+    }
     setAccCount(count || 0);
+  };
+
+  const handleRefreshAccount = async (accountId: string) => {
+    setRefreshingAccountId(accountId);
+    try {
+      const { data, error } = await supabase.functions.invoke("facebook-api", {
+        body: { action: "refresh_balance", ad_account_id: accountId },
+      });
+      if (error || data?.error) {
+        toast({ title: "Refresh failed", description: data?.error || error?.message, variant: "destructive" });
+      } else {
+        setAdAccounts(prev => prev.map(acc =>
+          acc.account_id === accountId ? { ...acc, spend_limit: data.spend_cap, current_spend: data.amount_spent } : acc
+        ));
+        toast({ title: "Account refreshed" });
+      }
+    } catch (err: any) {
+      toast({ title: "Refresh error", description: err.message, variant: "destructive" });
+    } finally {
+      setRefreshingAccountId(null);
+    }
   };
 
   const fetchRequests = async () => {
@@ -248,22 +293,46 @@ export default function Admin() {
   const handleManualTopUp = async () => {
     if (!topUpDialog.userId || !topUpAmount || Number(topUpAmount) <= 0) return;
     setToppingUp(true);
-    await supabase.from("transactions").insert({
-      user_id: topUpDialog.userId, type: "wallet_topup", amount: Number(topUpAmount),
-      status: "completed", payment_method: "manual",
-    });
-    const { data: prof } = await supabase.from("profiles").select("wallet_balance").eq("id", topUpDialog.userId).single();
-    if (prof) {
-      await supabase.from("profiles").update({
+    try {
+      // Insert transaction first
+      const { error: txnError } = await supabase.from("transactions").insert({
+        user_id: topUpDialog.userId, type: "wallet_topup", amount: Number(topUpAmount),
+        status: "completed", payment_method: "manual",
+      });
+      if (txnError) {
+        console.error("[Admin] Transaction insert error:", txnError);
+        toast({ title: "Error adding top-up", description: txnError.message, variant: "destructive" });
+        setToppingUp(false);
+        return;
+      }
+      // Fetch current balance then update
+      const { data: prof, error: profError } = await supabase.from("profiles").select("wallet_balance").eq("id", topUpDialog.userId).single();
+      if (profError || !prof) {
+        console.error("[Admin] Profile fetch error:", profError);
+        toast({ title: "Error fetching profile", description: profError?.message || "Profile not found", variant: "destructive" });
+        setToppingUp(false);
+        return;
+      }
+      const { error: updateError } = await supabase.from("profiles").update({
         wallet_balance: Number(prof.wallet_balance) + Number(topUpAmount),
       }).eq("id", topUpDialog.userId);
+      if (updateError) {
+        console.error("[Admin] Profile update error:", updateError);
+        toast({ title: "Error updating balance", description: updateError.message, variant: "destructive" });
+        setToppingUp(false);
+        return;
+      }
+      toast({ title: "Top-up added", description: `$${topUpAmount} added to ${topUpDialog.userName}'s wallet.` });
+      setTopUpDialog({ open: false });
+      setTopUpAmount("");
+      fetchOverviewStats();
+      if (activeTab === "users") fetchUsers();
+    } catch (err: any) {
+      console.error("[Admin] handleManualTopUp exception:", err);
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally {
+      setToppingUp(false);
     }
-    setToppingUp(false);
-    toast({ title: "Top-up added", description: `$${topUpAmount} added to ${topUpDialog.userName}'s wallet.` });
-    setTopUpDialog({ open: false });
-    setTopUpAmount("");
-    fetchOverviewStats();
-    if (activeTab === "users") fetchUsers();
   };
 
   const handleApproveTopup = async (req: any) => {
@@ -307,44 +376,52 @@ export default function Admin() {
     if (e) e.preventDefault();
     console.log("[Admin] handleAddAccount called with data:", JSON.stringify(newAccount));
     if (!newAccount.account_id || !newAccount.account_name) {
-      console.log("[Admin] Validation failed: missing account_id or account_name");
       toast({ title: "Account ID and Name are required", variant: "destructive" });
       return;
     }
     setAddingAccount(true);
     try {
+      const spendLimit = Number(newAccount.spend_limit) || 0;
       const insertData = {
         account_id: newAccount.account_id.trim(),
         account_name: newAccount.account_name.trim(),
         currency: newAccount.currency || "USD",
         timezone: newAccount.timezone || "America/New_York",
-        spend_limit: Number(newAccount.spend_limit) || 0,
+        spend_limit: spendLimit,
         platform: newAccount.platform || "facebook",
         user_id: newAccount.user_id || null,
         assigned_at: newAccount.user_id ? new Date().toISOString() : null,
       };
-      console.log("[Admin] Inserting ad account:", JSON.stringify(insertData));
+
+      // If Facebook account with balance, set spend limit on FB first
+      if (spendLimit > 0 && insertData.platform === "facebook") {
+        console.log("[Admin] Setting Facebook spend limit to $" + spendLimit);
+        const { data: fbData, error: fbError } = await supabase.functions.invoke("facebook-api", {
+          body: { action: "set_spend_limit", ad_account_id: insertData.account_id, amount: spendLimit },
+        });
+        if (fbError) {
+          console.error("[Admin] FB API error:", fbError);
+          toast({ title: "Facebook API error", description: fbError.message, variant: "destructive" });
+          setAddingAccount(false);
+          return;
+        }
+        if (fbData?.error) {
+          console.error("[Admin] FB API returned error:", fbData.error);
+          toast({ title: "Facebook API error", description: fbData.error, variant: "destructive" });
+          setAddingAccount(false);
+          return;
+        }
+        console.log("[Admin] Facebook spend limit set successfully");
+      }
+
+      // Insert into database
       const { data, error } = await supabase.from("ad_accounts").insert(insertData).select();
-      console.log("[Admin] Insert result:", JSON.stringify({ data, error }));
       if (error) {
         console.error("[Admin] Insert error:", error);
         toast({ title: "Error creating account", description: error.message, variant: "destructive" });
         return;
       }
-
-      // Try to set Facebook spend limit (non-blocking)
-      if (insertData.spend_limit > 0 && insertData.platform === "facebook") {
-        try {
-          console.log("[Admin] Setting Facebook spend limit...");
-          const { data: fbData, error: fbError } = await supabase.functions.invoke("facebook-api", {
-            body: { action: "get_spend_limit", ad_account_id: insertData.account_id },
-          });
-          console.log("[Admin] Facebook API response:", { fbData, fbError });
-        } catch (fbErr) {
-          console.warn("[Admin] Facebook API call failed (non-blocking):", fbErr);
-        }
-      }
-
+      console.log("[Admin] Account created:", data);
       toast({ title: "Account created successfully" });
       setAddAccountDialog(false);
       setNewAccount({ account_id: "", account_name: "", currency: "USD", timezone: "America/New_York", spend_limit: "", user_id: "", platform: "facebook" });
@@ -362,15 +439,40 @@ export default function Admin() {
     if (!editAccountDialog.account) return;
     setUpdatingAccount(true);
     const acc = editAccountDialog.account;
-    await supabase.from("ad_accounts").update({
-      spend_limit: Number(acc.spend_limit), current_spend: Number(acc.current_spend),
-      status: acc.status, user_id: acc.user_id || null,
-      assigned_at: acc.user_id ? new Date().toISOString() : null,
-    }).eq("id", acc.id);
-    setUpdatingAccount(false);
-    toast({ title: "Account updated" });
-    setEditAccountDialog({ open: false });
-    fetchAccounts();
+    try {
+      const newSpendLimit = Number(acc.spend_limit);
+      // Update Facebook spend limit if it's a facebook account
+      if (acc.platform === "facebook" && newSpendLimit >= 0) {
+        console.log("[Admin] Updating Facebook spend limit to $" + newSpendLimit);
+        const { data: fbData, error: fbError } = await supabase.functions.invoke("facebook-api", {
+          body: { action: "set_spend_limit", ad_account_id: acc.account_id, amount: newSpendLimit },
+        });
+        if (fbError || fbData?.error) {
+          const msg = fbError?.message || fbData?.error;
+          console.error("[Admin] FB API error on update:", msg);
+          toast({ title: "Facebook API error", description: msg, variant: "destructive" });
+          setUpdatingAccount(false);
+          return;
+        }
+      }
+      const { error } = await supabase.from("ad_accounts").update({
+        spend_limit: newSpendLimit, current_spend: Number(acc.current_spend),
+        status: acc.status, user_id: acc.user_id || null,
+        assigned_at: acc.user_id ? new Date().toISOString() : null,
+      }).eq("id", acc.id);
+      if (error) {
+        toast({ title: "Error updating account", description: error.message, variant: "destructive" });
+      } else {
+        toast({ title: "Account updated" });
+      }
+    } catch (err: any) {
+      console.error("[Admin] handleUpdateAccount exception:", err);
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally {
+      setUpdatingAccount(false);
+      setEditAccountDialog({ open: false });
+      fetchAccounts();
+    }
   };
 
   const handleApproveRequest = async (req: any) => {
@@ -703,8 +805,14 @@ export default function Admin() {
                         </td>
                         <td className="p-4 capitalize text-foreground">{acc.status}</td>
                         <td className="p-4 text-muted-foreground">{acc.profiles?.full_name || "Unassigned"}</td>
-                        <td className="p-4">
+                        <td className="p-4 flex gap-1">
                           <Button size="sm" variant="ghost" className="text-primary" onClick={() => setEditAccountDialog({ open: true, account: { ...acc } })}>Edit</Button>
+                          {acc.platform === "facebook" && (
+                            <Button size="sm" variant="ghost" className="text-muted-foreground" disabled={refreshingAccountId === acc.account_id}
+                              onClick={() => handleRefreshAccount(acc.account_id)}>
+                              {refreshingAccountId === acc.account_id ? "..." : "↻"}
+                            </Button>
+                          )}
                         </td>
                       </tr>
                     ))}

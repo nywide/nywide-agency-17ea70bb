@@ -228,6 +228,20 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Admin: set spend limit directly on a Facebook ad account
+    if (action === "set_spend_limit") {
+      const spendLimitCents = Math.round((amount || 0) * 100);
+      const fbUpdateData = await fbUpdateSpendCap(ad_account_id, spendLimitCents, FB_ACCESS_TOKEN);
+      if (fbUpdateData.error) return jsonResponse({ error: `Facebook API: ${fbUpdateData.error.message}` }, 400);
+
+      // Update cache
+      await adminClient.from("ad_account_cache").upsert({
+        account_id: ad_account_id, spend_cap: amount || 0, last_fetched_at: new Date().toISOString(),
+      }, { onConflict: "account_id" });
+
+      return jsonResponse({ success: true, spend_limit_cents: spendLimitCents });
+    }
+
     return jsonResponse({ error: "Unknown action" }, 400);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
