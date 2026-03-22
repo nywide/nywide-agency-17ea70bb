@@ -410,6 +410,8 @@ export default function Admin() {
     setAddingAccount(true);
     try {
       const spendLimit = Number(newAccount.spend_limit) || 0;
+      console.log("=== Sending to Facebook ===");
+      console.log("Original balance in dollars (from form):", spendLimit);
       const insertData = {
         account_id: newAccount.account_id.trim(),
         account_name: newAccount.account_name.trim(),
@@ -424,6 +426,7 @@ export default function Admin() {
       // If Facebook account with balance, set spend limit on FB first
       if (spendLimit > 0 && insertData.platform === "facebook") {
         console.log("[Admin] Setting Facebook spend limit to $" + spendLimit);
+        console.log("Sending to Facebook API (will be converted to cents on server):", spendLimit, "dollars →", spendLimit * 100, "cents");
         const { data: fbData, error: fbError } = await supabase.functions.invoke("facebook-api", {
           body: { action: "set_spend_limit", ad_account_id: insertData.account_id, amount: spendLimit },
         });
@@ -439,6 +442,8 @@ export default function Admin() {
           setAddingAccount(false);
           return;
         }
+        console.log("=== Response from Facebook ===");
+        console.log("Response data:", fbData);
         console.log("[Admin] Facebook spend limit set successfully");
       }
 
