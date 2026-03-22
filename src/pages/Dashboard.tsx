@@ -199,6 +199,7 @@ export default function Dashboard() {
       return;
     }
     setRequestLoading(true);
+    console.log("Submitting account request:", { user_id: user!.id, platform: requestPlatform, account_name: requestAccountName, currency: requestCurrency, timezone: requestTimezone });
     const { error } = await supabase.from("account_requests").insert({
       user_id: user!.id,
       platform: requestPlatform,
@@ -209,6 +210,7 @@ export default function Dashboard() {
     } as any);
     setRequestLoading(false);
     if (error) {
+      console.error("Account request error:", error);
       toast({ title: "Error", description: error.message, variant: "destructive" });
     } else {
       toast({ title: "Request submitted", description: "Admin will review your request." });
