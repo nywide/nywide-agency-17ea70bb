@@ -90,32 +90,32 @@ export default function Admin() {
   }, [user]);
 
   useEffect(() => {
-    if (activeTab === "users") fetchUsers();
-  }, [activeTab, userPage, searchTerm]);
+    if (user && activeTab === "users") fetchUsers();
+  }, [user, activeTab, userPage, searchTerm]);
 
   useEffect(() => {
-    if (activeTab === "accounts") fetchAccounts();
-  }, [activeTab, accPage]);
+    if (user && activeTab === "accounts") fetchAccounts();
+  }, [user, activeTab, accPage]);
 
   useEffect(() => {
-    if (activeTab === "requests") fetchRequests();
-  }, [activeTab]);
+    if (user && activeTab === "requests") fetchRequests();
+  }, [user, activeTab]);
 
   useEffect(() => {
-    if (activeTab === "topups") fetchTopupRequests();
-  }, [activeTab]);
+    if (user && activeTab === "topups") fetchTopupRequests();
+  }, [user, activeTab]);
 
   useEffect(() => {
-    if (activeTab === "transactions") fetchTransactions();
-  }, [activeTab, txnPage, txnFilter]);
+    if (user && activeTab === "transactions") fetchTransactions();
+  }, [user, activeTab, txnPage, txnFilter]);
 
   useEffect(() => {
-    if (activeTab === "invoices") fetchInvoices();
-  }, [activeTab, invPage, invoiceSearch]);
+    if (user && activeTab === "invoices") fetchInvoices();
+  }, [user, activeTab, invPage, invoiceSearch]);
 
   useEffect(() => {
-    if (activeTab === "overview") fetchOverviewUsers();
-  }, [activeTab]);
+    if (user && activeTab === "overview") fetchOverviewUsers();
+  }, [user, activeTab]);
 
   const fetchOverviewStats = async () => {
     const [balRes, revRes, userCountRes, accCountRes] = await Promise.all([
