@@ -839,6 +839,10 @@ export default function Admin() {
                               {refreshingAccountId === acc.account_id ? "..." : "↻"}
                             </Button>
                           )}
+                          <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive"
+                            onClick={() => setDeleteConfirm({ open: true, account: acc })}>
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
                         </td>
                       </tr>
                     ))}
