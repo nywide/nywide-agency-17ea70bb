@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   Users, Monitor, FileText, Settings, LogOut, Home, Plus,
-  DollarSign, CheckCircle, XCircle, Clock, Search, BarChart3, Receipt
+  DollarSign, CheckCircle, XCircle, Clock, Search, BarChart3, Receipt, CreditCard
 } from "lucide-react";
 
 const PAGE_SIZE = 50;
@@ -23,10 +23,8 @@ export default function Admin() {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("overview");
 
-  // Overview stats (lightweight)
   const [overviewStats, setOverviewStats] = useState({ totalBalance: 0, totalRevenue: 0, totalUsers: 0, totalAccounts: 0 });
 
-  // Paginated data
   const [users, setUsers] = useState<any[]>([]);
   const [userCount, setUserCount] = useState(0);
   const [userPage, setUserPage] = useState(0);
@@ -46,19 +44,24 @@ export default function Admin() {
   const [txnFilter, setTxnFilter] = useState({ user: "", type: "", date: "" });
   const [invoiceSearch, setInvoiceSearch] = useState("");
 
+  // Top-up requests
+  const [topupRequests, setTopupRequests] = useState<any[]>([]);
+
   // Dialogs
   const [topUpDialog, setTopUpDialog] = useState<{ open: boolean; userId?: string; userName?: string }>({ open: false });
   const [topUpAmount, setTopUpAmount] = useState("");
   const [addAccountDialog, setAddAccountDialog] = useState(false);
   const [newAccount, setNewAccount] = useState({
-    account_id: "", account_name: "", currency: "USD", timezone: "America/New_York", spend_limit: "", user_id: "",
+    account_id: "", account_name: "", currency: "USD", timezone: "America/New_York", spend_limit: "", user_id: "", platform: "facebook",
   });
   const [editAccountDialog, setEditAccountDialog] = useState<{ open: boolean; account?: any }>({ open: false });
   const [overrideDialog, setOverrideDialog] = useState<{ open: boolean; userId?: string; userName?: string; rate?: string }>({ open: false });
   const [loading, setLoading] = useState(false);
 
-  // All users for dropdowns (loaded once)
   const [allUsersForDropdown, setAllUsersForDropdown] = useState<any[]>([]);
+
+  // User total spent cache
+  const [userTotalSpent, setUserTotalSpent] = useState<Record<string, number>>({});
 
   useEffect(() => {
     fetchOverviewStats();
@@ -66,7 +69,6 @@ export default function Admin() {
     fetchAllUsersForDropdown();
   }, []);
 
-  // Tab-specific data loading
   useEffect(() => {
     if (activeTab === "users") fetchUsers();
   }, [activeTab, userPage, searchTerm]);
@@ -77,6 +79,10 @@ export default function Admin() {
 
   useEffect(() => {
     if (activeTab === "requests") fetchRequests();
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (activeTab === "topups") fetchTopupRequests();
   }, [activeTab]);
 
   useEffect(() => {
@@ -136,7 +142,15 @@ export default function Admin() {
     let query = supabase.from("profiles").select("*, user_roles(role)", { count: "exact" });
     if (searchTerm) query = query.or(`full_name.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`);
     const { data, count } = await query.order("created_at", { ascending: false }).range(userPage * PAGE_SIZE, (userPage + 1) * PAGE_SIZE - 1);
-    if (data) setUsers(data);
+    if (data) {
+      setUsers(data);
+      // Fetch total spent for these users
+      const userIds = data.map((u: any) => u.id);
+      const { data: spentData } = await supabase.from("transactions").select("user_id, amount").eq("type", "wallet_to_account").eq("status", "completed").in("user_id", userIds);
+      const spentMap: Record<string, number> = {};
+      (spentData || []).forEach((t: any) => { spentMap[t.user_id] = (spentMap[t.user_id] || 0) + Number(t.amount); });
+      setUserTotalSpent(spentMap);
+    }
     setUserCount(count || 0);
   };
 
@@ -150,6 +164,11 @@ export default function Admin() {
   const fetchRequests = async () => {
     const { data } = await supabase.from("account_requests").select("*, profiles(full_name, email)").order("created_at", { ascending: false });
     if (data) setRequests(data);
+  };
+
+  const fetchTopupRequests = async () => {
+    const { data } = await supabase.from("topup_requests").select("*, profiles(full_name, email)").order("created_at", { ascending: false });
+    if (data) setTopupRequests(data);
   };
 
   const fetchTransactions = async () => {
@@ -177,8 +196,6 @@ export default function Admin() {
       user_id: topUpDialog.userId, type: "wallet_topup", amount: Number(topUpAmount),
       status: "completed", payment_method: "manual",
     });
-    const currentUser = allUsersForDropdown.find(u => u.id === topUpDialog.userId);
-    // Use RPC-style update
     const { data: prof } = await supabase.from("profiles").select("wallet_balance").eq("id", topUpDialog.userId).single();
     if (prof) {
       await supabase.from("profiles").update({
@@ -191,6 +208,34 @@ export default function Admin() {
     setTopUpAmount("");
     fetchOverviewStats();
     if (activeTab === "users") fetchUsers();
+  };
+
+  const handleApproveTopup = async (req: any) => {
+    setLoading(true);
+    // Add amount to user wallet
+    const { data: prof } = await supabase.from("profiles").select("wallet_balance").eq("id", req.user_id).single();
+    if (prof) {
+      await supabase.from("profiles").update({
+        wallet_balance: Number(prof.wallet_balance) + Number(req.amount),
+      }).eq("id", req.user_id);
+    }
+    // Create transaction
+    await supabase.from("transactions").insert({
+      user_id: req.user_id, type: "wallet_topup", amount: Number(req.amount),
+      status: "completed", payment_method: req.payment_method || "manual",
+    });
+    // Update request status
+    await supabase.from("topup_requests").update({ status: "approved" } as any).eq("id", req.id);
+    setLoading(false);
+    toast({ title: "Top-up approved", description: `$${Number(req.amount).toFixed(2)} added to ${req.profiles?.full_name || "user"}'s wallet.` });
+    fetchTopupRequests();
+    fetchOverviewStats();
+  };
+
+  const handleRejectTopup = async (req: any) => {
+    await supabase.from("topup_requests").update({ status: "rejected" } as any).eq("id", req.id);
+    toast({ title: "Top-up rejected" });
+    fetchTopupRequests();
   };
 
   const handleChangeRole = async (userId: string, newRole: string) => {
@@ -210,6 +255,7 @@ export default function Admin() {
       account_id: newAccount.account_id, account_name: newAccount.account_name,
       currency: newAccount.currency, timezone: newAccount.timezone,
       spend_limit: Number(newAccount.spend_limit) || 0,
+      platform: newAccount.platform,
       user_id: newAccount.user_id || null,
       assigned_at: newAccount.user_id ? new Date().toISOString() : null,
     });
@@ -217,9 +263,9 @@ export default function Admin() {
     if (error) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     } else {
-      toast({ title: "Account created" });
+      toast({ title: "Account created successfully" });
       setAddAccountDialog(false);
-      setNewAccount({ account_id: "", account_name: "", currency: "USD", timezone: "America/New_York", spend_limit: "", user_id: "" });
+      setNewAccount({ account_id: "", account_name: "", currency: "USD", timezone: "America/New_York", spend_limit: "", user_id: "", platform: "facebook" });
       fetchAccounts();
       fetchOverviewStats();
     }
@@ -241,13 +287,18 @@ export default function Admin() {
   };
 
   const handleApproveRequest = async (req: any) => {
+    setLoading(true);
     await supabase.from("ad_accounts").insert({
       account_id: `FB-${Date.now().toString(36).toUpperCase()}`,
-      account_name: `Account for ${req.profiles?.full_name || "User"}`,
-      user_id: req.user_id, spend_limit: Number(req.preferred_limit) || 250,
+      account_name: (req as any).account_name || `Account for ${req.profiles?.full_name || "User"}`,
+      platform: req.platform || "facebook",
+      currency: (req as any).currency || "USD",
+      timezone: (req as any).timezone || "America/New_York",
+      user_id: req.user_id, spend_limit: Number(req.preferred_limit) || 0,
       assigned_at: new Date().toISOString(),
     });
     await supabase.from("account_requests").update({ status: "approved" }).eq("id", req.id);
+    setLoading(false);
     toast({ title: "Request approved", description: "Ad account created and assigned." });
     fetchRequests();
     fetchOverviewStats();
@@ -309,11 +360,14 @@ export default function Admin() {
     }
   };
 
+  const pendingTopupCount = topupRequests.filter(r => r.status === "pending").length;
+
   const tabs = [
     { id: "overview", label: "Overview", icon: BarChart3 },
     { id: "users", label: "Users", icon: Users },
     { id: "accounts", label: "Ad Accounts", icon: Monitor },
     { id: "requests", label: "Requests", icon: FileText, badge: requests.filter(r => r.status === "pending").length },
+    { id: "topups", label: "Pending Top-Ups", icon: CreditCard, badge: pendingTopupCount },
     { id: "transactions", label: "Transactions", icon: DollarSign },
     { id: "invoices", label: "Invoices", icon: Receipt },
     { id: "settings", label: "Settings", icon: Settings },
@@ -434,6 +488,7 @@ export default function Admin() {
                     <thead><tr className="border-b border-border">
                       <th className="text-left p-4 text-muted-foreground font-medium">Account ID</th>
                       <th className="text-left p-4 text-muted-foreground font-medium">Name</th>
+                      <th className="text-left p-4 text-muted-foreground font-medium">Platform</th>
                       <th className="text-left p-4 text-muted-foreground font-medium">Spending Limit</th>
                       <th className="text-left p-4 text-muted-foreground font-medium">Current Spend</th>
                       <th className="text-left p-4 text-muted-foreground font-medium">Status</th>
@@ -444,6 +499,7 @@ export default function Admin() {
                         <tr key={acc.id} className="border-b border-border/50 hover:bg-secondary/50">
                           <td className="p-4 text-foreground font-mono text-xs">{acc.account_id}</td>
                           <td className="p-4 text-foreground">{acc.account_name}</td>
+                          <td className="p-4 text-foreground capitalize">{acc.platform}</td>
                           <td className="p-4 text-foreground">${Number(acc.spend_limit).toFixed(2)}</td>
                           <td className="p-4 text-foreground">${Number(acc.current_spend).toFixed(2)}</td>
                           <td className="p-4 capitalize text-foreground">{acc.status}</td>
@@ -471,12 +527,13 @@ export default function Admin() {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead><tr className="border-b border-border">
-                    <th className="text-left p-4 text-muted-foreground font-medium">Name</th>
+                    <th className="text-left p-4 text-muted-foreground font-medium">Full Name</th>
                     <th className="text-left p-4 text-muted-foreground font-medium">Email</th>
                     <th className="text-left p-4 text-muted-foreground font-medium">Role</th>
-                    <th className="text-left p-4 text-muted-foreground font-medium">Balance</th>
-                    <th className="text-left p-4 text-muted-foreground font-medium">Commission</th>
-                    <th className="text-left p-4 text-muted-foreground font-medium">Joined</th>
+                    <th className="text-left p-4 text-muted-foreground font-medium">Commission (%)</th>
+                    <th className="text-left p-4 text-muted-foreground font-medium">Wallet Balance</th>
+                    <th className="text-left p-4 text-muted-foreground font-medium">Total Spent</th>
+                    <th className="text-left p-4 text-muted-foreground font-medium">Date Joined</th>
                     <th className="text-left p-4 text-muted-foreground font-medium">Actions</th>
                   </tr></thead>
                   <tbody>
@@ -491,21 +548,21 @@ export default function Admin() {
                             <option value="admin">Admin</option>
                           </select>
                         </td>
-                        <td className="p-4 text-foreground">${Number(u.wallet_balance).toFixed(2)}</td>
                         <td className="p-4">
-                          <span className="text-foreground">{getUserCommissionRate(u.id)}%</span>
-                          {commissionOverrides.find(o => o.user_id === u.id) && <span className="text-primary text-xs ml-1">(custom)</span>}
+                          <button className="text-foreground hover:text-primary transition-colors" onClick={() => {
+                            const existing = commissionOverrides.find(o => o.user_id === u.id);
+                            setOverrideDialog({ open: true, userId: u.id, userName: u.full_name, rate: existing ? String(existing.rate) : String(commissionRate) });
+                          }}>
+                            {getUserCommissionRate(u.id)}%
+                            {commissionOverrides.find(o => o.user_id === u.id) && <span className="text-primary text-xs ml-1">(custom)</span>}
+                          </button>
                         </td>
+                        <td className="p-4 text-foreground">${Number(u.wallet_balance).toFixed(2)}</td>
+                        <td className="p-4 text-foreground">${(userTotalSpent[u.id] || 0).toFixed(2)}</td>
                         <td className="p-4 text-muted-foreground">{new Date(u.created_at).toLocaleDateString()}</td>
                         <td className="p-4 flex gap-2">
                           <Button size="sm" variant="outline" className="rounded-full border-primary text-primary" onClick={() => setTopUpDialog({ open: true, userId: u.id, userName: u.full_name })}>
                             <Plus className="w-3.5 h-3.5 mr-1" />Top Up
-                          </Button>
-                          <Button size="sm" variant="ghost" className="text-primary" onClick={() => {
-                            const existing = commissionOverrides.find(o => o.user_id === u.id);
-                            setOverrideDialog({ open: true, userId: u.id, userName: u.full_name, rate: existing ? String(existing.rate) : String(commissionRate) });
-                          }}>
-                            <Settings className="w-3.5 h-3.5 mr-1" />Rate
                           </Button>
                         </td>
                       </tr>
@@ -533,6 +590,7 @@ export default function Admin() {
                   <thead><tr className="border-b border-border">
                     <th className="text-left p-4 text-muted-foreground font-medium">Account ID</th>
                     <th className="text-left p-4 text-muted-foreground font-medium">Name</th>
+                    <th className="text-left p-4 text-muted-foreground font-medium">Platform</th>
                     <th className="text-left p-4 text-muted-foreground font-medium">Currency</th>
                     <th className="text-left p-4 text-muted-foreground font-medium">Timezone</th>
                     <th className="text-left p-4 text-muted-foreground font-medium">Spending Limit</th>
@@ -546,6 +604,7 @@ export default function Admin() {
                       <tr key={acc.id} className="border-b border-border/50 hover:bg-secondary/50">
                         <td className="p-4 text-foreground font-mono text-xs">{acc.account_id}</td>
                         <td className="p-4 text-foreground">{acc.account_name}</td>
+                        <td className="p-4 text-foreground capitalize">{acc.platform}</td>
                         <td className="p-4 text-foreground">{acc.currency}</td>
                         <td className="p-4 text-foreground text-xs">{acc.timezone}</td>
                         <td className="p-4 text-foreground">${Number(acc.spend_limit).toFixed(2)}</td>
@@ -585,13 +644,19 @@ export default function Admin() {
                     <div>
                       <p className="font-medium text-foreground">{req.profiles?.full_name || "User"}</p>
                       <p className="text-sm text-muted-foreground">{req.profiles?.email || ""}</p>
-                      <p className="text-sm text-muted-foreground">Platform: {req.platform} · Preferred limit: {req.preferred_limit || "Any"}</p>
+                      <p className="text-sm text-muted-foreground">
+                        Platform: {req.platform}
+                        {(req as any).account_name && ` · Name: ${(req as any).account_name}`}
+                        {(req as any).currency && ` · Currency: ${(req as any).currency}`}
+                        {(req as any).timezone && ` · TZ: ${(req as any).timezone}`}
+                      </p>
+                      <p className="text-sm text-muted-foreground">Initial Balance: {req.preferred_limit || "Not specified"}</p>
                       <p className="text-xs text-muted-foreground">{new Date(req.created_at).toLocaleDateString()}</p>
                     </div>
                     <div className="flex items-center gap-2">
                       {req.status === "pending" ? (
                         <>
-                          <Button size="sm" onClick={() => handleApproveRequest(req)} className="bg-green-600 hover:bg-green-700 text-foreground rounded-full">
+                          <Button size="sm" onClick={() => handleApproveRequest(req)} disabled={loading} className="bg-green-600 hover:bg-green-700 text-foreground rounded-full">
                             <CheckCircle className="w-3.5 h-3.5 mr-1" />Approve
                           </Button>
                           <Button size="sm" variant="destructive" onClick={() => handleRejectRequest(req)} className="rounded-full">
@@ -606,6 +671,67 @@ export default function Admin() {
                     </div>
                   </div>
                 ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Pending Top-Ups Tab */}
+        {activeTab === "topups" && (
+          <div className="space-y-4">
+            <h2 className="text-xl font-bold text-foreground">Pending Top-Up Requests</h2>
+            {topupRequests.length === 0 ? (
+              <div className="bg-card border border-border rounded-2xl p-12 text-center">
+                <p className="text-muted-foreground">No top-up requests yet.</p>
+              </div>
+            ) : (
+              <div className="bg-card border border-border rounded-xl overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead><tr className="border-b border-border">
+                      <th className="text-left p-4 text-muted-foreground font-medium">User</th>
+                      <th className="text-left p-4 text-muted-foreground font-medium">Amount</th>
+                      <th className="text-left p-4 text-muted-foreground font-medium">Currency</th>
+                      <th className="text-left p-4 text-muted-foreground font-medium">Method</th>
+                      <th className="text-left p-4 text-muted-foreground font-medium">Date</th>
+                      <th className="text-left p-4 text-muted-foreground font-medium">Status</th>
+                      <th className="text-left p-4 text-muted-foreground font-medium">Actions</th>
+                    </tr></thead>
+                    <tbody>
+                      {topupRequests.map((req) => (
+                        <tr key={req.id} className="border-b border-border/50 hover:bg-secondary/50">
+                          <td className="p-4">
+                            <p className="text-foreground font-medium">{req.profiles?.full_name || "—"}</p>
+                            <p className="text-xs text-muted-foreground">{req.profiles?.email || ""}</p>
+                          </td>
+                          <td className="p-4 text-foreground font-medium">${Number(req.amount).toFixed(2)}</td>
+                          <td className="p-4 text-foreground">{req.currency}</td>
+                          <td className="p-4 text-foreground capitalize">{req.payment_method || "—"}</td>
+                          <td className="p-4 text-muted-foreground">{new Date(req.created_at).toLocaleDateString()}</td>
+                          <td className="p-4">
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              req.status === "pending" ? "bg-primary/20 text-primary" :
+                              req.status === "approved" ? "bg-green-500/20 text-green-500" :
+                              "bg-destructive/20 text-destructive"
+                            }`}>{req.status}</span>
+                          </td>
+                          <td className="p-4">
+                            {req.status === "pending" && (
+                              <div className="flex gap-2">
+                                <Button size="sm" onClick={() => handleApproveTopup(req)} disabled={loading} className="bg-green-600 hover:bg-green-700 text-foreground rounded-full">
+                                  <CheckCircle className="w-3.5 h-3.5 mr-1" />Approve
+                                </Button>
+                                <Button size="sm" variant="destructive" onClick={() => handleRejectTopup(req)} disabled={loading} className="rounded-full">
+                                  <XCircle className="w-3.5 h-3.5 mr-1" />Reject
+                                </Button>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             )}
           </div>
@@ -719,7 +845,7 @@ export default function Admin() {
 
             <h3 className="text-lg font-bold text-foreground">User Commission Overrides</h3>
             {commissionOverrides.length === 0 ? (
-              <p className="text-muted-foreground text-sm">No custom rates set. Use the "Rate" button in the Users tab to override for individual users.</p>
+              <p className="text-muted-foreground text-sm">No custom rates set. Click on a user's commission rate in the Users tab to set a custom rate.</p>
             ) : (
               <div className="bg-card border border-border rounded-xl overflow-hidden max-w-lg">
                 <table className="w-full text-sm">
@@ -776,9 +902,19 @@ export default function Admin() {
         <DialogContent className="bg-card border-border">
           <DialogHeader>
             <DialogTitle className="text-foreground">Add New Ad Account</DialogTitle>
-            <DialogDescription>Create a new Facebook ad account.</DialogDescription>
+            <DialogDescription>Create a new ad account and optionally assign it to a user.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
+            <div className="space-y-2">
+              <Label className="text-foreground">Platform</Label>
+              <select value={newAccount.platform} onChange={(e) => setNewAccount({ ...newAccount, platform: e.target.value })} className="w-full h-10 rounded-md bg-secondary border border-border px-3 text-foreground text-sm">
+                <option value="facebook">Facebook</option>
+                <option value="tiktok">TikTok</option>
+                <option value="google">Google</option>
+                <option value="snapchat">Snapchat</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label className="text-foreground">Account ID</Label>
@@ -800,7 +936,7 @@ export default function Admin() {
               </div>
             </div>
             <div className="space-y-2">
-              <Label className="text-foreground">Spending Limit (USD)</Label>
+              <Label className="text-foreground">Balance (USD)</Label>
               <Input type="number" placeholder="1000" value={newAccount.spend_limit} onChange={(e) => setNewAccount({ ...newAccount, spend_limit: e.target.value })} className="bg-secondary border-border text-foreground" />
             </div>
             <div className="space-y-2">
