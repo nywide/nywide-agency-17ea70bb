@@ -953,7 +953,7 @@ export default function Admin() {
             <DialogTitle className="text-foreground">Add New Ad Account</DialogTitle>
             <DialogDescription>Create a new ad account and optionally assign it to a user.</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
+          <form onSubmit={handleAddAccount} className="space-y-4">
             <div className="space-y-2">
               <Label className="text-foreground">Platform</Label>
               <select value={newAccount.platform} onChange={(e) => setNewAccount({ ...newAccount, platform: e.target.value })} className="w-full h-10 rounded-md bg-secondary border border-border px-3 text-foreground text-sm">
@@ -967,11 +967,11 @@ export default function Admin() {
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label className="text-foreground">Account ID</Label>
-                <Input placeholder="179656207641303" value={newAccount.account_id} onChange={(e) => setNewAccount({ ...newAccount, account_id: e.target.value })} className="bg-secondary border-border text-foreground" />
+                <Input required placeholder="179656207641303" value={newAccount.account_id} onChange={(e) => setNewAccount({ ...newAccount, account_id: e.target.value })} className="bg-secondary border-border text-foreground" />
               </div>
               <div className="space-y-2">
                 <Label className="text-foreground">Account Name</Label>
-                <Input placeholder="My Agency Account" value={newAccount.account_name} onChange={(e) => setNewAccount({ ...newAccount, account_name: e.target.value })} className="bg-secondary border-border text-foreground" />
+                <Input required placeholder="My Agency Account" value={newAccount.account_name} onChange={(e) => setNewAccount({ ...newAccount, account_name: e.target.value })} className="bg-secondary border-border text-foreground" />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -995,10 +995,10 @@ export default function Admin() {
                 {allUsersForDropdown.map(u => <option key={u.id} value={u.id}>{u.full_name || u.email || u.id}</option>)}
               </select>
             </div>
-            <Button onClick={handleAddAccount} disabled={addingAccount} className="w-full bg-primary text-primary-foreground font-bold rounded-full">
+            <Button type="submit" disabled={addingAccount} className="w-full bg-primary text-primary-foreground font-bold rounded-full">
               {addingAccount ? "Creating..." : "Create Account"}
             </Button>
-          </div>
+          </form>
         </DialogContent>
       </Dialog>
 
