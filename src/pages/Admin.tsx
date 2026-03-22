@@ -228,7 +228,7 @@ export default function Admin() {
         console.log(`Account ${acc.account_name}: spend_limit stored = ${acc.spend_limit} (should be dollars)`);
       });
       setAdAccounts(data);
-      setTotalAccounts(count || 0);
+      // totalAccounts is tracked via overviewStats
       // Background fetch from Facebook for cached spend data
       const fbAccountIds = data.filter(a => a.platform === "facebook").map(a => a.account_id);
       if (fbAccountIds.length > 0) {
