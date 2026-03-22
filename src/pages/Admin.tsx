@@ -210,11 +210,56 @@ export default function Admin() {
     }
   };
 
+  const [refreshingAccountId, setRefreshingAccountId] = useState<string | null>(null);
+  const [accountCache, setAccountCache] = useState<Record<string, { spend_cap: number; amount_spent: number }>>({});
+
   const fetchAccounts = async () => {
     const { data, count } = await supabase.from("ad_accounts").select("*, profiles(full_name, email)", { count: "exact" })
       .order("created_at", { ascending: false }).range(accPage * PAGE_SIZE, (accPage + 1) * PAGE_SIZE - 1);
-    if (data) setAdAccounts(data);
+    if (data) {
+      setAdAccounts(data);
+      // Fetch cached FB data in background
+      const fbAccountIds = data.filter(a => a.platform === "facebook").map(a => a.account_id);
+      if (fbAccountIds.length > 0) {
+        supabase.functions.invoke("facebook-api", {
+          body: { action: "batch_get_spend_limits", account_ids: fbAccountIds },
+        }).then(({ data: fbData }) => {
+          if (fbData?.results) {
+            setAccountCache(fbData.results);
+            // Update local state with fresh data
+            setAdAccounts(prev => prev.map(acc => {
+              const cached = fbData.results[acc.account_id];
+              if (cached) {
+                return { ...acc, spend_limit: cached.spend_cap ?? acc.spend_limit, current_spend: cached.amount_spent ?? acc.current_spend };
+              }
+              return acc;
+            }));
+          }
+        }).catch(err => console.warn("[Admin] Cache fetch failed:", err));
+      }
+    }
     setAccCount(count || 0);
+  };
+
+  const handleRefreshAccount = async (accountId: string) => {
+    setRefreshingAccountId(accountId);
+    try {
+      const { data, error } = await supabase.functions.invoke("facebook-api", {
+        body: { action: "refresh_balance", ad_account_id: accountId },
+      });
+      if (error || data?.error) {
+        toast({ title: "Refresh failed", description: data?.error || error?.message, variant: "destructive" });
+      } else {
+        setAdAccounts(prev => prev.map(acc =>
+          acc.account_id === accountId ? { ...acc, spend_limit: data.spend_cap, current_spend: data.amount_spent } : acc
+        ));
+        toast({ title: "Account refreshed" });
+      }
+    } catch (err: any) {
+      toast({ title: "Refresh error", description: err.message, variant: "destructive" });
+    } finally {
+      setRefreshingAccountId(null);
+    }
   };
 
   const fetchRequests = async () => {
