@@ -135,11 +135,19 @@ export default function Admin() {
   const [overviewAccounts, setOverviewAccounts] = useState<any[]>([]);
 
   const fetchOverviewUsers = async () => {
-    const [usersRes, accsRes] = await Promise.all([
-      supabase.from("profiles").select("*, user_roles(role)").order("created_at", { ascending: false }).limit(10),
+    const [usersRes, accsRes, rolesRes] = await Promise.all([
+      supabase.from("profiles").select("*").order("created_at", { ascending: false }).limit(10),
       supabase.from("ad_accounts").select("*, profiles(full_name, email)").order("created_at", { ascending: false }).limit(10),
+      supabase.from("user_roles").select("user_id, role"),
     ]);
-    if (usersRes.data) setOverviewUsers(usersRes.data);
+    if (usersRes.data) {
+      const rolesMap: Record<string, string[]> = {};
+      (rolesRes.data || []).forEach((r: any) => {
+        if (!rolesMap[r.user_id]) rolesMap[r.user_id] = [];
+        rolesMap[r.user_id].push(r.role);
+      });
+      setOverviewUsers(usersRes.data.map(u => ({ ...u, _roles: rolesMap[u.id] || ["user"] })));
+    }
     if (accsRes.data) setOverviewAccounts(accsRes.data);
   };
 
