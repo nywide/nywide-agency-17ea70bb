@@ -241,10 +241,10 @@ export default function Admin() {
             setAdAccounts(prev => prev.map(acc => {
               const cached = fbData.results[acc.account_id];
               if (cached) {
-                const spendCap = cached.spend_cap ?? acc.spend_limit;
                 const amountSpent = cached.amount_spent ?? acc.current_spend;
-                console.log(`Account ${acc.account_name}: spend_limit=${spendCap}, current_spend=${amountSpent}`);
-                return { ...acc, spend_limit: spendCap, current_spend: amountSpent };
+                console.log(`Account ${acc.account_name}: DB spend_limit=${acc.spend_limit} (dollars), FB spend_cap=${cached.spend_cap}, current_spend=${amountSpent}`);
+                // Do NOT overwrite spend_limit from Facebook — DB value is authoritative (dollars)
+                return { ...acc, current_spend: amountSpent };
               }
               return acc;
             }));
