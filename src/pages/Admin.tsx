@@ -266,9 +266,10 @@ export default function Admin() {
       } else {
         setAdAccounts(prev => prev.map(acc => {
           if (acc.account_id !== accountId) return acc;
-          return { ...acc, spend_limit: data.spend_cap, current_spend: data.amount_spent };
-        }
-        ));
+          console.log(`Refresh: DB spend_limit=${acc.spend_limit}, FB spend_cap=${data.spend_cap}, amount_spent=${data.amount_spent}`);
+          // Only update current_spend from Facebook — keep DB spend_limit as authoritative
+          return { ...acc, current_spend: data.amount_spent };
+        }));
         toast({ title: "Account refreshed" });
       }
     } catch (err: any) {
