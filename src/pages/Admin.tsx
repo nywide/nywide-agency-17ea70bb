@@ -248,22 +248,46 @@ export default function Admin() {
   const handleManualTopUp = async () => {
     if (!topUpDialog.userId || !topUpAmount || Number(topUpAmount) <= 0) return;
     setToppingUp(true);
-    await supabase.from("transactions").insert({
-      user_id: topUpDialog.userId, type: "wallet_topup", amount: Number(topUpAmount),
-      status: "completed", payment_method: "manual",
-    });
-    const { data: prof } = await supabase.from("profiles").select("wallet_balance").eq("id", topUpDialog.userId).single();
-    if (prof) {
-      await supabase.from("profiles").update({
+    try {
+      // Insert transaction first
+      const { error: txnError } = await supabase.from("transactions").insert({
+        user_id: topUpDialog.userId, type: "wallet_topup", amount: Number(topUpAmount),
+        status: "completed", payment_method: "manual",
+      });
+      if (txnError) {
+        console.error("[Admin] Transaction insert error:", txnError);
+        toast({ title: "Error adding top-up", description: txnError.message, variant: "destructive" });
+        setToppingUp(false);
+        return;
+      }
+      // Fetch current balance then update
+      const { data: prof, error: profError } = await supabase.from("profiles").select("wallet_balance").eq("id", topUpDialog.userId).single();
+      if (profError || !prof) {
+        console.error("[Admin] Profile fetch error:", profError);
+        toast({ title: "Error fetching profile", description: profError?.message || "Profile not found", variant: "destructive" });
+        setToppingUp(false);
+        return;
+      }
+      const { error: updateError } = await supabase.from("profiles").update({
         wallet_balance: Number(prof.wallet_balance) + Number(topUpAmount),
       }).eq("id", topUpDialog.userId);
+      if (updateError) {
+        console.error("[Admin] Profile update error:", updateError);
+        toast({ title: "Error updating balance", description: updateError.message, variant: "destructive" });
+        setToppingUp(false);
+        return;
+      }
+      toast({ title: "Top-up added", description: `$${topUpAmount} added to ${topUpDialog.userName}'s wallet.` });
+      setTopUpDialog({ open: false });
+      setTopUpAmount("");
+      fetchOverviewStats();
+      if (activeTab === "users") fetchUsers();
+    } catch (err: any) {
+      console.error("[Admin] handleManualTopUp exception:", err);
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally {
+      setToppingUp(false);
     }
-    setToppingUp(false);
-    toast({ title: "Top-up added", description: `$${topUpAmount} added to ${topUpDialog.userName}'s wallet.` });
-    setTopUpDialog({ open: false });
-    setTopUpAmount("");
-    fetchOverviewStats();
-    if (activeTab === "users") fetchUsers();
   };
 
   const handleApproveTopup = async (req: any) => {
