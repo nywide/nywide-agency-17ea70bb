@@ -12,8 +12,12 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription
 } from "@/components/ui/dialog";
 import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Users, Monitor, FileText, Settings, LogOut, Home, Plus,
-  DollarSign, CheckCircle, XCircle, Clock, Search, BarChart3, Receipt, CreditCard
+  DollarSign, CheckCircle, XCircle, Clock, Search, BarChart3, Receipt, CreditCard, Trash2
 } from "lucide-react";
 
 const PAGE_SIZE = 50;
