@@ -12,8 +12,12 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription
 } from "@/components/ui/dialog";
 import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Users, Monitor, FileText, Settings, LogOut, Home, Plus,
-  DollarSign, CheckCircle, XCircle, Clock, Search, BarChart3, Receipt, CreditCard
+  DollarSign, CheckCircle, XCircle, Clock, Search, BarChart3, Receipt, CreditCard, Trash2
 } from "lucide-react";
 
 const PAGE_SIZE = 50;
@@ -61,6 +65,8 @@ export default function Admin() {
   const [approvingId, setApprovingId] = useState<string | null>(null);
   const [savingOverride, setSavingOverride] = useState(false);
   const [updatingAccount, setUpdatingAccount] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; account?: any }>({ open: false });
+  const [deletingAccount, setDeletingAccount] = useState(false);
 
   const [allUsersForDropdown, setAllUsersForDropdown] = useState<any[]>([]);
 
@@ -475,6 +481,26 @@ export default function Admin() {
     }
   };
 
+  const handleDeleteAccount = async () => {
+    if (!deleteConfirm.account) return;
+    setDeletingAccount(true);
+    try {
+      const { error } = await supabase.from("ad_accounts").delete().eq("id", deleteConfirm.account.id);
+      if (error) {
+        toast({ title: "Error deleting account", description: error.message, variant: "destructive" });
+      } else {
+        toast({ title: "Account deleted" });
+        fetchAccounts();
+        fetchOverviewStats();
+      }
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally {
+      setDeletingAccount(false);
+      setDeleteConfirm({ open: false });
+    }
+  };
+
   const handleApproveRequest = async (req: any) => {
     setApprovingId(req.id);
     await supabase.from("ad_accounts").insert({
@@ -678,7 +704,7 @@ export default function Admin() {
                       <th className="text-left p-4 text-muted-foreground font-medium">Account ID</th>
                       <th className="text-left p-4 text-muted-foreground font-medium">Name</th>
                       <th className="text-left p-4 text-muted-foreground font-medium">Platform</th>
-                      <th className="text-left p-4 text-muted-foreground font-medium">Spending Limit</th>
+                      <th className="text-left p-4 text-muted-foreground font-medium">Balance</th>
                       <th className="text-left p-4 text-muted-foreground font-medium">Current Spend</th>
                       <th className="text-left p-4 text-muted-foreground font-medium">Status</th>
                       <th className="text-left p-4 text-muted-foreground font-medium">Assigned To</th>
@@ -782,7 +808,7 @@ export default function Admin() {
                     <th className="text-left p-4 text-muted-foreground font-medium">Platform</th>
                     <th className="text-left p-4 text-muted-foreground font-medium">Currency</th>
                     <th className="text-left p-4 text-muted-foreground font-medium">Timezone</th>
-                    <th className="text-left p-4 text-muted-foreground font-medium">Spending Limit</th>
+                    <th className="text-left p-4 text-muted-foreground font-medium">Balance</th>
                     <th className="text-left p-4 text-muted-foreground font-medium">Current Spend</th>
                     <th className="text-left p-4 text-muted-foreground font-medium">Status</th>
                     <th className="text-left p-4 text-muted-foreground font-medium">Assigned To</th>
@@ -813,6 +839,10 @@ export default function Admin() {
                               {refreshingAccountId === acc.account_id ? "..." : "↻"}
                             </Button>
                           )}
+                          <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive"
+                            onClick={() => setDeleteConfirm({ open: true, account: acc })}>
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
                         </td>
                       </tr>
                     ))}
@@ -1159,7 +1189,7 @@ export default function Admin() {
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">
-                  <Label className="text-foreground">Spending Limit</Label>
+                  <Label className="text-foreground">Balance</Label>
                   <Input type="number" value={editAccountDialog.account.spend_limit} onChange={(e) => setEditAccountDialog({ ...editAccountDialog, account: { ...editAccountDialog.account, spend_limit: e.target.value } })} className="bg-secondary border-border text-foreground" />
                 </div>
                 <div className="space-y-2">
@@ -1206,6 +1236,25 @@ export default function Admin() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Account Confirmation */}
+      <AlertDialog open={deleteConfirm.open} onOpenChange={(open) => setDeleteConfirm({ ...deleteConfirm, open })}>
+        <AlertDialogContent className="bg-card border-border">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-foreground">Delete Ad Account</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete account <strong>{deleteConfirm.account?.account_name}</strong> ({deleteConfirm.account?.account_id})? This action cannot be undone. The account will only be removed from our platform, not from Facebook.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="border-border text-foreground">Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteAccount} disabled={deletingAccount}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              {deletingAccount ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

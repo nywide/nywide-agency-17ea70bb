@@ -777,6 +777,12 @@ export default function Dashboard() {
                 <option value="snapchat">Snapchat</option>
               </select>
             </div>
+            {requestPlatform !== "facebook" && (
+              <div className="bg-destructive/10 border border-destructive/30 rounded-xl p-4 text-sm text-destructive">
+                <AlertCircle className="w-4 h-4 inline mr-2" />
+                Sorry, we are currently out of stock for <strong className="capitalize">{requestPlatform}</strong> accounts. We will notify you when they become available. Please check back later or contact support.
+              </div>
+            )}
             <div className="space-y-2">
               <Label className="text-foreground">Account Name *</Label>
               <Input placeholder="e.g. Client X - US Campaign" value={requestAccountName} onChange={(e) => setRequestAccountName(e.target.value)} className="bg-secondary border-border text-foreground" />
@@ -800,7 +806,7 @@ export default function Dashboard() {
                 className="bg-secondary border-border text-foreground" required={hasActiveAccounts} />
               {!hasActiveAccounts && <p className="text-xs text-muted-foreground">Optional for your first account request.</p>}
             </div>
-            <Button onClick={handleRequestAccount} disabled={requestLoading} className="w-full bg-primary text-primary-foreground font-bold rounded-full">
+            <Button onClick={handleRequestAccount} disabled={requestLoading || requestPlatform !== "facebook"} className="w-full bg-primary text-primary-foreground font-bold rounded-full">
               {requestLoading ? "Submitting..." : "Submit Request"}
             </Button>
           </div>
