@@ -65,6 +65,8 @@ export default function Admin() {
   const [approvingId, setApprovingId] = useState<string | null>(null);
   const [savingOverride, setSavingOverride] = useState(false);
   const [updatingAccount, setUpdatingAccount] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; account?: any }>({ open: false });
+  const [deletingAccount, setDeletingAccount] = useState(false);
 
   const [allUsersForDropdown, setAllUsersForDropdown] = useState<any[]>([]);
 
