@@ -56,7 +56,11 @@ export default function Admin() {
   });
   const [editAccountDialog, setEditAccountDialog] = useState<{ open: boolean; account?: any }>({ open: false });
   const [overrideDialog, setOverrideDialog] = useState<{ open: boolean; userId?: string; userName?: string; rate?: string }>({ open: false });
-  const [loading, setLoading] = useState(false);
+  const [addingAccount, setAddingAccount] = useState(false);
+  const [toppingUp, setToppingUp] = useState(false);
+  const [approvingId, setApprovingId] = useState<string | null>(null);
+  const [savingOverride, setSavingOverride] = useState(false);
+  const [updatingAccount, setUpdatingAccount] = useState(false);
 
   const [allUsersForDropdown, setAllUsersForDropdown] = useState<any[]>([]);
 
@@ -191,7 +195,7 @@ export default function Admin() {
 
   const handleManualTopUp = async () => {
     if (!topUpDialog.userId || !topUpAmount || Number(topUpAmount) <= 0) return;
-    setLoading(true);
+    setToppingUp(true);
     await supabase.from("transactions").insert({
       user_id: topUpDialog.userId, type: "wallet_topup", amount: Number(topUpAmount),
       status: "completed", payment_method: "manual",
@@ -202,7 +206,7 @@ export default function Admin() {
         wallet_balance: Number(prof.wallet_balance) + Number(topUpAmount),
       }).eq("id", topUpDialog.userId);
     }
-    setLoading(false);
+    setToppingUp(false);
     toast({ title: "Top-up added", description: `$${topUpAmount} added to ${topUpDialog.userName}'s wallet.` });
     setTopUpDialog({ open: false });
     setTopUpAmount("");
@@ -211,29 +215,28 @@ export default function Admin() {
   };
 
   const handleApproveTopup = async (req: any) => {
-    setLoading(true);
-    // Add amount to user wallet
+    setApprovingId(req.id);
     const { data: prof } = await supabase.from("profiles").select("wallet_balance").eq("id", req.user_id).single();
     if (prof) {
       await supabase.from("profiles").update({
         wallet_balance: Number(prof.wallet_balance) + Number(req.amount),
       }).eq("id", req.user_id);
     }
-    // Create transaction
     await supabase.from("transactions").insert({
       user_id: req.user_id, type: "wallet_topup", amount: Number(req.amount),
       status: "completed", payment_method: req.payment_method || "manual",
     });
-    // Update request status
     await supabase.from("topup_requests").update({ status: "approved" } as any).eq("id", req.id);
-    setLoading(false);
+    setApprovingId(null);
     toast({ title: "Top-up approved", description: `$${Number(req.amount).toFixed(2)} added to ${req.profiles?.full_name || "user"}'s wallet.` });
     fetchTopupRequests();
     fetchOverviewStats();
   };
 
   const handleRejectTopup = async (req: any) => {
+    setApprovingId(req.id);
     await supabase.from("topup_requests").update({ status: "rejected" } as any).eq("id", req.id);
+    setApprovingId(null);
     toast({ title: "Top-up rejected" });
     fetchTopupRequests();
   };
@@ -249,8 +252,12 @@ export default function Admin() {
   };
 
   const handleAddAccount = async () => {
-    if (!newAccount.account_id || !newAccount.account_name) return;
-    setLoading(true);
+    if (!newAccount.account_id || !newAccount.account_name) {
+      toast({ title: "Account ID and Name are required", variant: "destructive" });
+      return;
+    }
+    setAddingAccount(true);
+    console.log("Creating ad account:", newAccount);
     const { error } = await supabase.from("ad_accounts").insert({
       account_id: newAccount.account_id, account_name: newAccount.account_name,
       currency: newAccount.currency, timezone: newAccount.timezone,
@@ -259,10 +266,12 @@ export default function Admin() {
       user_id: newAccount.user_id || null,
       assigned_at: newAccount.user_id ? new Date().toISOString() : null,
     });
-    setLoading(false);
+    setAddingAccount(false);
     if (error) {
+      console.error("Error creating ad account:", error);
       toast({ title: "Error", description: error.message, variant: "destructive" });
     } else {
+      console.log("Ad account created successfully");
       toast({ title: "Account created successfully" });
       setAddAccountDialog(false);
       setNewAccount({ account_id: "", account_name: "", currency: "USD", timezone: "America/New_York", spend_limit: "", user_id: "", platform: "facebook" });
@@ -273,21 +282,21 @@ export default function Admin() {
 
   const handleUpdateAccount = async () => {
     if (!editAccountDialog.account) return;
-    setLoading(true);
+    setUpdatingAccount(true);
     const acc = editAccountDialog.account;
     await supabase.from("ad_accounts").update({
       spend_limit: Number(acc.spend_limit), current_spend: Number(acc.current_spend),
       status: acc.status, user_id: acc.user_id || null,
       assigned_at: acc.user_id ? new Date().toISOString() : null,
     }).eq("id", acc.id);
-    setLoading(false);
+    setUpdatingAccount(false);
     toast({ title: "Account updated" });
     setEditAccountDialog({ open: false });
     fetchAccounts();
   };
 
   const handleApproveRequest = async (req: any) => {
-    setLoading(true);
+    setApprovingId(req.id);
     await supabase.from("ad_accounts").insert({
       account_id: `FB-${Date.now().toString(36).toUpperCase()}`,
       account_name: (req as any).account_name || `Account for ${req.profiles?.full_name || "User"}`,
@@ -298,7 +307,7 @@ export default function Admin() {
       assigned_at: new Date().toISOString(),
     });
     await supabase.from("account_requests").update({ status: "approved" }).eq("id", req.id);
-    setLoading(false);
+    setApprovingId(null);
     toast({ title: "Request approved", description: "Ad account created and assigned." });
     fetchRequests();
     fetchOverviewStats();
@@ -320,14 +329,14 @@ export default function Admin() {
 
   const handleSaveOverride = async () => {
     if (!overrideDialog.userId || !overrideDialog.rate) return;
-    setLoading(true);
+    setSavingOverride(true);
     const existing = commissionOverrides.find(o => o.user_id === overrideDialog.userId);
     if (existing) {
       await supabase.from("user_commission_overrides").update({ rate: Number(overrideDialog.rate), updated_at: new Date().toISOString() }).eq("id", existing.id);
     } else {
       await supabase.from("user_commission_overrides").insert({ user_id: overrideDialog.userId, rate: Number(overrideDialog.rate) } as any);
     }
-    setLoading(false);
+    setSavingOverride(false);
     toast({ title: "Custom rate saved", description: `${overrideDialog.userName}: ${overrideDialog.rate}%` });
     setOverrideDialog({ open: false });
     fetchCommission();
@@ -656,7 +665,7 @@ export default function Admin() {
                     <div className="flex items-center gap-2">
                       {req.status === "pending" ? (
                         <>
-                          <Button size="sm" onClick={() => handleApproveRequest(req)} disabled={loading} className="bg-green-600 hover:bg-green-700 text-foreground rounded-full">
+                          <Button size="sm" onClick={() => handleApproveRequest(req)} disabled={approvingId === req.id} className="bg-green-600 hover:bg-green-700 text-foreground rounded-full">
                             <CheckCircle className="w-3.5 h-3.5 mr-1" />Approve
                           </Button>
                           <Button size="sm" variant="destructive" onClick={() => handleRejectRequest(req)} className="rounded-full">
@@ -718,10 +727,10 @@ export default function Admin() {
                           <td className="p-4">
                             {req.status === "pending" && (
                               <div className="flex gap-2">
-                                <Button size="sm" onClick={() => handleApproveTopup(req)} disabled={loading} className="bg-green-600 hover:bg-green-700 text-foreground rounded-full">
+                                <Button size="sm" onClick={() => handleApproveTopup(req)} disabled={approvingId === req.id} className="bg-green-600 hover:bg-green-700 text-foreground rounded-full">
                                   <CheckCircle className="w-3.5 h-3.5 mr-1" />Approve
                                 </Button>
-                                <Button size="sm" variant="destructive" onClick={() => handleRejectTopup(req)} disabled={loading} className="rounded-full">
+                                <Button size="sm" variant="destructive" onClick={() => handleRejectTopup(req)} disabled={approvingId === req.id} className="rounded-full">
                                   <XCircle className="w-3.5 h-3.5 mr-1" />Reject
                                 </Button>
                               </div>
@@ -890,8 +899,8 @@ export default function Admin() {
                 <Input type="number" min="1" placeholder="100" value={topUpAmount} onChange={(e) => setTopUpAmount(e.target.value)} className="pl-10 bg-secondary border-border text-foreground" />
               </div>
             </div>
-            <Button onClick={handleManualTopUp} disabled={loading} className="w-full bg-primary text-primary-foreground font-bold rounded-full">
-              {loading ? "Processing..." : "Add Funds"}
+            <Button onClick={handleManualTopUp} disabled={toppingUp} className="w-full bg-primary text-primary-foreground font-bold rounded-full">
+              {toppingUp ? "Processing..." : "Add Funds"}
             </Button>
           </div>
         </DialogContent>
@@ -946,8 +955,8 @@ export default function Admin() {
                 {allUsersForDropdown.map(u => <option key={u.id} value={u.id}>{u.full_name || u.email || u.id}</option>)}
               </select>
             </div>
-            <Button onClick={handleAddAccount} disabled={loading} className="w-full bg-primary text-primary-foreground font-bold rounded-full">
-              {loading ? "Creating..." : "Create Account"}
+            <Button onClick={handleAddAccount} disabled={addingAccount} className="w-full bg-primary text-primary-foreground font-bold rounded-full">
+              {addingAccount ? "Creating..." : "Create Account"}
             </Button>
           </div>
         </DialogContent>
@@ -985,8 +994,8 @@ export default function Admin() {
                   {allUsersForDropdown.map(u => <option key={u.id} value={u.id}>{u.full_name || u.email || u.id}</option>)}
                 </select>
               </div>
-              <Button onClick={handleUpdateAccount} disabled={loading} className="w-full bg-primary text-primary-foreground font-bold rounded-full">
-                {loading ? "Saving..." : "Save Changes"}
+              <Button onClick={handleUpdateAccount} disabled={updatingAccount} className="w-full bg-primary text-primary-foreground font-bold rounded-full">
+                {updatingAccount ? "Saving..." : "Save Changes"}
               </Button>
             </div>
           )}
@@ -1005,8 +1014,8 @@ export default function Admin() {
               <Label className="text-foreground">Commission Rate (%)</Label>
               <Input type="number" min="0" max="100" step="0.5" value={overrideDialog.rate || ""} onChange={(e) => setOverrideDialog({ ...overrideDialog, rate: e.target.value })} className="bg-secondary border-border text-foreground" />
             </div>
-            <Button onClick={handleSaveOverride} disabled={loading} className="w-full bg-primary text-primary-foreground font-bold rounded-full">
-              {loading ? "Saving..." : "Save Custom Rate"}
+            <Button onClick={handleSaveOverride} disabled={savingOverride} className="w-full bg-primary text-primary-foreground font-bold rounded-full">
+              {savingOverride ? "Saving..." : "Save Custom Rate"}
             </Button>
           </div>
         </DialogContent>

@@ -37,7 +37,10 @@ export default function Dashboard() {
   const [topUpMethod, setTopUpMethod] = useState("manual");
   const [transferAmount, setTransferAmount] = useState("");
   const [withdrawAmount, setWithdrawAmount] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [topUpLoading, setTopUpLoading] = useState(false);
+  const [requestLoading, setRequestLoading] = useState(false);
+  const [transferLoading, setTransferLoading] = useState(false);
+  const [withdrawLoading, setWithdrawLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("dashboard");
   const [commissionRate, setCommissionRate] = useState(6);
   const [txnSearch, setTxnSearch] = useState("");
@@ -144,13 +147,13 @@ export default function Dashboard() {
       toast({ title: "Minimum $10", variant: "destructive" });
       return;
     }
-    setLoading(true);
+    setTopUpLoading(true);
     if (topUpMethod === "manual") {
       // Create a topup request for admin approval
       const { error } = await supabase.from("topup_requests").insert({
         user_id: user!.id, amount: Number(topUpAmount), currency: "USD", payment_method: topUpMethod, status: "pending",
       } as any);
-      setLoading(false);
+      setTopUpLoading(false);
       if (error) {
         toast({ title: "Error", description: error.message, variant: "destructive" });
       } else {
@@ -164,7 +167,7 @@ export default function Dashboard() {
         user_id: user!.id, type: "wallet_topup", amount: Number(topUpAmount),
         status: "pending", payment_method: topUpMethod,
       });
-      setLoading(false);
+      setTopUpLoading(false);
       if (error) {
         toast({ title: "Error", description: error.message, variant: "destructive" });
       } else {
@@ -195,7 +198,8 @@ export default function Dashboard() {
       toast({ title: "Initial Balance required", description: "Please specify an initial balance for additional accounts.", variant: "destructive" });
       return;
     }
-    setLoading(true);
+    setRequestLoading(true);
+    console.log("Submitting account request:", { user_id: user!.id, platform: requestPlatform, account_name: requestAccountName, currency: requestCurrency, timezone: requestTimezone });
     const { error } = await supabase.from("account_requests").insert({
       user_id: user!.id,
       platform: requestPlatform,
@@ -204,8 +208,9 @@ export default function Dashboard() {
       currency: requestCurrency,
       timezone: requestTimezone,
     } as any);
-    setLoading(false);
+    setRequestLoading(false);
     if (error) {
+      console.error("Account request error:", error);
       toast({ title: "Error", description: error.message, variant: "destructive" });
     } else {
       toast({ title: "Request submitted", description: "Admin will review your request." });
@@ -225,7 +230,7 @@ export default function Dashboard() {
       toast({ title: "Insufficient balance", variant: "destructive" });
       return;
     }
-    setLoading(true);
+    setTransferLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke("facebook-api", {
         body: { action: "wallet_to_account", ad_account_id: transferOpen.account.account_id, amount },
@@ -241,13 +246,13 @@ export default function Dashboard() {
     } catch (err: any) {
       toast({ title: "Transfer failed", description: err.message, variant: "destructive" });
     }
-    setLoading(false);
+    setTransferLoading(false);
   };
 
   const handleWithdrawToWallet = async () => {
     const amount = Number(withdrawAmount);
     if (!amount || amount <= 0) return;
-    setLoading(true);
+    setWithdrawLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke("facebook-api", {
         body: { action: "account_to_wallet", ad_account_id: withdrawOpen.account.account_id, amount },
@@ -263,7 +268,7 @@ export default function Dashboard() {
     } catch (err: any) {
       toast({ title: "Withdrawal failed", description: err.message, variant: "destructive" });
     }
-    setLoading(false);
+    setWithdrawLoading(false);
   };
 
   const handleGenerateInvoice = async (txn: any) => {
@@ -660,8 +665,8 @@ export default function Dashboard() {
               </div>
               {topUpMethod === "manual" && <p className="text-xs text-muted-foreground">Your request will be sent to admin for approval.</p>}
             </div>
-            <Button onClick={handleTopUp} disabled={loading || !topUpAmount} className="w-full bg-primary text-primary-foreground font-bold rounded-full">
-              {loading ? "Processing..." : "Submit Top Up"}
+            <Button onClick={handleTopUp} disabled={topUpLoading || !topUpAmount} className="w-full bg-primary text-primary-foreground font-bold rounded-full">
+              {topUpLoading ? "Processing..." : "Submit Top Up"}
             </Button>
           </div>
         </DialogContent>
@@ -696,8 +701,8 @@ export default function Dashboard() {
                 </div>
               </div>
             )}
-            <Button onClick={handleTransferToAccount} disabled={loading || !transferAmount || Number(transferAmount) <= 0 || Number(transferAmount) > Number(profile?.wallet_balance || 0)} className="w-full bg-primary text-primary-foreground font-bold rounded-full">
-              {loading ? "Processing..." : "Transfer to Account"}
+            <Button onClick={handleTransferToAccount} disabled={transferLoading || !transferAmount || Number(transferAmount) <= 0 || Number(transferAmount) > Number(profile?.wallet_balance || 0)} className="w-full bg-primary text-primary-foreground font-bold rounded-full">
+              {transferLoading ? "Processing..." : "Transfer to Account"}
             </Button>
           </div>
         </DialogContent>
@@ -732,8 +737,8 @@ export default function Dashboard() {
                 </div>
               </div>
             )}
-            <Button onClick={handleWithdrawToWallet} disabled={loading || !withdrawAmount || Number(withdrawAmount) <= 0} className="w-full bg-primary text-primary-foreground font-bold rounded-full">
-              {loading ? "Processing..." : "Withdraw to Wallet"}
+            <Button onClick={handleWithdrawToWallet} disabled={withdrawLoading || !withdrawAmount || Number(withdrawAmount) <= 0} className="w-full bg-primary text-primary-foreground font-bold rounded-full">
+              {withdrawLoading ? "Processing..." : "Withdraw to Wallet"}
             </Button>
           </div>
         </DialogContent>
@@ -779,8 +784,8 @@ export default function Dashboard() {
                 className="bg-secondary border-border text-foreground" required={hasActiveAccounts} />
               {!hasActiveAccounts && <p className="text-xs text-muted-foreground">Optional for your first account request.</p>}
             </div>
-            <Button onClick={handleRequestAccount} disabled={loading} className="w-full bg-primary text-primary-foreground font-bold rounded-full">
-              {loading ? "Submitting..." : "Submit Request"}
+            <Button onClick={handleRequestAccount} disabled={requestLoading} className="w-full bg-primary text-primary-foreground font-bold rounded-full">
+              {requestLoading ? "Submitting..." : "Submit Request"}
             </Button>
           </div>
         </DialogContent>
