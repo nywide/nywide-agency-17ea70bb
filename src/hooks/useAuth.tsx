@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, useCallback, useRef, ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import type { User, Session } from "@supabase/supabase-js";
@@ -29,10 +29,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<{ full_name: string; wallet_balance: number; email?: string } | null>(null);
-  const [role, setRole] = useState<UserRole>("user");
+  const [role, setRole] = useState<UserRole>(() => {
+    return (localStorage.getItem("nywide_role") as UserRole) || "user";
+  });
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
-  const initializedRef = useRef(false);
 
   const fetchProfile = useCallback(async (userId: string) => {
     try {
@@ -41,15 +42,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         supabase.from("user_roles").select("role").eq("user_id", userId),
       ]);
       if (profileRes.data) setProfile(profileRes.data);
-      if (roleRes.data && roleRes.data.length > 0) {
-        const isAdmin = roleRes.data.some((r: any) => r.role === "admin");
-        setRole(isAdmin ? "admin" : "user");
-      } else {
-        setRole("user");
-      }
+      const isAdmin = roleRes.data?.some((r: any) => r.role === "admin") ?? false;
+      const newRole = isAdmin ? "admin" : "user";
+      setRole(newRole);
+      localStorage.setItem("nywide_role", newRole);
     } catch (err) {
       console.error("Failed to fetch profile:", err);
       setRole("user");
+      localStorage.setItem("nywide_role", "user");
     }
   }, []);
 
@@ -58,9 +58,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [user, fetchProfile]);
 
   useEffect(() => {
-    // Set up auth state listener FIRST
+    let mounted = true;
+
+    // 1. Get initial session first
+    supabase.auth.getSession().then(async ({ data: { session: initSession } }) => {
+      if (!mounted) return;
+      setSession(initSession);
+      setUser(initSession?.user ?? null);
+      if (initSession?.user) {
+        await fetchProfile(initSession.user.id);
+      } else {
+        setProfile(null);
+        setRole("user");
+        localStorage.removeItem("nywide_role");
+      }
+      if (mounted) setLoading(false);
+    }).catch(() => {
+      if (mounted) setLoading(false);
+    });
+
+    // 2. Listen for future auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, newSession) => {
+      async (event, newSession) => {
+        if (!mounted) return;
+        // Skip INITIAL_SESSION since we handle it above
+        if (event === "INITIAL_SESSION") return;
+
         setSession(newSession);
         setUser(newSession?.user ?? null);
         if (newSession?.user) {
@@ -68,42 +91,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } else {
           setProfile(null);
           setRole("user");
+          localStorage.removeItem("nywide_role");
         }
         setLoading(false);
       }
     );
 
-    // Then get the initial session as a fallback safety net
-    supabase.auth.getSession().then(({ data: { session: initSession } }) => {
-      // Only handle if onAuthStateChange hasn't already resolved
-      if (initializedRef.current) return;
-      initializedRef.current = true;
-      
-      if (!initSession) {
-        setSession(null);
-        setUser(null);
-        setLoading(false);
-      }
-      // If session exists, onAuthStateChange INITIAL_SESSION will handle it
-    }).catch(() => {
-      setLoading(false);
-    });
-
-    // Safety timeout: if loading hasn't resolved in 5 seconds, force it
+    // Safety timeout
     const timeout = setTimeout(() => {
-      setLoading(prev => {
-        if (prev) console.warn("Auth loading timeout - forcing resolution");
-        return false;
-      });
+      if (mounted) setLoading(false);
     }, 5000);
 
     return () => {
+      mounted = false;
       subscription.unsubscribe();
       clearTimeout(timeout);
     };
   }, [fetchProfile]);
 
-  const signOut = async () => {
+  const signOut = useCallback(async () => {
     try {
       await supabase.auth.signOut();
     } catch (err) {
@@ -113,8 +119,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSession(null);
     setProfile(null);
     setRole("user");
-    navigate("/login", { replace: true });
-  };
+    localStorage.removeItem("nywide_role");
+    navigate("/", { replace: true });
+  }, [navigate]);
 
   return (
     <AuthContext.Provider value={{ user, session, profile, role, loading, signOut, refreshProfile }}>
