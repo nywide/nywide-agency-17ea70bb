@@ -16,27 +16,36 @@ export type Database = {
     Tables: {
       account_requests: {
         Row: {
+          account_name: string | null
           created_at: string
+          currency: string | null
           id: string
           platform: string
           preferred_limit: string | null
           status: string
+          timezone: string | null
           user_id: string
         }
         Insert: {
+          account_name?: string | null
           created_at?: string
+          currency?: string | null
           id?: string
           platform?: string
           preferred_limit?: string | null
           status?: string
+          timezone?: string | null
           user_id: string
         }
         Update: {
+          account_name?: string | null
           created_at?: string
+          currency?: string | null
           id?: string
           platform?: string
           preferred_limit?: string | null
           status?: string
+          timezone?: string | null
           user_id?: string
         }
         Relationships: [
@@ -316,6 +325,47 @@ export type Database = {
           reason?: string
         }
         Relationships: []
+      }
+      topup_requests: {
+        Row: {
+          admin_note: string | null
+          amount: number
+          created_at: string
+          currency: string
+          id: string
+          payment_method: string | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          admin_note?: string | null
+          amount: number
+          created_at?: string
+          currency?: string
+          id?: string
+          payment_method?: string | null
+          status?: string
+          user_id: string
+        }
+        Update: {
+          admin_note?: string | null
+          amount?: number
+          created_at?: string
+          currency?: string
+          id?: string
+          payment_method?: string | null
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "topup_requests_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       transactions: {
         Row: {
