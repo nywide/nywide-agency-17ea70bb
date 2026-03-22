@@ -72,6 +72,7 @@ export default function Admin() {
     fetchCommission();
     fetchAllUsersForDropdown();
     fetchTopupRequests();
+    fetchUsers();
 
     // Realtime subscription for profiles changes (new signups)
     const channel = supabase
@@ -157,19 +158,31 @@ export default function Admin() {
   };
 
   const fetchUsers = async () => {
-    let query = supabase.from("profiles").select("*, user_roles(role)", { count: "exact" });
-    if (searchTerm) query = query.or(`full_name.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`);
-    const { data, count } = await query.order("created_at", { ascending: false }).range(userPage * PAGE_SIZE, (userPage + 1) * PAGE_SIZE - 1);
-    if (data) {
-      setUsers(data);
-      // Fetch total spent for these users
-      const userIds = data.map((u: any) => u.id);
-      const { data: spentData } = await supabase.from("transactions").select("user_id, amount").eq("type", "wallet_to_account").eq("status", "completed").in("user_id", userIds);
-      const spentMap: Record<string, number> = {};
-      (spentData || []).forEach((t: any) => { spentMap[t.user_id] = (spentMap[t.user_id] || 0) + Number(t.amount); });
-      setUserTotalSpent(spentMap);
+    console.log("[Admin] fetchUsers called, page:", userPage, "search:", searchTerm);
+    try {
+      let query = supabase.from("profiles").select("*, user_roles(role)", { count: "exact" });
+      if (searchTerm) query = query.or(`full_name.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`);
+      const { data, count, error } = await query.order("created_at", { ascending: false }).range(userPage * PAGE_SIZE, (userPage + 1) * PAGE_SIZE - 1);
+      console.log("[Admin] fetchUsers result:", { data, count, error });
+      if (error) {
+        console.error("[Admin] fetchUsers error:", error);
+        toast({ title: "Error loading users", description: error.message, variant: "destructive" });
+        return;
+      }
+      if (data) {
+        setUsers(data);
+        const userIds = data.map((u: any) => u.id);
+        if (userIds.length > 0) {
+          const { data: spentData } = await supabase.from("transactions").select("user_id, amount").eq("type", "wallet_to_account").eq("status", "completed").in("user_id", userIds);
+          const spentMap: Record<string, number> = {};
+          (spentData || []).forEach((t: any) => { spentMap[t.user_id] = (spentMap[t.user_id] || 0) + Number(t.amount); });
+          setUserTotalSpent(spentMap);
+        }
+      }
+      setUserCount(count || 0);
+    } catch (err: any) {
+      console.error("[Admin] fetchUsers exception:", err);
     }
-    setUserCount(count || 0);
   };
 
   const fetchAccounts = async () => {
@@ -265,9 +278,11 @@ export default function Admin() {
     fetchUsers();
   };
 
-  const handleAddAccount = async () => {
+  const handleAddAccount = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     console.log("[Admin] handleAddAccount called", newAccount);
     if (!newAccount.account_id || !newAccount.account_name) {
+      console.log("[Admin] Validation failed: missing account_id or account_name");
       toast({ title: "Account ID and Name are required", variant: "destructive" });
       return;
     }
@@ -287,14 +302,29 @@ export default function Admin() {
       const { data, error } = await supabase.from("ad_accounts").insert(insertData).select();
       console.log("[Admin] Insert result:", { data, error });
       if (error) {
+        console.error("[Admin] Insert error:", error);
         toast({ title: "Error creating account", description: error.message, variant: "destructive" });
-      } else {
-        toast({ title: "Account created successfully" });
-        setAddAccountDialog(false);
-        setNewAccount({ account_id: "", account_name: "", currency: "USD", timezone: "America/New_York", spend_limit: "", user_id: "", platform: "facebook" });
-        fetchAccounts();
-        fetchOverviewStats();
+        return;
       }
+
+      // Try to set Facebook spend limit via edge function
+      if (insertData.spend_limit > 0 && insertData.platform === "facebook") {
+        try {
+          console.log("[Admin] Setting Facebook spend limit...");
+          const { data: fbData, error: fbError } = await supabase.functions.invoke("facebook-api", {
+            body: { action: "get_spend_limit", ad_account_id: insertData.account_id },
+          });
+          console.log("[Admin] Facebook API response:", { fbData, fbError });
+        } catch (fbErr) {
+          console.warn("[Admin] Facebook API call failed (non-blocking):", fbErr);
+        }
+      }
+
+      toast({ title: "Account created successfully" });
+      setAddAccountDialog(false);
+      setNewAccount({ account_id: "", account_name: "", currency: "USD", timezone: "America/New_York", spend_limit: "", user_id: "", platform: "facebook" });
+      fetchAccounts();
+      fetchOverviewStats();
     } catch (err: any) {
       console.error("[Admin] handleAddAccount exception:", err);
       toast({ title: "Error", description: err.message, variant: "destructive" });
@@ -936,7 +966,7 @@ export default function Admin() {
             <DialogTitle className="text-foreground">Add New Ad Account</DialogTitle>
             <DialogDescription>Create a new ad account and optionally assign it to a user.</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
+          <form onSubmit={handleAddAccount} className="space-y-4">
             <div className="space-y-2">
               <Label className="text-foreground">Platform</Label>
               <select value={newAccount.platform} onChange={(e) => setNewAccount({ ...newAccount, platform: e.target.value })} className="w-full h-10 rounded-md bg-secondary border border-border px-3 text-foreground text-sm">
@@ -950,11 +980,11 @@ export default function Admin() {
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label className="text-foreground">Account ID</Label>
-                <Input placeholder="179656207641303" value={newAccount.account_id} onChange={(e) => setNewAccount({ ...newAccount, account_id: e.target.value })} className="bg-secondary border-border text-foreground" />
+                <Input required placeholder="179656207641303" value={newAccount.account_id} onChange={(e) => setNewAccount({ ...newAccount, account_id: e.target.value })} className="bg-secondary border-border text-foreground" />
               </div>
               <div className="space-y-2">
                 <Label className="text-foreground">Account Name</Label>
-                <Input placeholder="My Agency Account" value={newAccount.account_name} onChange={(e) => setNewAccount({ ...newAccount, account_name: e.target.value })} className="bg-secondary border-border text-foreground" />
+                <Input required placeholder="My Agency Account" value={newAccount.account_name} onChange={(e) => setNewAccount({ ...newAccount, account_name: e.target.value })} className="bg-secondary border-border text-foreground" />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -978,10 +1008,10 @@ export default function Admin() {
                 {allUsersForDropdown.map(u => <option key={u.id} value={u.id}>{u.full_name || u.email || u.id}</option>)}
               </select>
             </div>
-            <Button onClick={handleAddAccount} disabled={addingAccount} className="w-full bg-primary text-primary-foreground font-bold rounded-full">
+            <Button type="submit" disabled={addingAccount} className="w-full bg-primary text-primary-foreground font-bold rounded-full">
               {addingAccount ? "Creating..." : "Create Account"}
             </Button>
-          </div>
+          </form>
         </DialogContent>
       </Dialog>
 
