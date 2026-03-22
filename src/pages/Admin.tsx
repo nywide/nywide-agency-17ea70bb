@@ -19,7 +19,7 @@ import {
 const PAGE_SIZE = 50;
 
 export default function Admin() {
-  const { signOut } = useAuth();
+  const { user, signOut } = useAuth();
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("overview");
 
