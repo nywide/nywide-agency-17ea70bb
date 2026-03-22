@@ -16,15 +16,30 @@ import {
   DollarSign, CheckCircle, XCircle, Clock, Search, BarChart3, Receipt
 } from "lucide-react";
 
+const PAGE_SIZE = 50;
+
 export default function Admin() {
   const { signOut } = useAuth();
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("overview");
+
+  // Overview stats (lightweight)
+  const [overviewStats, setOverviewStats] = useState({ totalBalance: 0, totalRevenue: 0, totalUsers: 0, totalAccounts: 0 });
+
+  // Paginated data
   const [users, setUsers] = useState<any[]>([]);
+  const [userCount, setUserCount] = useState(0);
+  const [userPage, setUserPage] = useState(0);
   const [adAccounts, setAdAccounts] = useState<any[]>([]);
+  const [accCount, setAccCount] = useState(0);
+  const [accPage, setAccPage] = useState(0);
   const [requests, setRequests] = useState<any[]>([]);
   const [allTransactions, setAllTransactions] = useState<any[]>([]);
+  const [txnCount, setTxnCount] = useState(0);
+  const [txnPage, setTxnPage] = useState(0);
   const [allInvoices, setAllInvoices] = useState<any[]>([]);
+  const [invCount, setInvCount] = useState(0);
+  const [invPage, setInvPage] = useState(0);
   const [commissionRate, setCommissionRate] = useState(6);
   const [commissionOverrides, setCommissionOverrides] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
@@ -42,25 +57,117 @@ export default function Admin() {
   const [overrideDialog, setOverrideDialog] = useState<{ open: boolean; userId?: string; userName?: string; rate?: string }>({ open: false });
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => { fetchAll(); }, []);
+  // All users for dropdowns (loaded once)
+  const [allUsersForDropdown, setAllUsersForDropdown] = useState<any[]>([]);
 
-  const fetchAll = async () => {
-    const [profilesRes, accountsRes, requestsRes, txnRes, commRes, invoicesRes, overridesRes] = await Promise.all([
-      supabase.from("profiles").select("*, user_roles(role)"),
-      supabase.from("ad_accounts").select("*, profiles(full_name, email)"),
-      supabase.from("account_requests").select("*, profiles(full_name, email)").order("created_at", { ascending: false }),
-      supabase.from("transactions").select("*, profiles(full_name, email)").order("created_at", { ascending: false }),
+  useEffect(() => {
+    fetchOverviewStats();
+    fetchCommission();
+    fetchAllUsersForDropdown();
+  }, []);
+
+  // Tab-specific data loading
+  useEffect(() => {
+    if (activeTab === "users") fetchUsers();
+  }, [activeTab, userPage, searchTerm]);
+
+  useEffect(() => {
+    if (activeTab === "accounts") fetchAccounts();
+  }, [activeTab, accPage]);
+
+  useEffect(() => {
+    if (activeTab === "requests") fetchRequests();
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (activeTab === "transactions") fetchTransactions();
+  }, [activeTab, txnPage, txnFilter]);
+
+  useEffect(() => {
+    if (activeTab === "invoices") fetchInvoices();
+  }, [activeTab, invPage, invoiceSearch]);
+
+  useEffect(() => {
+    if (activeTab === "overview") fetchOverviewUsers();
+  }, [activeTab]);
+
+  const fetchOverviewStats = async () => {
+    const [balRes, revRes, userCountRes, accCountRes] = await Promise.all([
+      supabase.from("profiles").select("wallet_balance"),
+      supabase.from("transactions").select("commission").eq("status", "completed").eq("type", "wallet_to_account"),
+      supabase.from("profiles").select("id", { count: "exact", head: true }),
+      supabase.from("ad_accounts").select("id", { count: "exact", head: true }),
+    ]);
+    setOverviewStats({
+      totalBalance: (balRes.data || []).reduce((s, u) => s + Number(u.wallet_balance || 0), 0),
+      totalRevenue: (revRes.data || []).reduce((s, t) => s + Number(t.commission || 0), 0),
+      totalUsers: userCountRes.count || 0,
+      totalAccounts: accCountRes.count || 0,
+    });
+  };
+
+  const [overviewUsers, setOverviewUsers] = useState<any[]>([]);
+  const [overviewAccounts, setOverviewAccounts] = useState<any[]>([]);
+
+  const fetchOverviewUsers = async () => {
+    const [usersRes, accsRes] = await Promise.all([
+      supabase.from("profiles").select("*, user_roles(role)").order("created_at", { ascending: false }).limit(10),
+      supabase.from("ad_accounts").select("*, profiles(full_name, email)").order("created_at", { ascending: false }).limit(10),
+    ]);
+    if (usersRes.data) setOverviewUsers(usersRes.data);
+    if (accsRes.data) setOverviewAccounts(accsRes.data);
+  };
+
+  const fetchAllUsersForDropdown = async () => {
+    const { data } = await supabase.from("profiles").select("id, full_name, email");
+    if (data) setAllUsersForDropdown(data);
+  };
+
+  const fetchCommission = async () => {
+    const [commRes, overridesRes] = await Promise.all([
       supabase.from("commission_settings").select("*").limit(1).single(),
-      supabase.from("invoices").select("*, profiles(full_name, email)").order("created_at", { ascending: false }),
       supabase.from("user_commission_overrides").select("*"),
     ]);
-    if (profilesRes.data) setUsers(profilesRes.data);
-    if (accountsRes.data) setAdAccounts(accountsRes.data);
-    if (requestsRes.data) setRequests(requestsRes.data);
-    if (txnRes.data) setAllTransactions(txnRes.data);
     if (commRes.data) setCommissionRate(commRes.data.rate);
-    if (invoicesRes.data) setAllInvoices(invoicesRes.data);
     if (overridesRes.data) setCommissionOverrides(overridesRes.data);
+  };
+
+  const fetchUsers = async () => {
+    let query = supabase.from("profiles").select("*, user_roles(role)", { count: "exact" });
+    if (searchTerm) query = query.or(`full_name.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`);
+    const { data, count } = await query.order("created_at", { ascending: false }).range(userPage * PAGE_SIZE, (userPage + 1) * PAGE_SIZE - 1);
+    if (data) setUsers(data);
+    setUserCount(count || 0);
+  };
+
+  const fetchAccounts = async () => {
+    const { data, count } = await supabase.from("ad_accounts").select("*, profiles(full_name, email)", { count: "exact" })
+      .order("created_at", { ascending: false }).range(accPage * PAGE_SIZE, (accPage + 1) * PAGE_SIZE - 1);
+    if (data) setAdAccounts(data);
+    setAccCount(count || 0);
+  };
+
+  const fetchRequests = async () => {
+    const { data } = await supabase.from("account_requests").select("*, profiles(full_name, email)").order("created_at", { ascending: false });
+    if (data) setRequests(data);
+  };
+
+  const fetchTransactions = async () => {
+    let query = supabase.from("transactions").select("*, profiles(full_name, email)", { count: "exact" });
+    if (txnFilter.type) query = query.eq("type", txnFilter.type);
+    if (txnFilter.date) query = query.gte("created_at", txnFilter.date).lt("created_at", txnFilter.date + "T23:59:59");
+    if (txnFilter.user) query = query.or(`profiles.full_name.ilike.%${txnFilter.user}%,profiles.email.ilike.%${txnFilter.user}%`);
+    const { data, count } = await query.order("created_at", { ascending: false }).range(txnPage * PAGE_SIZE, (txnPage + 1) * PAGE_SIZE - 1);
+    if (data) setAllTransactions(data);
+    setTxnCount(count || 0);
+  };
+
+  const fetchInvoices = async () => {
+    let query = supabase.from("invoices").select("*, profiles(full_name, email)", { count: "exact" });
+    if (invoiceSearch) query = query.or(`invoice_number.ilike.%${invoiceSearch}%`);
+    const { data, count } = await query.order("created_at", { ascending: false }).range(invPage * PAGE_SIZE, (invPage + 1) * PAGE_SIZE - 1);
+    if (data) setAllInvoices(data);
+    setInvCount(count || 0);
   };
 
   const handleManualTopUp = async () => {
@@ -70,17 +177,20 @@ export default function Admin() {
       user_id: topUpDialog.userId, type: "wallet_topup", amount: Number(topUpAmount),
       status: "completed", payment_method: "manual",
     });
-    const currentUser = users.find(u => u.id === topUpDialog.userId);
-    if (currentUser) {
+    const currentUser = allUsersForDropdown.find(u => u.id === topUpDialog.userId);
+    // Use RPC-style update
+    const { data: prof } = await supabase.from("profiles").select("wallet_balance").eq("id", topUpDialog.userId).single();
+    if (prof) {
       await supabase.from("profiles").update({
-        wallet_balance: Number(currentUser.wallet_balance) + Number(topUpAmount),
+        wallet_balance: Number(prof.wallet_balance) + Number(topUpAmount),
       }).eq("id", topUpDialog.userId);
     }
     setLoading(false);
     toast({ title: "Top-up added", description: `$${topUpAmount} added to ${topUpDialog.userName}'s wallet.` });
     setTopUpDialog({ open: false });
     setTopUpAmount("");
-    fetchAll();
+    fetchOverviewStats();
+    if (activeTab === "users") fetchUsers();
   };
 
   const handleChangeRole = async (userId: string, newRole: string) => {
@@ -90,7 +200,7 @@ export default function Admin() {
       await supabase.from("user_roles").delete().eq("user_id", userId).eq("role", "admin" as any);
     }
     toast({ title: "Role updated" });
-    fetchAll();
+    fetchUsers();
   };
 
   const handleAddAccount = async () => {
@@ -110,7 +220,8 @@ export default function Admin() {
       toast({ title: "Account created" });
       setAddAccountDialog(false);
       setNewAccount({ account_id: "", account_name: "", currency: "USD", timezone: "America/New_York", spend_limit: "", user_id: "" });
-      fetchAll();
+      fetchAccounts();
+      fetchOverviewStats();
     }
   };
 
@@ -126,7 +237,7 @@ export default function Admin() {
     setLoading(false);
     toast({ title: "Account updated" });
     setEditAccountDialog({ open: false });
-    fetchAll();
+    fetchAccounts();
   };
 
   const handleApproveRequest = async (req: any) => {
@@ -138,13 +249,14 @@ export default function Admin() {
     });
     await supabase.from("account_requests").update({ status: "approved" }).eq("id", req.id);
     toast({ title: "Request approved", description: "Ad account created and assigned." });
-    fetchAll();
+    fetchRequests();
+    fetchOverviewStats();
   };
 
   const handleRejectRequest = async (req: any) => {
     await supabase.from("account_requests").update({ status: "rejected" }).eq("id", req.id);
     toast({ title: "Request rejected" });
-    fetchAll();
+    fetchRequests();
   };
 
   const handleUpdateCommission = async () => {
@@ -167,13 +279,13 @@ export default function Admin() {
     setLoading(false);
     toast({ title: "Custom rate saved", description: `${overrideDialog.userName}: ${overrideDialog.rate}%` });
     setOverrideDialog({ open: false });
-    fetchAll();
+    fetchCommission();
   };
 
   const handleRemoveOverride = async (userId: string) => {
     await supabase.from("user_commission_overrides").delete().eq("user_id", userId);
     toast({ title: "Custom rate removed" });
-    fetchAll();
+    fetchCommission();
   };
 
   const getUserRole = (u: any) => {
@@ -186,29 +298,6 @@ export default function Admin() {
     const override = commissionOverrides.find(o => o.user_id === userId);
     return override ? override.rate : commissionRate;
   };
-
-  const filteredUsers = users.filter(u =>
-    (u.full_name || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (u.email || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
-    u.id.includes(searchTerm)
-  );
-
-  const totalBalance = users.reduce((sum, u) => sum + Number(u.wallet_balance || 0), 0);
-  const totalRevenue = allTransactions
-    .filter(t => t.status === "completed" && t.type === "wallet_to_account")
-    .reduce((sum, t) => sum + Number(t.commission || 0), 0);
-
-  const filteredTransactions = allTransactions.filter(t => {
-    if (txnFilter.user && !(t.profiles?.full_name || "").toLowerCase().includes(txnFilter.user.toLowerCase()) && !(t.profiles?.email || "").toLowerCase().includes(txnFilter.user.toLowerCase())) return false;
-    if (txnFilter.type && t.type !== txnFilter.type) return false;
-    if (txnFilter.date && !t.created_at.startsWith(txnFilter.date)) return false;
-    return true;
-  });
-
-  const filteredInvoices = allInvoices.filter(inv => {
-    if (invoiceSearch && !inv.invoice_number.toLowerCase().includes(invoiceSearch.toLowerCase()) && !(inv.profiles?.full_name || "").toLowerCase().includes(invoiceSearch.toLowerCase()) && !(inv.profiles?.email || "").toLowerCase().includes(invoiceSearch.toLowerCase())) return false;
-    return true;
-  });
 
   const txnTypeLabel = (type: string) => {
     switch (type) {
@@ -229,6 +318,23 @@ export default function Admin() {
     { id: "invoices", label: "Invoices", icon: Receipt },
     { id: "settings", label: "Settings", icon: Settings },
   ];
+
+  const txnTotalPages = Math.ceil(txnCount / PAGE_SIZE);
+  const userTotalPages = Math.ceil(userCount / PAGE_SIZE);
+  const accTotalPages = Math.ceil(accCount / PAGE_SIZE);
+  const invTotalPages = Math.ceil(invCount / PAGE_SIZE);
+
+  const PaginationControls = ({ page, setPage, totalPages, count }: { page: number; setPage: (fn: (p: number) => number) => void; totalPages: number; count: number }) => (
+    totalPages > 1 ? (
+      <div className="flex items-center justify-between mt-4">
+        <p className="text-sm text-muted-foreground">Page {page + 1} of {totalPages} ({count} total)</p>
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" disabled={page === 0} onClick={() => setPage(p => p - 1)} className="rounded-full border-border">Previous</Button>
+          <Button size="sm" variant="outline" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)} className="rounded-full border-border">Next</Button>
+        </div>
+      </div>
+    ) : null
+  );
 
   return (
     <div className="min-h-screen bg-background">
@@ -268,25 +374,25 @@ export default function Admin() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="bg-card border border-border rounded-xl p-5">
                 <p className="text-muted-foreground text-sm">Total Platform Balance</p>
-                <p className="text-3xl font-bold text-foreground"><span className="text-primary">$</span>{totalBalance.toFixed(2)}</p>
+                <p className="text-3xl font-bold text-foreground"><span className="text-primary">$</span>{overviewStats.totalBalance.toFixed(2)}</p>
               </div>
               <div className="bg-card border border-border rounded-xl p-5">
                 <p className="text-muted-foreground text-sm">Total Revenue (Commissions)</p>
-                <p className="text-3xl font-bold text-foreground"><span className="text-primary">$</span>{totalRevenue.toFixed(2)}</p>
+                <p className="text-3xl font-bold text-foreground"><span className="text-primary">$</span>{overviewStats.totalRevenue.toFixed(2)}</p>
               </div>
               <div className="bg-card border border-border rounded-xl p-5">
                 <p className="text-muted-foreground text-sm">Total Users</p>
-                <p className="text-3xl font-bold text-foreground">{users.length}</p>
+                <p className="text-3xl font-bold text-foreground">{overviewStats.totalUsers}</p>
               </div>
               <div className="bg-card border border-border rounded-xl p-5">
                 <p className="text-muted-foreground text-sm">Total Ad Accounts</p>
-                <p className="text-3xl font-bold text-foreground">{adAccounts.length}</p>
+                <p className="text-3xl font-bold text-foreground">{overviewStats.totalAccounts}</p>
               </div>
             </div>
 
-            {/* All Profiles */}
+            {/* Recent Profiles */}
             <div>
-              <h2 className="text-xl font-bold text-foreground mb-3">All Profiles</h2>
+              <h2 className="text-xl font-bold text-foreground mb-3">Recent Profiles</h2>
               <div className="bg-card border border-border rounded-xl overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
@@ -299,7 +405,7 @@ export default function Admin() {
                       <th className="text-left p-4 text-muted-foreground font-medium">Joined</th>
                     </tr></thead>
                     <tbody>
-                      {users.map((u) => (
+                      {overviewUsers.map((u) => (
                         <tr key={u.id} className="border-b border-border/50 hover:bg-secondary/50">
                           <td className="p-4 text-foreground font-medium">{u.full_name || "—"}</td>
                           <td className="p-4 text-muted-foreground text-xs">{u.email || "—"}</td>
@@ -319,42 +425,29 @@ export default function Admin() {
               </div>
             </div>
 
-            {/* All Ad Accounts */}
+            {/* Recent Ad Accounts */}
             <div>
-              <h2 className="text-xl font-bold text-foreground mb-3">All Ad Accounts</h2>
+              <h2 className="text-xl font-bold text-foreground mb-3">Recent Ad Accounts</h2>
               <div className="bg-card border border-border rounded-xl overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead><tr className="border-b border-border">
                       <th className="text-left p-4 text-muted-foreground font-medium">Account ID</th>
                       <th className="text-left p-4 text-muted-foreground font-medium">Name</th>
-                      <th className="text-left p-4 text-muted-foreground font-medium">Currency</th>
-                      <th className="text-left p-4 text-muted-foreground font-medium">Timezone</th>
                       <th className="text-left p-4 text-muted-foreground font-medium">Spending Limit</th>
                       <th className="text-left p-4 text-muted-foreground font-medium">Current Spend</th>
                       <th className="text-left p-4 text-muted-foreground font-medium">Status</th>
                       <th className="text-left p-4 text-muted-foreground font-medium">Assigned To</th>
-                      <th className="text-left p-4 text-muted-foreground font-medium">Actions</th>
                     </tr></thead>
                     <tbody>
-                      {adAccounts.map((acc) => (
+                      {overviewAccounts.map((acc) => (
                         <tr key={acc.id} className="border-b border-border/50 hover:bg-secondary/50">
                           <td className="p-4 text-foreground font-mono text-xs">{acc.account_id}</td>
                           <td className="p-4 text-foreground">{acc.account_name}</td>
-                          <td className="p-4 text-foreground">{acc.currency}</td>
-                          <td className="p-4 text-foreground text-xs">{acc.timezone}</td>
                           <td className="p-4 text-foreground">${Number(acc.spend_limit).toFixed(2)}</td>
-                          <td className="p-4">
-                            <div className="space-y-1">
-                              <span className="text-foreground">${Number(acc.current_spend).toFixed(2)}</span>
-                              <Progress value={acc.spend_limit > 0 ? (acc.current_spend / acc.spend_limit) * 100 : 0} className="h-1.5" />
-                            </div>
-                          </td>
+                          <td className="p-4 text-foreground">${Number(acc.current_spend).toFixed(2)}</td>
                           <td className="p-4 capitalize text-foreground">{acc.status}</td>
                           <td className="p-4 text-muted-foreground">{acc.profiles?.full_name || "Unassigned"}</td>
-                          <td className="p-4">
-                            <Button size="sm" variant="ghost" className="text-primary" onClick={() => setEditAccountDialog({ open: true, account: { ...acc } })}>Edit</Button>
-                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -371,7 +464,7 @@ export default function Admin() {
             <div className="flex items-center gap-3">
               <div className="relative flex-1 max-w-sm">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input placeholder="Search by name or email..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10 bg-secondary border-border text-foreground" />
+                <Input placeholder="Search by name or email..." value={searchTerm} onChange={(e) => { setSearchTerm(e.target.value); setUserPage(0); }} className="pl-10 bg-secondary border-border text-foreground" />
               </div>
             </div>
             <div className="bg-card border border-border rounded-xl overflow-hidden">
@@ -387,7 +480,7 @@ export default function Admin() {
                     <th className="text-left p-4 text-muted-foreground font-medium">Actions</th>
                   </tr></thead>
                   <tbody>
-                    {filteredUsers.map((u) => (
+                    {users.map((u) => (
                       <tr key={u.id} className="border-b border-border/50 hover:bg-secondary/50">
                         <td className="p-4 text-foreground font-medium">{u.full_name || "—"}</td>
                         <td className="p-4 text-muted-foreground text-xs">{u.email || "—"}</td>
@@ -421,6 +514,7 @@ export default function Admin() {
                 </table>
               </div>
             </div>
+            <PaginationControls page={userPage} setPage={setUserPage} totalPages={userTotalPages} count={userCount} />
           </div>
         )}
 
@@ -472,6 +566,7 @@ export default function Admin() {
                 </table>
               </div>
             </div>
+            <PaginationControls page={accPage} setPage={setAccPage} totalPages={accTotalPages} count={accCount} />
           </div>
         )}
 
@@ -523,15 +618,15 @@ export default function Admin() {
             <div className="flex flex-wrap gap-3">
               <div className="relative flex-1 min-w-[200px] max-w-sm">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input placeholder="Search by user..." value={txnFilter.user} onChange={(e) => setTxnFilter({ ...txnFilter, user: e.target.value })} className="pl-10 bg-secondary border-border text-foreground" />
+                <Input placeholder="Search by user..." value={txnFilter.user} onChange={(e) => { setTxnFilter({ ...txnFilter, user: e.target.value }); setTxnPage(0); }} className="pl-10 bg-secondary border-border text-foreground" />
               </div>
-              <select value={txnFilter.type} onChange={(e) => setTxnFilter({ ...txnFilter, type: e.target.value })} className="h-10 rounded-md bg-secondary border border-border px-3 text-foreground text-sm">
+              <select value={txnFilter.type} onChange={(e) => { setTxnFilter({ ...txnFilter, type: e.target.value }); setTxnPage(0); }} className="h-10 rounded-md bg-secondary border border-border px-3 text-foreground text-sm">
                 <option value="">All types</option>
                 <option value="wallet_topup">Wallet Top-Up</option>
                 <option value="wallet_to_account">Transfer to Account</option>
                 <option value="account_to_wallet">Withdraw to Wallet</option>
               </select>
-              <Input type="date" value={txnFilter.date} onChange={(e) => setTxnFilter({ ...txnFilter, date: e.target.value })} className="bg-secondary border-border text-foreground w-44" />
+              <Input type="date" value={txnFilter.date} onChange={(e) => { setTxnFilter({ ...txnFilter, date: e.target.value }); setTxnPage(0); }} className="bg-secondary border-border text-foreground w-44" />
             </div>
             <div className="bg-card border border-border rounded-xl overflow-hidden">
               <div className="overflow-x-auto">
@@ -547,7 +642,7 @@ export default function Admin() {
                     <th className="text-left p-4 text-muted-foreground font-medium">Method</th>
                   </tr></thead>
                   <tbody>
-                    {filteredTransactions.map((txn) => (
+                    {allTransactions.map((txn) => (
                       <tr key={txn.id} className="border-b border-border/50 hover:bg-secondary/50">
                         <td className="p-4 text-foreground">{new Date(txn.created_at).toLocaleDateString()}</td>
                         <td className="p-4 text-foreground">{txn.profiles?.full_name || txn.profiles?.email || "—"}</td>
@@ -563,6 +658,7 @@ export default function Admin() {
                 </table>
               </div>
             </div>
+            <PaginationControls page={txnPage} setPage={setTxnPage} totalPages={txnTotalPages} count={txnCount} />
           </div>
         )}
 
@@ -572,42 +668,37 @@ export default function Admin() {
             <h2 className="text-xl font-bold text-foreground">All Invoices</h2>
             <div className="relative max-w-sm">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input placeholder="Search invoices by number or user..." value={invoiceSearch} onChange={(e) => setInvoiceSearch(e.target.value)} className="pl-10 bg-secondary border-border text-foreground" />
+              <Input placeholder="Search invoices by number..." value={invoiceSearch} onChange={(e) => { setInvoiceSearch(e.target.value); setInvPage(0); }} className="pl-10 bg-secondary border-border text-foreground" />
             </div>
-            {filteredInvoices.length === 0 ? (
-              <div className="bg-card border border-border rounded-2xl p-12 text-center">
-                <p className="text-muted-foreground">No invoices found.</p>
+            <div className="bg-card border border-border rounded-xl overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead><tr className="border-b border-border">
+                    <th className="text-left p-4 text-muted-foreground font-medium">Invoice #</th>
+                    <th className="text-left p-4 text-muted-foreground font-medium">User</th>
+                    <th className="text-left p-4 text-muted-foreground font-medium">Amount</th>
+                    <th className="text-left p-4 text-muted-foreground font-medium">Date</th>
+                    <th className="text-left p-4 text-muted-foreground font-medium">Download</th>
+                  </tr></thead>
+                  <tbody>
+                    {allInvoices.map((inv) => (
+                      <tr key={inv.id} className="border-b border-border/50 hover:bg-secondary/50">
+                        <td className="p-4 text-foreground font-medium">{inv.invoice_number}</td>
+                        <td className="p-4 text-foreground">{inv.profiles?.full_name || inv.profiles?.email || "—"}</td>
+                        <td className="p-4 text-foreground">${Number(inv.amount).toFixed(2)} {inv.currency}</td>
+                        <td className="p-4 text-muted-foreground">{new Date(inv.created_at).toLocaleDateString()}</td>
+                        <td className="p-4">
+                          <Button size="sm" variant="outline" className="rounded-full border-border" disabled={!inv.pdf_url}>
+                            {inv.pdf_url ? "Download" : "PDF Pending"}
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-            ) : (
-              <div className="bg-card border border-border rounded-xl overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead><tr className="border-b border-border">
-                      <th className="text-left p-4 text-muted-foreground font-medium">Invoice #</th>
-                      <th className="text-left p-4 text-muted-foreground font-medium">User</th>
-                      <th className="text-left p-4 text-muted-foreground font-medium">Amount</th>
-                      <th className="text-left p-4 text-muted-foreground font-medium">Date</th>
-                      <th className="text-left p-4 text-muted-foreground font-medium">Download</th>
-                    </tr></thead>
-                    <tbody>
-                      {filteredInvoices.map((inv) => (
-                        <tr key={inv.id} className="border-b border-border/50 hover:bg-secondary/50">
-                          <td className="p-4 text-foreground font-medium">{inv.invoice_number}</td>
-                          <td className="p-4 text-foreground">{inv.profiles?.full_name || inv.profiles?.email || "—"}</td>
-                          <td className="p-4 text-foreground">${Number(inv.amount).toFixed(2)} {inv.currency}</td>
-                          <td className="p-4 text-muted-foreground">{new Date(inv.created_at).toLocaleDateString()}</td>
-                          <td className="p-4">
-                            <Button size="sm" variant="outline" className="rounded-full border-border" disabled={!inv.pdf_url}>
-                              {inv.pdf_url ? "Download" : "PDF Pending"}
-                            </Button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
+            </div>
+            <PaginationControls page={invPage} setPage={setInvPage} totalPages={invTotalPages} count={invCount} />
           </div>
         )}
 
@@ -639,7 +730,7 @@ export default function Admin() {
                   </tr></thead>
                   <tbody>
                     {commissionOverrides.map((o) => {
-                      const u = users.find(u => u.id === o.user_id);
+                      const u = allUsersForDropdown.find(u => u.id === o.user_id);
                       return (
                         <tr key={o.id} className="border-b border-border/50">
                           <td className="p-4 text-foreground">{u?.full_name || u?.email || o.user_id}</td>
@@ -716,7 +807,7 @@ export default function Admin() {
               <Label className="text-foreground">Assign to User (optional)</Label>
               <select value={newAccount.user_id} onChange={(e) => setNewAccount({ ...newAccount, user_id: e.target.value })} className="w-full h-10 rounded-md bg-secondary border border-border px-3 text-foreground text-sm">
                 <option value="">Unassigned</option>
-                {users.map(u => <option key={u.id} value={u.id}>{u.full_name || u.email || u.id}</option>)}
+                {allUsersForDropdown.map(u => <option key={u.id} value={u.id}>{u.full_name || u.email || u.id}</option>)}
               </select>
             </div>
             <Button onClick={handleAddAccount} disabled={loading} className="w-full bg-primary text-primary-foreground font-bold rounded-full">
@@ -755,7 +846,7 @@ export default function Admin() {
                 <Label className="text-foreground">Assign to User</Label>
                 <select value={editAccountDialog.account.user_id || ""} onChange={(e) => setEditAccountDialog({ ...editAccountDialog, account: { ...editAccountDialog.account, user_id: e.target.value || null } })} className="w-full h-10 rounded-md bg-secondary border border-border px-3 text-foreground text-sm">
                   <option value="">Unassigned</option>
-                  {users.map(u => <option key={u.id} value={u.id}>{u.full_name || u.email || u.id}</option>)}
+                  {allUsersForDropdown.map(u => <option key={u.id} value={u.id}>{u.full_name || u.email || u.id}</option>)}
                 </select>
               </div>
               <Button onClick={handleUpdateAccount} disabled={loading} className="w-full bg-primary text-primary-foreground font-bold rounded-full">
