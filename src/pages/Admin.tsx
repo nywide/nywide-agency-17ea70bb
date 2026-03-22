@@ -426,8 +426,8 @@ export default function Admin() {
   };
 
   const getUserRole = (u: any) => {
-    const roles = u.user_roles;
-    if (Array.isArray(roles) && roles.some((r: any) => r.role === "admin")) return "admin";
+    const roles = u._roles;
+    if (Array.isArray(roles) && roles.includes("admin")) return "admin";
     return "user";
   };
 
