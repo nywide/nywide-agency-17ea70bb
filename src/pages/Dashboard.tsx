@@ -14,7 +14,7 @@ import { Label } from "@/components/ui/label";
 import {
   Wallet, Monitor, FileText, Receipt, Plus, LogOut, Home,
   DollarSign, Clock, CheckCircle, XCircle, AlertCircle,
-  ArrowUpRight, ArrowDownLeft
+  ArrowUpRight, ArrowDownLeft, Search, LayoutDashboard
 } from "lucide-react";
 
 export default function Dashboard() {
@@ -30,11 +30,15 @@ export default function Dashboard() {
   const [topUpAmount, setTopUpAmount] = useState("");
   const [topUpMethod, setTopUpMethod] = useState("manual");
   const [preferredLimit, setPreferredLimit] = useState("");
+  const [requestPlatform, setRequestPlatform] = useState("facebook");
   const [transferAmount, setTransferAmount] = useState("");
   const [withdrawAmount, setWithdrawAmount] = useState("");
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState("wallet");
+  const [activeTab, setActiveTab] = useState("dashboard");
   const [commissionRate, setCommissionRate] = useState(6);
+  const [txnSearch, setTxnSearch] = useState("");
+  const [txnTypeFilter, setTxnTypeFilter] = useState("");
+  const [invoiceSearch, setInvoiceSearch] = useState("");
 
   useEffect(() => {
     if (user) fetchData();
@@ -65,11 +69,8 @@ export default function Dashboard() {
     }
     setLoading(true);
     const { error } = await supabase.from("transactions").insert({
-      user_id: user!.id,
-      type: "wallet_topup",
-      amount: Number(topUpAmount),
-      status: topUpMethod === "manual" ? "pending" : "pending",
-      payment_method: topUpMethod,
+      user_id: user!.id, type: "wallet_topup", amount: Number(topUpAmount),
+      status: topUpMethod === "manual" ? "pending" : "pending", payment_method: topUpMethod,
     });
     setLoading(false);
     if (error) {
@@ -91,9 +92,7 @@ export default function Dashboard() {
     }
     setLoading(true);
     const { error } = await supabase.from("account_requests").insert({
-      user_id: user!.id,
-      platform: "facebook",
-      preferred_limit: preferredLimit || null,
+      user_id: user!.id, platform: requestPlatform, preferred_limit: preferredLimit || null,
     });
     setLoading(false);
     if (error) {
@@ -102,6 +101,7 @@ export default function Dashboard() {
       toast({ title: "Request submitted", description: "Admin will review your request." });
       setRequestOpen(false);
       setPreferredLimit("");
+      setRequestPlatform("facebook");
     }
   };
 
@@ -115,18 +115,11 @@ export default function Dashboard() {
     setLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke("facebook-api", {
-        body: {
-          action: "wallet_to_account",
-          ad_account_id: transferOpen.account.account_id,
-          amount,
-        },
+        body: { action: "wallet_to_account", ad_account_id: transferOpen.account.account_id, amount },
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
-      toast({
-        title: "Transfer successful",
-        description: `$${data.amount_sent.toFixed(2)} sent to account (commission: $${data.commission.toFixed(2)})`,
-      });
+      toast({ title: "Transfer successful", description: `$${data.amount_sent.toFixed(2)} sent to account (commission: $${data.commission.toFixed(2)})` });
       setTransferOpen({ open: false });
       setTransferAmount("");
       await refreshProfile();
@@ -143,18 +136,11 @@ export default function Dashboard() {
     setLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke("facebook-api", {
-        body: {
-          action: "account_to_wallet",
-          ad_account_id: withdrawOpen.account.account_id,
-          amount,
-        },
+        body: { action: "account_to_wallet", ad_account_id: withdrawOpen.account.account_id, amount },
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
-      toast({
-        title: "Withdrawal successful",
-        description: `$${data.refund.toFixed(2)} added to your wallet`,
-      });
+      toast({ title: "Withdrawal successful", description: `$${data.refund.toFixed(2)} added to your wallet` });
       setWithdrawOpen({ open: false });
       setWithdrawAmount("");
       await refreshProfile();
@@ -168,10 +154,7 @@ export default function Dashboard() {
   const handleGenerateInvoice = async (txn: any) => {
     const invoiceNumber = `INV-${Date.now().toString(36).toUpperCase()}`;
     const { error } = await supabase.from("invoices").insert({
-      user_id: user!.id,
-      invoice_number: invoiceNumber,
-      amount: txn.amount,
-      currency: txn.currency,
+      user_id: user!.id, invoice_number: invoiceNumber, amount: txn.amount, currency: txn.currency,
     });
     if (error) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -209,7 +192,7 @@ export default function Dashboard() {
   };
 
   const tabs = [
-    { id: "wallet", label: "Platform Balance", icon: Wallet },
+    { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
     { id: "accounts", label: "Ad Accounts", icon: Monitor },
     { id: "transactions", label: "Transactions", icon: FileText },
     { id: "invoices", label: "Invoices", icon: Receipt },
@@ -218,6 +201,19 @@ export default function Dashboard() {
   const transferCommission = Number(transferAmount) * (commissionRate / 100);
   const transferNet = Number(transferAmount) - transferCommission;
   const withdrawRefund = Number(withdrawAmount) / (1 - commissionRate / 100);
+
+  const filteredTransactions = transactions.filter(t => {
+    if (txnSearch && !txnTypeLabel(t.type).toLowerCase().includes(txnSearch.toLowerCase()) && !t.ad_account_id?.toLowerCase().includes(txnSearch.toLowerCase())) return false;
+    if (txnTypeFilter && t.type !== txnTypeFilter) return false;
+    return true;
+  });
+
+  const filteredInvoices = invoices.filter(inv => {
+    if (invoiceSearch && !inv.invoice_number.toLowerCase().includes(invoiceSearch.toLowerCase())) return false;
+    return true;
+  });
+
+  const totalSpent = transactions.filter(t => t.type === "wallet_to_account" && t.status === "completed").reduce((s, t) => s + Number(t.amount), 0);
 
   return (
     <div className="min-h-screen bg-background">
@@ -240,23 +236,18 @@ export default function Dashboard() {
 
         <div className="flex gap-2 mb-8 overflow-x-auto pb-2">
           {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
+            <button key={tab.id} onClick={() => setActiveTab(tab.id)}
               className={`flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-medium transition-all whitespace-nowrap ${
-                activeTab === tab.id
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-secondary text-muted-foreground hover:text-foreground"
-              }`}
-            >
+                activeTab === tab.id ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground hover:text-foreground"
+              }`}>
               <tab.icon className="w-4 h-4" />
               {tab.label}
             </button>
           ))}
         </div>
 
-        {/* Wallet Tab */}
-        {activeTab === "wallet" && (
+        {/* Dashboard Tab */}
+        {activeTab === "dashboard" && (
           <div className="space-y-6">
             <div className="bg-card border border-border rounded-2xl p-8">
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -265,17 +256,20 @@ export default function Dashboard() {
                   <p className="text-5xl font-bold text-foreground">
                     <span className="text-primary">$</span>{Number(profile?.wallet_balance || 0).toFixed(2)}
                   </p>
-                  <p className="text-xs text-muted-foreground mt-2">Commission rate: {commissionRate}% (on transfers to accounts)</p>
                 </div>
-                <Button onClick={() => setTopUpOpen(true)} className="bg-primary text-primary-foreground font-bold rounded-full px-6 glow-gold-hover">
+                <Button onClick={() => setTopUpOpen(true)} className="bg-primary text-primary-foreground font-bold rounded-full px-6">
                   <Plus className="w-4 h-4 mr-2" />Add Funds
                 </Button>
               </div>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
               <div className="bg-card border border-border rounded-xl p-5">
                 <p className="text-muted-foreground text-sm">Active Accounts</p>
                 <p className="text-2xl font-bold text-foreground">{adAccounts.filter(a => a.status === "active").length}</p>
+              </div>
+              <div className="bg-card border border-border rounded-xl p-5">
+                <p className="text-muted-foreground text-sm">Total Spent</p>
+                <p className="text-2xl font-bold text-foreground">${totalSpent.toFixed(2)}</p>
               </div>
               <div className="bg-card border border-border rounded-xl p-5">
                 <p className="text-muted-foreground text-sm">Total Transactions</p>
@@ -286,6 +280,58 @@ export default function Dashboard() {
                 <p className="text-2xl font-bold text-foreground">{invoices.length}</p>
               </div>
             </div>
+
+            {/* Recent Transactions */}
+            {transactions.length > 0 && (
+              <div>
+                <h2 className="text-lg font-bold text-foreground mb-3">Recent Transactions</h2>
+                <div className="bg-card border border-border rounded-xl overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead><tr className="border-b border-border">
+                        <th className="text-left p-4 text-muted-foreground font-medium">Date</th>
+                        <th className="text-left p-4 text-muted-foreground font-medium">Type</th>
+                        <th className="text-left p-4 text-muted-foreground font-medium">Amount</th>
+                        <th className="text-left p-4 text-muted-foreground font-medium">Status</th>
+                      </tr></thead>
+                      <tbody>
+                        {transactions.slice(0, 5).map((txn) => (
+                          <tr key={txn.id} className="border-b border-border/50 hover:bg-secondary/50">
+                            <td className="p-4 text-foreground">{new Date(txn.created_at).toLocaleDateString()}</td>
+                            <td className="p-4 text-foreground">{txnTypeLabel(txn.type)}</td>
+                            <td className="p-4 font-medium">
+                              <span className={txnAmountColor(txn.type)}>{txnAmountPrefix(txn.type)}${Number(txn.amount).toFixed(2)}</span>
+                            </td>
+                            <td className="p-4"><span className="flex items-center gap-1.5">{statusIcon(txn.status)}<span className="capitalize">{txn.status}</span></span></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Ad Accounts Summary */}
+            {adAccounts.length > 0 && (
+              <div>
+                <h2 className="text-lg font-bold text-foreground mb-3">Ad Accounts</h2>
+                <div className="grid gap-3">
+                  {adAccounts.slice(0, 3).map((acc) => (
+                    <div key={acc.id} className="bg-card border border-border rounded-xl p-4 flex items-center justify-between">
+                      <div>
+                        <p className="font-medium text-foreground">{acc.account_name}</p>
+                        <p className="text-sm text-muted-foreground">{acc.account_id} · {acc.currency}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-bold text-foreground">${Number(acc.spend_limit).toFixed(2)}</p>
+                        <span className="flex items-center gap-1 text-xs">{statusIcon(acc.status)}<span className="capitalize text-muted-foreground">{acc.status}</span></span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -335,19 +381,12 @@ export default function Dashboard() {
                       </div>
                       {acc.status === "active" && (
                         <div className="flex gap-2">
-                          <Button
-                            size="sm"
-                            onClick={() => { setTransferOpen({ open: true, account: acc }); setTransferAmount(""); }}
-                            className="bg-primary text-primary-foreground font-bold rounded-full"
-                          >
+                          <Button size="sm" onClick={() => { setTransferOpen({ open: true, account: acc }); setTransferAmount(""); }}
+                            className="bg-primary text-primary-foreground font-bold rounded-full">
                             <ArrowUpRight className="w-3.5 h-3.5 mr-1" />Add Funds
                           </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => { setWithdrawOpen({ open: true, account: acc }); setWithdrawAmount(""); }}
-                            className="rounded-full border-primary text-primary"
-                          >
+                          <Button size="sm" variant="outline" onClick={() => { setWithdrawOpen({ open: true, account: acc }); setWithdrawAmount(""); }}
+                            className="rounded-full border-primary text-primary">
                             <ArrowDownLeft className="w-3.5 h-3.5 mr-1" />Withdraw
                           </Button>
                         </div>
@@ -373,39 +412,45 @@ export default function Dashboard() {
         {activeTab === "transactions" && (
           <div className="space-y-4">
             <h2 className="text-xl font-bold text-foreground">Transaction History</h2>
-            {transactions.length === 0 ? (
+            <div className="flex flex-wrap gap-3">
+              <div className="relative flex-1 min-w-[200px] max-w-sm">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input placeholder="Search transactions..." value={txnSearch} onChange={(e) => setTxnSearch(e.target.value)} className="pl-10 bg-secondary border-border text-foreground" />
+              </div>
+              <select value={txnTypeFilter} onChange={(e) => setTxnTypeFilter(e.target.value)} className="h-10 rounded-md bg-secondary border border-border px-3 text-foreground text-sm">
+                <option value="">All types</option>
+                <option value="wallet_topup">Wallet Top-Up</option>
+                <option value="wallet_to_account">Transfer to Account</option>
+                <option value="account_to_wallet">Withdraw to Wallet</option>
+              </select>
+            </div>
+            {filteredTransactions.length === 0 ? (
               <div className="bg-card border border-border rounded-2xl p-12 text-center">
                 <FileText className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-                <p className="text-muted-foreground">No transactions yet.</p>
+                <p className="text-muted-foreground">No transactions found.</p>
               </div>
             ) : (
               <div className="bg-card border border-border rounded-xl overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-border">
-                        <th className="text-left p-4 text-muted-foreground font-medium">Date</th>
-                        <th className="text-left p-4 text-muted-foreground font-medium">Type</th>
-                        <th className="text-left p-4 text-muted-foreground font-medium">Amount</th>
-                        <th className="text-left p-4 text-muted-foreground font-medium">Commission</th>
-                        <th className="text-left p-4 text-muted-foreground font-medium">Status</th>
-                        <th className="text-left p-4 text-muted-foreground font-medium">Account</th>
-                        <th className="text-left p-4 text-muted-foreground font-medium">Action</th>
-                      </tr>
-                    </thead>
+                    <thead><tr className="border-b border-border">
+                      <th className="text-left p-4 text-muted-foreground font-medium">Date</th>
+                      <th className="text-left p-4 text-muted-foreground font-medium">Type</th>
+                      <th className="text-left p-4 text-muted-foreground font-medium">Amount</th>
+                      <th className="text-left p-4 text-muted-foreground font-medium">Commission</th>
+                      <th className="text-left p-4 text-muted-foreground font-medium">Status</th>
+                      <th className="text-left p-4 text-muted-foreground font-medium">Account</th>
+                      <th className="text-left p-4 text-muted-foreground font-medium">Action</th>
+                    </tr></thead>
                     <tbody>
-                      {transactions.map((txn) => (
+                      {filteredTransactions.map((txn) => (
                         <tr key={txn.id} className="border-b border-border/50 hover:bg-secondary/50">
                           <td className="p-4 text-foreground">{new Date(txn.created_at).toLocaleDateString()}</td>
                           <td className="p-4 text-foreground">{txnTypeLabel(txn.type)}</td>
                           <td className="p-4 font-medium">
-                            <span className={txnAmountColor(txn.type)}>
-                              {txnAmountPrefix(txn.type)}${Number(txn.amount).toFixed(2)}
-                            </span>
+                            <span className={txnAmountColor(txn.type)}>{txnAmountPrefix(txn.type)}${Number(txn.amount).toFixed(2)}</span>
                           </td>
-                          <td className="p-4 text-muted-foreground">
-                            {txn.commission ? `$${Number(txn.commission).toFixed(2)}` : "—"}
-                          </td>
+                          <td className="p-4 text-muted-foreground">{txn.commission ? `$${Number(txn.commission).toFixed(2)}` : "—"}</td>
                           <td className="p-4"><span className="flex items-center gap-1.5">{statusIcon(txn.status)}<span className="capitalize">{txn.status}</span></span></td>
                           <td className="p-4 text-muted-foreground font-mono text-xs">{txn.ad_account_id || "—"}</td>
                           <td className="p-4">
@@ -429,14 +474,18 @@ export default function Dashboard() {
         {activeTab === "invoices" && (
           <div className="space-y-4">
             <h2 className="text-xl font-bold text-foreground">Invoices</h2>
-            {invoices.length === 0 ? (
+            <div className="relative max-w-sm">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input placeholder="Search invoices..." value={invoiceSearch} onChange={(e) => setInvoiceSearch(e.target.value)} className="pl-10 bg-secondary border-border text-foreground" />
+            </div>
+            {filteredInvoices.length === 0 ? (
               <div className="bg-card border border-border rounded-2xl p-12 text-center">
                 <Receipt className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-                <p className="text-muted-foreground">No invoices generated yet.</p>
+                <p className="text-muted-foreground">No invoices found.</p>
               </div>
             ) : (
               <div className="grid gap-3">
-                {invoices.map((inv) => (
+                {filteredInvoices.map((inv) => (
                   <div key={inv.id} className="bg-card border border-border rounded-xl p-4 flex items-center justify-between">
                     <div>
                       <p className="font-medium text-foreground">{inv.invoice_number}</p>
@@ -472,17 +521,9 @@ export default function Dashboard() {
             <div className="space-y-2">
               <Label className="text-foreground">Payment Method</Label>
               <div className="grid grid-cols-2 gap-2">
-                {[
-                  { id: "manual", label: "Bank / Crypto" },
-                  { id: "stripe", label: "Card (Stripe)" },
-                ].map((m) => (
-                  <button
-                    key={m.id}
-                    onClick={() => setTopUpMethod(m.id)}
-                    className={`p-3 rounded-xl border text-sm font-medium transition-all ${
-                      topUpMethod === m.id ? "border-primary bg-primary/10 text-primary" : "border-border bg-secondary text-muted-foreground hover:border-primary/50"
-                    }`}
-                  >
+                {[{ id: "manual", label: "Bank / Crypto" }, { id: "stripe", label: "Card (Stripe)" }].map((m) => (
+                  <button key={m.id} onClick={() => setTopUpMethod(m.id)}
+                    className={`p-3 rounded-xl border text-sm font-medium transition-all ${topUpMethod === m.id ? "border-primary bg-primary/10 text-primary" : "border-border bg-secondary text-muted-foreground hover:border-primary/50"}`}>
                     {m.label}
                   </button>
                 ))}
@@ -500,9 +541,7 @@ export default function Dashboard() {
         <DialogContent className="bg-card border-border">
           <DialogHeader>
             <DialogTitle className="text-foreground">Transfer to Account</DialogTitle>
-            <DialogDescription>
-              Add funds from your wallet to {transferOpen.account?.account_name}. A {commissionRate}% commission applies.
-            </DialogDescription>
+            <DialogDescription>Add funds from your wallet to {transferOpen.account?.account_name}. A {commissionRate}% commission applies.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
@@ -516,16 +555,13 @@ export default function Dashboard() {
             {Number(transferAmount) > 0 && (
               <div className="bg-secondary rounded-xl p-4 space-y-1 text-sm">
                 <div className="flex justify-between text-muted-foreground">
-                  <span>Amount from wallet</span>
-                  <span className="text-foreground">${Number(transferAmount).toFixed(2)}</span>
+                  <span>Amount from wallet</span><span className="text-foreground">${Number(transferAmount).toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between text-muted-foreground">
-                  <span>Commission ({commissionRate}%)</span>
-                  <span className="text-destructive">-${transferCommission.toFixed(2)}</span>
+                  <span>Commission ({commissionRate}%)</span><span className="text-destructive">-${transferCommission.toFixed(2)}</span>
                 </div>
                 <div className="border-t border-border pt-1 flex justify-between font-medium text-foreground">
-                  <span>Sent to account</span>
-                  <span className="text-primary">${transferNet.toFixed(2)}</span>
+                  <span>Sent to account</span><span className="text-primary">${transferNet.toFixed(2)}</span>
                 </div>
               </div>
             )}
@@ -541,9 +577,7 @@ export default function Dashboard() {
         <DialogContent className="bg-card border-border">
           <DialogHeader>
             <DialogTitle className="text-foreground">Withdraw to Wallet</DialogTitle>
-            <DialogDescription>
-              Withdraw funds from {withdrawOpen.account?.account_name} back to your wallet. Commission is refunded proportionally.
-            </DialogDescription>
+            <DialogDescription>Withdraw funds from {withdrawOpen.account?.account_name} back to your wallet. Commission is refunded proportionally.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
@@ -557,16 +591,13 @@ export default function Dashboard() {
             {Number(withdrawAmount) > 0 && (
               <div className="bg-secondary rounded-xl p-4 space-y-1 text-sm">
                 <div className="flex justify-between text-muted-foreground">
-                  <span>Withdrawn from account</span>
-                  <span className="text-foreground">${Number(withdrawAmount).toFixed(2)}</span>
+                  <span>Withdrawn from account</span><span className="text-foreground">${Number(withdrawAmount).toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between text-muted-foreground">
-                  <span>Commission refund</span>
-                  <span className="text-green-500">+${(withdrawRefund - Number(withdrawAmount)).toFixed(2)}</span>
+                  <span>Commission refund</span><span className="text-green-500">+${(withdrawRefund - Number(withdrawAmount)).toFixed(2)}</span>
                 </div>
                 <div className="border-t border-border pt-1 flex justify-between font-medium text-foreground">
-                  <span>Added to wallet</span>
-                  <span className="text-primary">${withdrawRefund.toFixed(2)}</span>
+                  <span>Added to wallet</span><span className="text-primary">${withdrawRefund.toFixed(2)}</span>
                 </div>
               </div>
             )}
@@ -582,23 +613,26 @@ export default function Dashboard() {
         <DialogContent className="bg-card border-border">
           <DialogHeader>
             <DialogTitle className="text-foreground">Request Ad Account</DialogTitle>
-            <DialogDescription>Request a new Facebook ad account.</DialogDescription>
+            <DialogDescription>Request a new ad account. Fill in the details below.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
+            <div className="space-y-2">
+              <Label className="text-foreground">Platform</Label>
+              <select value={requestPlatform} onChange={(e) => setRequestPlatform(e.target.value)} className="w-full h-10 rounded-md bg-secondary border border-border px-3 text-foreground text-sm">
+                <option value="facebook">Facebook</option>
+                <option value="google">Google Ads</option>
+                <option value="tiktok">TikTok</option>
+                <option value="snapchat">Snapchat</option>
+              </select>
+            </div>
             <div className="space-y-2">
               <Label className="text-foreground">
                 Initial Balance (USD){hasActiveAccounts ? " *" : " (optional)"}
               </Label>
-              <Input
-                placeholder={hasActiveAccounts ? "Required for additional accounts" : "e.g. 1000 or leave empty"}
-                value={preferredLimit}
-                onChange={(e) => setPreferredLimit(e.target.value)}
-                className="bg-secondary border-border text-foreground"
-                required={hasActiveAccounts}
-              />
-              {!hasActiveAccounts && (
-                <p className="text-xs text-muted-foreground">Optional for your first account request.</p>
-              )}
+              <Input placeholder={hasActiveAccounts ? "Required for additional accounts" : "e.g. 1000 or leave empty"}
+                value={preferredLimit} onChange={(e) => setPreferredLimit(e.target.value)}
+                className="bg-secondary border-border text-foreground" required={hasActiveAccounts} />
+              {!hasActiveAccounts && <p className="text-xs text-muted-foreground">Optional for your first account request.</p>}
             </div>
             <Button onClick={handleRequestAccount} disabled={loading} className="w-full bg-primary text-primary-foreground font-bold rounded-full">
               {loading ? "Submitting..." : "Submit Request"}

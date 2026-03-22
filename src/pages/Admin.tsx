@@ -29,14 +29,14 @@ export default function Admin() {
   const [commissionOverrides, setCommissionOverrides] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [txnFilter, setTxnFilter] = useState({ user: "", type: "", date: "" });
+  const [invoiceSearch, setInvoiceSearch] = useState("");
 
   // Dialogs
   const [topUpDialog, setTopUpDialog] = useState<{ open: boolean; userId?: string; userName?: string }>({ open: false });
   const [topUpAmount, setTopUpAmount] = useState("");
   const [addAccountDialog, setAddAccountDialog] = useState(false);
   const [newAccount, setNewAccount] = useState({
-    account_id: "", account_name: "", currency: "USD", timezone: "America/New_York",
-    spend_limit: "", user_id: "",
+    account_id: "", account_name: "", currency: "USD", timezone: "America/New_York", spend_limit: "", user_id: "",
   });
   const [editAccountDialog, setEditAccountDialog] = useState<{ open: boolean; account?: any }>({ open: false });
   const [overrideDialog, setOverrideDialog] = useState<{ open: boolean; userId?: string; userName?: string; rate?: string }>({ open: false });
@@ -47,11 +47,11 @@ export default function Admin() {
   const fetchAll = async () => {
     const [profilesRes, accountsRes, requestsRes, txnRes, commRes, invoicesRes, overridesRes] = await Promise.all([
       supabase.from("profiles").select("*, user_roles(role)"),
-      supabase.from("ad_accounts").select("*, profiles(full_name)"),
-      supabase.from("account_requests").select("*, profiles(full_name)").order("created_at", { ascending: false }),
-      supabase.from("transactions").select("*, profiles(full_name)").order("created_at", { ascending: false }),
+      supabase.from("ad_accounts").select("*, profiles(full_name, email)"),
+      supabase.from("account_requests").select("*, profiles(full_name, email)").order("created_at", { ascending: false }),
+      supabase.from("transactions").select("*, profiles(full_name, email)").order("created_at", { ascending: false }),
       supabase.from("commission_settings").select("*").limit(1).single(),
-      supabase.from("invoices").select("*, profiles(full_name)").order("created_at", { ascending: false }),
+      supabase.from("invoices").select("*, profiles(full_name, email)").order("created_at", { ascending: false }),
       supabase.from("user_commission_overrides").select("*"),
     ]);
     if (profilesRes.data) setUsers(profilesRes.data);
@@ -66,7 +66,6 @@ export default function Admin() {
   const handleManualTopUp = async () => {
     if (!topUpDialog.userId || !topUpAmount || Number(topUpAmount) <= 0) return;
     setLoading(true);
-    // No commission on wallet top-ups
     await supabase.from("transactions").insert({
       user_id: topUpDialog.userId, type: "wallet_topup", amount: Number(topUpAmount),
       status: "completed", payment_method: "manual",
@@ -78,7 +77,7 @@ export default function Admin() {
       }).eq("id", topUpDialog.userId);
     }
     setLoading(false);
-    toast({ title: "Top-up added", description: `$${topUpAmount} added to ${topUpDialog.userName}'s wallet. No commission deducted.` });
+    toast({ title: "Top-up added", description: `$${topUpAmount} added to ${topUpDialog.userName}'s wallet.` });
     setTopUpDialog({ open: false });
     setTopUpAmount("");
     fetchAll();
@@ -189,18 +188,25 @@ export default function Admin() {
   };
 
   const filteredUsers = users.filter(u =>
-    (u.full_name || "").toLowerCase().includes(searchTerm.toLowerCase()) || u.id.includes(searchTerm)
+    (u.full_name || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (u.email || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+    u.id.includes(searchTerm)
   );
 
   const totalBalance = users.reduce((sum, u) => sum + Number(u.wallet_balance || 0), 0);
   const totalRevenue = allTransactions
-    .filter(t => t.status === "completed" && (t.type === "wallet_to_account"))
+    .filter(t => t.status === "completed" && t.type === "wallet_to_account")
     .reduce((sum, t) => sum + Number(t.commission || 0), 0);
 
   const filteredTransactions = allTransactions.filter(t => {
-    if (txnFilter.user && !(t.profiles?.full_name || "").toLowerCase().includes(txnFilter.user.toLowerCase())) return false;
+    if (txnFilter.user && !(t.profiles?.full_name || "").toLowerCase().includes(txnFilter.user.toLowerCase()) && !(t.profiles?.email || "").toLowerCase().includes(txnFilter.user.toLowerCase())) return false;
     if (txnFilter.type && t.type !== txnFilter.type) return false;
     if (txnFilter.date && !t.created_at.startsWith(txnFilter.date)) return false;
+    return true;
+  });
+
+  const filteredInvoices = allInvoices.filter(inv => {
+    if (invoiceSearch && !inv.invoice_number.toLowerCase().includes(invoiceSearch.toLowerCase()) && !(inv.profiles?.full_name || "").toLowerCase().includes(invoiceSearch.toLowerCase()) && !(inv.profiles?.email || "").toLowerCase().includes(invoiceSearch.toLowerCase())) return false;
     return true;
   });
 
@@ -286,6 +292,7 @@ export default function Admin() {
                   <table className="w-full text-sm">
                     <thead><tr className="border-b border-border">
                       <th className="text-left p-4 text-muted-foreground font-medium">Name</th>
+                      <th className="text-left p-4 text-muted-foreground font-medium">Email</th>
                       <th className="text-left p-4 text-muted-foreground font-medium">Role</th>
                       <th className="text-left p-4 text-muted-foreground font-medium">Balance</th>
                       <th className="text-left p-4 text-muted-foreground font-medium">Commission</th>
@@ -295,6 +302,7 @@ export default function Admin() {
                       {users.map((u) => (
                         <tr key={u.id} className="border-b border-border/50 hover:bg-secondary/50">
                           <td className="p-4 text-foreground font-medium">{u.full_name || "—"}</td>
+                          <td className="p-4 text-muted-foreground text-xs">{u.email || "—"}</td>
                           <td className="p-4 capitalize text-foreground">{getUserRole(u)}</td>
                           <td className="p-4 text-foreground">${Number(u.wallet_balance).toFixed(2)}</td>
                           <td className="p-4 text-foreground">
@@ -363,7 +371,7 @@ export default function Admin() {
             <div className="flex items-center gap-3">
               <div className="relative flex-1 max-w-sm">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input placeholder="Search users..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10 bg-secondary border-border text-foreground" />
+                <Input placeholder="Search by name or email..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10 bg-secondary border-border text-foreground" />
               </div>
             </div>
             <div className="bg-card border border-border rounded-xl overflow-hidden">
@@ -371,6 +379,7 @@ export default function Admin() {
                 <table className="w-full text-sm">
                   <thead><tr className="border-b border-border">
                     <th className="text-left p-4 text-muted-foreground font-medium">Name</th>
+                    <th className="text-left p-4 text-muted-foreground font-medium">Email</th>
                     <th className="text-left p-4 text-muted-foreground font-medium">Role</th>
                     <th className="text-left p-4 text-muted-foreground font-medium">Balance</th>
                     <th className="text-left p-4 text-muted-foreground font-medium">Commission</th>
@@ -381,6 +390,7 @@ export default function Admin() {
                     {filteredUsers.map((u) => (
                       <tr key={u.id} className="border-b border-border/50 hover:bg-secondary/50">
                         <td className="p-4 text-foreground font-medium">{u.full_name || "—"}</td>
+                        <td className="p-4 text-muted-foreground text-xs">{u.email || "—"}</td>
                         <td className="p-4">
                           <select value={getUserRole(u)} onChange={(e) => handleChangeRole(u.id, e.target.value)}
                             className="bg-secondary border border-border rounded-lg px-2 py-1 text-sm text-foreground">
@@ -391,9 +401,7 @@ export default function Admin() {
                         <td className="p-4 text-foreground">${Number(u.wallet_balance).toFixed(2)}</td>
                         <td className="p-4">
                           <span className="text-foreground">{getUserCommissionRate(u.id)}%</span>
-                          {commissionOverrides.find(o => o.user_id === u.id) && (
-                            <span className="text-primary text-xs ml-1">(custom)</span>
-                          )}
+                          {commissionOverrides.find(o => o.user_id === u.id) && <span className="text-primary text-xs ml-1">(custom)</span>}
                         </td>
                         <td className="p-4 text-muted-foreground">{new Date(u.created_at).toLocaleDateString()}</td>
                         <td className="p-4 flex gap-2">
@@ -481,6 +489,7 @@ export default function Admin() {
                   <div key={req.id} className="bg-card border border-border rounded-xl p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                     <div>
                       <p className="font-medium text-foreground">{req.profiles?.full_name || "User"}</p>
+                      <p className="text-sm text-muted-foreground">{req.profiles?.email || ""}</p>
                       <p className="text-sm text-muted-foreground">Platform: {req.platform} · Preferred limit: {req.preferred_limit || "Any"}</p>
                       <p className="text-xs text-muted-foreground">{new Date(req.created_at).toLocaleDateString()}</p>
                     </div>
@@ -512,11 +521,13 @@ export default function Admin() {
           <div className="space-y-4">
             <h2 className="text-xl font-bold text-foreground">All Transactions</h2>
             <div className="flex flex-wrap gap-3">
-              <Input placeholder="Filter by user..." value={txnFilter.user} onChange={(e) => setTxnFilter({ ...txnFilter, user: e.target.value })} className="bg-secondary border-border text-foreground w-48" />
+              <div className="relative flex-1 min-w-[200px] max-w-sm">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input placeholder="Search by user..." value={txnFilter.user} onChange={(e) => setTxnFilter({ ...txnFilter, user: e.target.value })} className="pl-10 bg-secondary border-border text-foreground" />
+              </div>
               <select value={txnFilter.type} onChange={(e) => setTxnFilter({ ...txnFilter, type: e.target.value })} className="h-10 rounded-md bg-secondary border border-border px-3 text-foreground text-sm">
                 <option value="">All types</option>
                 <option value="wallet_topup">Wallet Top-Up</option>
-                <option value="top_up">Top Up (legacy)</option>
                 <option value="wallet_to_account">Transfer to Account</option>
                 <option value="account_to_wallet">Withdraw to Wallet</option>
               </select>
@@ -539,7 +550,7 @@ export default function Admin() {
                     {filteredTransactions.map((txn) => (
                       <tr key={txn.id} className="border-b border-border/50 hover:bg-secondary/50">
                         <td className="p-4 text-foreground">{new Date(txn.created_at).toLocaleDateString()}</td>
-                        <td className="p-4 text-foreground">{txn.profiles?.full_name || "—"}</td>
+                        <td className="p-4 text-foreground">{txn.profiles?.full_name || txn.profiles?.email || "—"}</td>
                         <td className="p-4 text-foreground">{txnTypeLabel(txn.type)}</td>
                         <td className="p-4 font-medium text-foreground">${Number(txn.amount).toFixed(2)}</td>
                         <td className="p-4 text-muted-foreground">{txn.commission ? `$${Number(txn.commission).toFixed(2)}` : "—"}</td>
@@ -559,9 +570,13 @@ export default function Admin() {
         {activeTab === "invoices" && (
           <div className="space-y-4">
             <h2 className="text-xl font-bold text-foreground">All Invoices</h2>
-            {allInvoices.length === 0 ? (
+            <div className="relative max-w-sm">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input placeholder="Search invoices by number or user..." value={invoiceSearch} onChange={(e) => setInvoiceSearch(e.target.value)} className="pl-10 bg-secondary border-border text-foreground" />
+            </div>
+            {filteredInvoices.length === 0 ? (
               <div className="bg-card border border-border rounded-2xl p-12 text-center">
-                <p className="text-muted-foreground">No invoices yet.</p>
+                <p className="text-muted-foreground">No invoices found.</p>
               </div>
             ) : (
               <div className="bg-card border border-border rounded-xl overflow-hidden">
@@ -575,10 +590,10 @@ export default function Admin() {
                       <th className="text-left p-4 text-muted-foreground font-medium">Download</th>
                     </tr></thead>
                     <tbody>
-                      {allInvoices.map((inv) => (
+                      {filteredInvoices.map((inv) => (
                         <tr key={inv.id} className="border-b border-border/50 hover:bg-secondary/50">
                           <td className="p-4 text-foreground font-medium">{inv.invoice_number}</td>
-                          <td className="p-4 text-foreground">{inv.profiles?.full_name || "—"}</td>
+                          <td className="p-4 text-foreground">{inv.profiles?.full_name || inv.profiles?.email || "—"}</td>
                           <td className="p-4 text-foreground">${Number(inv.amount).toFixed(2)} {inv.currency}</td>
                           <td className="p-4 text-muted-foreground">{new Date(inv.created_at).toLocaleDateString()}</td>
                           <td className="p-4">
@@ -605,7 +620,7 @@ export default function Admin() {
                 <div className="space-y-2">
                   <Label className="text-foreground">Default Commission Rate (%)</Label>
                   <Input type="number" value={commissionRate} onChange={(e) => setCommissionRate(Number(e.target.value))} className="bg-secondary border-border text-foreground" />
-                  <p className="text-xs text-muted-foreground">Applied when transferring from wallet to ad account. No commission on wallet top-ups.</p>
+                  <p className="text-xs text-muted-foreground">Applied when transferring from wallet to ad account.</p>
                 </div>
                 <Button onClick={handleUpdateCommission} className="bg-primary text-primary-foreground font-bold rounded-full">Save Default Rate</Button>
               </div>
@@ -627,7 +642,7 @@ export default function Admin() {
                       const u = users.find(u => u.id === o.user_id);
                       return (
                         <tr key={o.id} className="border-b border-border/50">
-                          <td className="p-4 text-foreground">{u?.full_name || o.user_id}</td>
+                          <td className="p-4 text-foreground">{u?.full_name || u?.email || o.user_id}</td>
                           <td className="p-4 text-primary font-medium">{o.rate}%</td>
                           <td className="p-4">
                             <Button size="sm" variant="ghost" className="text-destructive" onClick={() => handleRemoveOverride(o.user_id)}>Remove</Button>
@@ -701,7 +716,7 @@ export default function Admin() {
               <Label className="text-foreground">Assign to User (optional)</Label>
               <select value={newAccount.user_id} onChange={(e) => setNewAccount({ ...newAccount, user_id: e.target.value })} className="w-full h-10 rounded-md bg-secondary border border-border px-3 text-foreground text-sm">
                 <option value="">Unassigned</option>
-                {users.map(u => <option key={u.id} value={u.id}>{u.full_name || u.id}</option>)}
+                {users.map(u => <option key={u.id} value={u.id}>{u.full_name || u.email || u.id}</option>)}
               </select>
             </div>
             <Button onClick={handleAddAccount} disabled={loading} className="w-full bg-primary text-primary-foreground font-bold rounded-full">
@@ -740,7 +755,7 @@ export default function Admin() {
                 <Label className="text-foreground">Assign to User</Label>
                 <select value={editAccountDialog.account.user_id || ""} onChange={(e) => setEditAccountDialog({ ...editAccountDialog, account: { ...editAccountDialog.account, user_id: e.target.value || null } })} className="w-full h-10 rounded-md bg-secondary border border-border px-3 text-foreground text-sm">
                   <option value="">Unassigned</option>
-                  {users.map(u => <option key={u.id} value={u.id}>{u.full_name || u.id}</option>)}
+                  {users.map(u => <option key={u.id} value={u.id}>{u.full_name || u.email || u.id}</option>)}
                 </select>
               </div>
               <Button onClick={handleUpdateAccount} disabled={loading} className="w-full bg-primary text-primary-foreground font-bold rounded-full">
