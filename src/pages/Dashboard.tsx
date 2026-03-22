@@ -341,12 +341,21 @@ export default function Dashboard() {
 
   const getAccountBalance = (acc: any) => {
     const fb = fbBalances[acc.account_id];
-    return fb ? fb.spend_cap : Number(acc.spend_limit);
+    if (!fb) return Number(acc.spend_limit);
+    let val = fb.spend_cap;
+    const dbVal = Number(acc.spend_limit);
+    if (dbVal > 0 && val > dbVal * 5 && val >= 100) val = val / 100;
+    return val;
   };
 
   const getAccountSpent = (acc: any) => {
     const fb = fbBalances[acc.account_id];
-    return fb ? fb.amount_spent : Number(acc.current_spend);
+    if (!fb) return Number(acc.current_spend);
+    let val = fb.amount_spent;
+    const dbVal = Number(acc.spend_limit);
+    const spendCap = fb.spend_cap;
+    if (dbVal > 0 && spendCap > dbVal * 5 && spendCap >= 100) val = val / 100;
+    return val;
   };
 
   const txnTotalPages = Math.ceil(txnCount / PAGE_SIZE);
