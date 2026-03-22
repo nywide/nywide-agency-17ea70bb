@@ -307,44 +307,52 @@ export default function Admin() {
     if (e) e.preventDefault();
     console.log("[Admin] handleAddAccount called with data:", JSON.stringify(newAccount));
     if (!newAccount.account_id || !newAccount.account_name) {
-      console.log("[Admin] Validation failed: missing account_id or account_name");
       toast({ title: "Account ID and Name are required", variant: "destructive" });
       return;
     }
     setAddingAccount(true);
     try {
+      const spendLimit = Number(newAccount.spend_limit) || 0;
       const insertData = {
         account_id: newAccount.account_id.trim(),
         account_name: newAccount.account_name.trim(),
         currency: newAccount.currency || "USD",
         timezone: newAccount.timezone || "America/New_York",
-        spend_limit: Number(newAccount.spend_limit) || 0,
+        spend_limit: spendLimit,
         platform: newAccount.platform || "facebook",
         user_id: newAccount.user_id || null,
         assigned_at: newAccount.user_id ? new Date().toISOString() : null,
       };
-      console.log("[Admin] Inserting ad account:", JSON.stringify(insertData));
+
+      // If Facebook account with balance, set spend limit on FB first
+      if (spendLimit > 0 && insertData.platform === "facebook") {
+        console.log("[Admin] Setting Facebook spend limit to $" + spendLimit);
+        const { data: fbData, error: fbError } = await supabase.functions.invoke("facebook-api", {
+          body: { action: "set_spend_limit", ad_account_id: insertData.account_id, amount: spendLimit },
+        });
+        if (fbError) {
+          console.error("[Admin] FB API error:", fbError);
+          toast({ title: "Facebook API error", description: fbError.message, variant: "destructive" });
+          setAddingAccount(false);
+          return;
+        }
+        if (fbData?.error) {
+          console.error("[Admin] FB API returned error:", fbData.error);
+          toast({ title: "Facebook API error", description: fbData.error, variant: "destructive" });
+          setAddingAccount(false);
+          return;
+        }
+        console.log("[Admin] Facebook spend limit set successfully");
+      }
+
+      // Insert into database
       const { data, error } = await supabase.from("ad_accounts").insert(insertData).select();
-      console.log("[Admin] Insert result:", JSON.stringify({ data, error }));
       if (error) {
         console.error("[Admin] Insert error:", error);
         toast({ title: "Error creating account", description: error.message, variant: "destructive" });
         return;
       }
-
-      // Try to set Facebook spend limit (non-blocking)
-      if (insertData.spend_limit > 0 && insertData.platform === "facebook") {
-        try {
-          console.log("[Admin] Setting Facebook spend limit...");
-          const { data: fbData, error: fbError } = await supabase.functions.invoke("facebook-api", {
-            body: { action: "get_spend_limit", ad_account_id: insertData.account_id },
-          });
-          console.log("[Admin] Facebook API response:", { fbData, fbError });
-        } catch (fbErr) {
-          console.warn("[Admin] Facebook API call failed (non-blocking):", fbErr);
-        }
-      }
-
+      console.log("[Admin] Account created:", data);
       toast({ title: "Account created successfully" });
       setAddAccountDialog(false);
       setNewAccount({ account_id: "", account_name: "", currency: "USD", timezone: "America/New_York", spend_limit: "", user_id: "", platform: "facebook" });
