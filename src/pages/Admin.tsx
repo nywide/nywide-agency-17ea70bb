@@ -71,6 +71,20 @@ export default function Admin() {
     fetchOverviewStats();
     fetchCommission();
     fetchAllUsersForDropdown();
+    fetchTopupRequests();
+
+    // Realtime subscription for profiles changes (new signups)
+    const channel = supabase
+      .channel('admin-profiles')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => {
+        console.log("[Admin] Profiles table changed, refreshing...");
+        fetchOverviewStats();
+        fetchAllUsersForDropdown();
+        if (activeTab === "users") fetchUsers();
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
   }, []);
 
   useEffect(() => {

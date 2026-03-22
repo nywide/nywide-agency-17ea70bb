@@ -143,39 +143,47 @@ export default function Dashboard() {
   };
 
   const handleTopUp = async () => {
+    console.log("[Dashboard] handleTopUp called", { topUpAmount, topUpMethod });
     if (!topUpAmount || Number(topUpAmount) < 10) {
       toast({ title: "Minimum $10", variant: "destructive" });
       return;
     }
     setTopUpLoading(true);
-    if (topUpMethod === "manual") {
-      // Create a topup request for admin approval
-      const { error } = await supabase.from("topup_requests").insert({
-        user_id: user!.id, amount: Number(topUpAmount), currency: "USD", payment_method: topUpMethod, status: "pending",
-      } as any);
-      setTopUpLoading(false);
-      if (error) {
-        toast({ title: "Error", description: error.message, variant: "destructive" });
+    try {
+      if (topUpMethod === "manual") {
+        const insertData = {
+          user_id: user!.id, amount: Number(topUpAmount), currency: "USD", payment_method: topUpMethod, status: "pending",
+        };
+        console.log("[Dashboard] Inserting topup request:", insertData);
+        const { data, error } = await supabase.from("topup_requests").insert(insertData as any).select();
+        console.log("[Dashboard] Topup insert result:", { data, error });
+        if (error) {
+          toast({ title: "Error", description: error.message, variant: "destructive" });
+        } else {
+          toast({ title: "Top-up request submitted", description: "Admin will review and approve your request." });
+          setTopUpOpen(false);
+          setTopUpAmount("");
+        }
       } else {
-        toast({ title: "Top-up request submitted", description: "Admin will review and approve your request." });
-        setTopUpOpen(false);
-        setTopUpAmount("");
+        const { data, error } = await supabase.from("transactions").insert({
+          user_id: user!.id, type: "wallet_topup", amount: Number(topUpAmount),
+          status: "pending", payment_method: topUpMethod,
+        }).select();
+        console.log("[Dashboard] Stripe topup result:", { data, error });
+        if (error) {
+          toast({ title: "Error", description: error.message, variant: "destructive" });
+        } else {
+          toast({ title: "Top-up request submitted", description: "Processing payment..." });
+          setTopUpOpen(false);
+          setTopUpAmount("");
+          fetchDashStats();
+        }
       }
-    } else {
-      // Stripe flow (placeholder - creates pending transaction)
-      const { error } = await supabase.from("transactions").insert({
-        user_id: user!.id, type: "wallet_topup", amount: Number(topUpAmount),
-        status: "pending", payment_method: topUpMethod,
-      });
+    } catch (err: any) {
+      console.error("[Dashboard] handleTopUp exception:", err);
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally {
       setTopUpLoading(false);
-      if (error) {
-        toast({ title: "Error", description: error.message, variant: "destructive" });
-      } else {
-        toast({ title: "Top-up request submitted", description: "Processing payment..." });
-        setTopUpOpen(false);
-        setTopUpAmount("");
-        fetchDashStats();
-      }
     }
   };
 
