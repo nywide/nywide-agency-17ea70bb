@@ -280,7 +280,7 @@ export default function Admin() {
 
   const handleAddAccount = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    console.log("[Admin] handleAddAccount called", newAccount);
+    console.log("[Admin] handleAddAccount called with data:", JSON.stringify(newAccount));
     if (!newAccount.account_id || !newAccount.account_name) {
       console.log("[Admin] Validation failed: missing account_id or account_name");
       toast({ title: "Account ID and Name are required", variant: "destructive" });
@@ -289,8 +289,8 @@ export default function Admin() {
     setAddingAccount(true);
     try {
       const insertData = {
-        account_id: newAccount.account_id,
-        account_name: newAccount.account_name,
+        account_id: newAccount.account_id.trim(),
+        account_name: newAccount.account_name.trim(),
         currency: newAccount.currency || "USD",
         timezone: newAccount.timezone || "America/New_York",
         spend_limit: Number(newAccount.spend_limit) || 0,
@@ -298,16 +298,16 @@ export default function Admin() {
         user_id: newAccount.user_id || null,
         assigned_at: newAccount.user_id ? new Date().toISOString() : null,
       };
-      console.log("[Admin] Inserting ad account:", insertData);
+      console.log("[Admin] Inserting ad account:", JSON.stringify(insertData));
       const { data, error } = await supabase.from("ad_accounts").insert(insertData).select();
-      console.log("[Admin] Insert result:", { data, error });
+      console.log("[Admin] Insert result:", JSON.stringify({ data, error }));
       if (error) {
         console.error("[Admin] Insert error:", error);
         toast({ title: "Error creating account", description: error.message, variant: "destructive" });
         return;
       }
 
-      // Try to set Facebook spend limit via edge function
+      // Try to set Facebook spend limit (non-blocking)
       if (insertData.spend_limit > 0 && insertData.platform === "facebook") {
         try {
           console.log("[Admin] Setting Facebook spend limit...");
