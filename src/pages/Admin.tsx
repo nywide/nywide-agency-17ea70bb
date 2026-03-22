@@ -72,6 +72,7 @@ export default function Admin() {
     fetchCommission();
     fetchAllUsersForDropdown();
     fetchTopupRequests();
+    fetchUsers();
 
     // Realtime subscription for profiles changes (new signups)
     const channel = supabase
