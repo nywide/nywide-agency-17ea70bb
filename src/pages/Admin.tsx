@@ -1236,6 +1236,25 @@ export default function Admin() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Account Confirmation */}
+      <AlertDialog open={deleteConfirm.open} onOpenChange={(open) => setDeleteConfirm({ ...deleteConfirm, open })}>
+        <AlertDialogContent className="bg-card border-border">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-foreground">Delete Ad Account</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete account <strong>{deleteConfirm.account?.account_name}</strong> ({deleteConfirm.account?.account_id})? This action cannot be undone. The account will only be removed from our platform, not from Facebook.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="border-border text-foreground">Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteAccount} disabled={deletingAccount}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              {deletingAccount ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
