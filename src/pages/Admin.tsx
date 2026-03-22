@@ -241,10 +241,10 @@ export default function Admin() {
             setAdAccounts(prev => prev.map(acc => {
               const cached = fbData.results[acc.account_id];
               if (cached) {
-                const spendCap = cached.spend_cap ?? acc.spend_limit;
                 const amountSpent = cached.amount_spent ?? acc.current_spend;
-                console.log(`Account ${acc.account_name}: spend_limit=${spendCap}, current_spend=${amountSpent}`);
-                return { ...acc, spend_limit: spendCap, current_spend: amountSpent };
+                console.log(`Account ${acc.account_name}: DB spend_limit=${acc.spend_limit} (dollars), FB spend_cap=${cached.spend_cap}, current_spend=${amountSpent}`);
+                // Do NOT overwrite spend_limit from Facebook — DB value is authoritative (dollars)
+                return { ...acc, current_spend: amountSpent };
               }
               return acc;
             }));
@@ -266,9 +266,10 @@ export default function Admin() {
       } else {
         setAdAccounts(prev => prev.map(acc => {
           if (acc.account_id !== accountId) return acc;
-          return { ...acc, spend_limit: data.spend_cap, current_spend: data.amount_spent };
-        }
-        ));
+          console.log(`Refresh: DB spend_limit=${acc.spend_limit}, FB spend_cap=${data.spend_cap}, amount_spent=${data.amount_spent}`);
+          // Only update current_spend from Facebook — keep DB spend_limit as authoritative
+          return { ...acc, current_spend: data.amount_spent };
+        }));
         toast({ title: "Account refreshed" });
       }
     } catch (err: any) {
