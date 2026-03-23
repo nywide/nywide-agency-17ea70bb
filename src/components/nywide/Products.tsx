@@ -48,7 +48,7 @@ const plans = [
       "Quick turnaround, tailored to your brand voice",
     ],
     cta: "Request a Quote",
-    href: "https://wa.me/3725395702",
+    href: "/contact",
   },
 ];
 
