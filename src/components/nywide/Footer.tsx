@@ -98,7 +98,7 @@ export function Footer() {
           </div>
         </div>
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-8">
-          <p className="text-sm text-muted-foreground">© {new Date().getFullYear()} NYWIDE Agency. All rights reserved.</p>
+          <p className="text-sm text-muted-foreground">© {new Date().getFullYear()} NYWIDE OÜ (Reg. 17452384). All rights reserved.</p>
           <div className="flex items-center gap-6">
             {footerLinks.legal.map((link, i) => (
               <a key={i} href={link.href} className="text-sm text-muted-foreground hover:text-primary transition-colors">{link.label}</a>
