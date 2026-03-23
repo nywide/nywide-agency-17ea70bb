@@ -132,7 +132,10 @@ export default function Admin() {
     ]);
     setOverviewStats({
       totalBalance: (balRes.data || []).reduce((s, u) => s + Number(u.wallet_balance || 0), 0),
-      totalRevenue: (revRes.data || []).reduce((s, t) => s + Number(t.commission || 0), 0),
+      totalRevenue: (revRes.data || []).reduce((s, t) => {
+        const comm = Number(t.commission || 0);
+        return t.type === "account_to_wallet" ? s - comm : s + comm;
+      }, 0),
       totalUsers: userCountRes.count || 0,
       totalAccounts: accCountRes.count || 0,
     });

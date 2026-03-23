@@ -62,7 +62,8 @@ export function Footer() {
                 <span className="text-[10px] font-semibold text-muted-foreground tracking-[0.2em] uppercase">AGENCY</span>
               </div>
             </div>
-            <p className="text-muted-foreground max-w-sm mb-6 leading-relaxed">Your trusted partner for digital dominance. We build high-performance campaigns that deliver exceptional ROI.</p>
+            <p className="text-muted-foreground max-w-sm mb-6 leading-relaxed">NYWIDE OÜ is a digital marketing agency registered in Estonia, specializing in high-performance advertising account leasing, creating, managing, and developing advertising campaigns, and producing creative content. We help companies expand globally through high-performance advertising solutions.</p>
+            <p className="text-xs text-muted-foreground mb-4">Registration Number: 17452384</p>
             <div className="flex items-center gap-4">
               {socialLinks.map((social, i) => (
                 <a key={i} href={social.href} aria-label={social.label} className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center text-muted-foreground hover:bg-primary hover:text-primary-foreground transition-all duration-300">

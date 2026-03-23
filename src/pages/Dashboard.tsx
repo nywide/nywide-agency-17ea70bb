@@ -340,16 +340,14 @@ export default function Dashboard() {
   const withdrawRefund = Number(withdrawAmount) / (1 - commissionRate / 100);
 
   const getAccountBalance = (acc: any) => {
-    const fb = fbBalances[acc.account_id];
-    if (!fb) return Number(acc.spend_limit);
-    return fb.spend_cap;
+    // Always use DB spend_limit (in dollars) as authoritative
+    return Number(acc.spend_limit);
   };
 
   const getAccountSpent = (acc: any) => {
     const fb = fbBalances[acc.account_id];
     if (!fb) return Number(acc.current_spend);
-    let val = fb.amount_spent;
-    return val;
+    return fb.amount_spent;
   };
 
   const txnTotalPages = Math.ceil(txnCount / PAGE_SIZE);

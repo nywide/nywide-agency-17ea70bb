@@ -32,9 +32,7 @@ export function PainPoints() {
         </div>
 
         <a
-          href="https://wa.me/37253957002"
-          target="_blank"
-          rel="noopener noreferrer"
+          href="/contact"
           className="inline-flex items-center gap-2 px-10 py-5 bg-primary text-primary-foreground rounded-full text-lg font-bold glow-gold-hover transition-all duration-300 active:scale-95"
         >
           Let's Talk
