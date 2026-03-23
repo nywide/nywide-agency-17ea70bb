@@ -148,12 +148,12 @@ Deno.serve(async (req) => {
       const commission = amount * (commissionRate / 100);
       const amountToFb = amount - commission;
 
-      const fbGetData = await fbGet(ad_account_id, "spend_cap", FB_ACCESS_TOKEN);
-      if (fbGetData.error) return jsonResponse({ error: `Facebook API: ${fbGetData.error.message}` }, 400);
-
-      // Facebook returns dollars — work in dollars throughout
-      const currentCap = fbGetData.spend_cap ? Number(fbGetData.spend_cap) : 0;
+      // Use DB spend_limit (dollars) as authoritative source instead of Facebook's spend_cap
+      const { data: adAccount } = await adminClient
+        .from("ad_accounts").select("spend_limit").eq("account_id", ad_account_id).single();
+      const currentCap = adAccount ? Number(adAccount.spend_limit) : 0;
       const newCap = currentCap + amountToFb;
+      console.log(`[FB API] wallet_to_account: amount=${amount}, commission=${commission}, amountToFb=${amountToFb}, currentCap(DB)=${currentCap}, newCap=${newCap}`);
 
       const fbUpdateData = await fbUpdateSpendCap(ad_account_id, newCap, FB_ACCESS_TOKEN);
       if (fbUpdateData.error) return jsonResponse({ error: `Facebook API: ${fbUpdateData.error.message}` }, 400);
