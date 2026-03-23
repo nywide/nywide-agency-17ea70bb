@@ -126,7 +126,7 @@ export default function Admin() {
   const fetchOverviewStats = async () => {
     const [balRes, revRes, userCountRes, accCountRes] = await Promise.all([
       supabase.from("profiles").select("wallet_balance"),
-      supabase.from("transactions").select("commission").eq("status", "completed").eq("type", "wallet_to_account"),
+      supabase.from("transactions").select("commission, type").eq("status", "completed").in("type", ["wallet_to_account", "account_to_wallet"]),
       supabase.from("profiles").select("id", { count: "exact", head: true }),
       supabase.from("ad_accounts").select("id", { count: "exact", head: true }),
     ]);
