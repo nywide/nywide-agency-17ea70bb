@@ -58,8 +58,8 @@ export function Footer() {
                 <span className="font-serif font-black text-2xl text-black">N</span>
               </div>
               <div className="flex flex-col leading-none">
-                <span className="text-xl font-serif font-bold text-foreground">NYWIDE</span>
-                <span className="text-[10px] font-semibold text-muted-foreground tracking-[0.2em] uppercase">AGENCY</span>
+               <span className="text-xl font-serif font-bold text-foreground">NYWIDE</span>
+                <span className="text-[10px] font-semibold text-muted-foreground tracking-[0.2em] uppercase">OÜ</span>
               </div>
             </div>
             <p className="text-muted-foreground max-w-sm mb-6 leading-relaxed">NYWIDE OÜ is a digital marketing agency registered in Estonia, specializing in high-performance advertising account leasing, creating, managing, and developing advertising campaigns, and producing creative content. We help companies expand globally through high-performance advertising solutions.</p>
