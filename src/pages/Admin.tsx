@@ -880,7 +880,9 @@ export default function Admin() {
               </div>
             ) : (
               <div className="grid gap-3">
-                {requests.map((req) => (
+        {requests.map((req) => {
+                  const unassignedAccounts = adAccounts.filter(a => !a.user_id);
+                  return (
                   <div key={req.id} className="bg-card border border-border rounded-xl p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                     <div>
                       <p className="font-medium text-foreground">{req.profiles?.full_name || "User"}</p>
@@ -897,8 +899,42 @@ export default function Admin() {
                     <div className="flex items-center gap-2">
                       {req.status === "pending" ? (
                         <>
+                          {unassignedAccounts.length > 0 && (
+                            <div className="flex items-center gap-2">
+                              <select
+                                id={`assign-${req.id}`}
+                                defaultValue=""
+                                className="h-9 rounded-md bg-secondary border border-border px-2 text-foreground text-xs max-w-[180px]"
+                              >
+                                <option value="" disabled>Assign existing...</option>
+                                {unassignedAccounts.map(acc => (
+                                  <option key={acc.id} value={acc.id}>{acc.account_name} ({acc.account_id})</option>
+                                ))}
+                              </select>
+                              <Button size="sm" className="bg-primary text-primary-foreground rounded-full text-xs" onClick={async () => {
+                                const select = document.getElementById(`assign-${req.id}`) as HTMLSelectElement;
+                                if (!select?.value) { toast({ title: "Select an account to assign", variant: "destructive" }); return; }
+                                setApprovingId(req.id);
+                                const accToAssign = unassignedAccounts.find(a => a.id === select.value);
+                                if (accToAssign) {
+                                  await supabase.from("ad_accounts").update({
+                                    user_id: req.user_id,
+                                    assigned_at: new Date().toISOString(),
+                                  }).eq("id", accToAssign.id);
+                                  await supabase.from("account_requests").update({ status: "approved" }).eq("id", req.id);
+                                  toast({ title: "Account assigned", description: `${accToAssign.account_name} assigned to ${req.profiles?.full_name || "user"}.` });
+                                  fetchRequests();
+                                  fetchAccounts();
+                                  fetchOverviewStats();
+                                }
+                                setApprovingId(null);
+                              }} disabled={approvingId === req.id}>
+                                Assign
+                              </Button>
+                            </div>
+                          )}
                           <Button size="sm" onClick={() => handleApproveRequest(req)} disabled={approvingId === req.id} className="bg-green-600 hover:bg-green-700 text-foreground rounded-full">
-                            <CheckCircle className="w-3.5 h-3.5 mr-1" />Approve
+                            <CheckCircle className="w-3.5 h-3.5 mr-1" />Create New
                           </Button>
                           <Button size="sm" variant="destructive" onClick={() => handleRejectRequest(req)} className="rounded-full">
                             <XCircle className="w-3.5 h-3.5 mr-1" />Reject
@@ -911,7 +947,8 @@ export default function Admin() {
                       )}
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
