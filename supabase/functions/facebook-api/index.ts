@@ -183,13 +183,13 @@ Deno.serve(async (req) => {
       const targetUserId = user_id || user.id;
       const commissionRate = await getCommissionRate(adminClient, targetUserId);
 
-      const fbGetData = await fbGet(ad_account_id, "spend_cap,amount_spent", FB_ACCESS_TOKEN);
-      if (fbGetData.error) return jsonResponse({ error: `Facebook API: ${fbGetData.error.message}` }, 400);
-
-      // Facebook returns dollars — work in dollars throughout
-      const currentCap = fbGetData.spend_cap ? Number(fbGetData.spend_cap) : 0;
-      const amountSpent = fbGetData.amount_spent ? Number(fbGetData.amount_spent) : 0;
+      // Use DB spend_limit (dollars) as authoritative source
+      const { data: adAccount } = await adminClient
+        .from("ad_accounts").select("spend_limit, current_spend").eq("account_id", ad_account_id).single();
+      const currentCap = adAccount ? Number(adAccount.spend_limit) : 0;
+      const amountSpent = adAccount ? Number(adAccount.current_spend) : 0;
       const availableBalance = currentCap - amountSpent;
+      console.log(`[FB API] account_to_wallet: amount=${amount}, currentCap(DB)=${currentCap}, amountSpent(DB)=${amountSpent}, available=${availableBalance}`);
 
       if (amount > availableBalance) {
         return jsonResponse({ error: `Insufficient account balance. Available: $${availableBalance.toFixed(2)}` }, 400);
