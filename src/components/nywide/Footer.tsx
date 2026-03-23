@@ -12,7 +12,7 @@ const footerLinks = {
     { label: "About Us", href: "#" },
     { label: "Careers", href: "#" },
     { label: "Blog", href: "#" },
-    { label: "Contact", href: "#contact" },
+    { label: "Contact", href: "/contact" },
   ],
   legal: [
     { label: "Privacy Policy", href: "#" },
@@ -41,7 +41,7 @@ export function Footer() {
               <p className="text-xl text-muted-foreground">Let's discuss how we can help you achieve extraordinary results.</p>
             </div>
             <div className="flex flex-col sm:flex-row gap-4 lg:justify-end">
-              <a href="https://wa.me/3725395702" target="_blank" rel="noopener noreferrer" className="group inline-flex items-center justify-center gap-3 px-8 py-5 bg-primary text-primary-foreground rounded-full text-lg font-bold glow-gold-hover transition-all duration-300 active:scale-95">
+              <a href="/contact" className="group inline-flex items-center justify-center gap-3 px-8 py-5 bg-primary text-primary-foreground rounded-full text-lg font-bold glow-gold-hover transition-all duration-300 active:scale-95">
                 <span>Contact Us</span>
                 <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
               </a>
@@ -58,11 +58,12 @@ export function Footer() {
                 <span className="font-serif font-black text-2xl text-black">N</span>
               </div>
               <div className="flex flex-col leading-none">
-                <span className="text-xl font-serif font-bold text-foreground">NYWIDE</span>
-                <span className="text-[10px] font-semibold text-muted-foreground tracking-[0.2em] uppercase">AGENCY</span>
+               <span className="text-xl font-serif font-bold text-foreground">NYWIDE</span>
+                <span className="text-[10px] font-semibold text-muted-foreground tracking-[0.2em] uppercase">OÜ</span>
               </div>
             </div>
-            <p className="text-muted-foreground max-w-sm mb-6 leading-relaxed">Your trusted partner for digital dominance. We build high-performance campaigns that deliver exceptional ROI.</p>
+            <p className="text-muted-foreground max-w-sm mb-6 leading-relaxed">NYWIDE OÜ is a digital marketing agency registered in Estonia, specializing in high-performance advertising account leasing, creating, managing, and developing advertising campaigns, and producing creative content. We help companies expand globally through high-performance advertising solutions.</p>
+            <p className="text-xs text-muted-foreground mb-4">Registration Number: 17452384</p>
             <div className="flex items-center gap-4">
               {socialLinks.map((social, i) => (
                 <a key={i} href={social.href} aria-label={social.label} className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center text-muted-foreground hover:bg-primary hover:text-primary-foreground transition-all duration-300">
@@ -97,7 +98,7 @@ export function Footer() {
           </div>
         </div>
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-8">
-          <p className="text-sm text-muted-foreground">© {new Date().getFullYear()} NYWIDE Agency. All rights reserved.</p>
+          <p className="text-sm text-muted-foreground">© {new Date().getFullYear()} NYWIDE OÜ (Reg. 17452384). All rights reserved.</p>
           <div className="flex items-center gap-6">
             {footerLinks.legal.map((link, i) => (
               <a key={i} href={link.href} className="text-sm text-muted-foreground hover:text-primary transition-colors">{link.label}</a>

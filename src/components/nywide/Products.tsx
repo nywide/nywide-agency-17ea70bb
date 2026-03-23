@@ -34,7 +34,7 @@ const plans = [
       "Regular performance reports",
     ],
     cta: "Book a Call",
-    href: "https://wa.me/3725395702",
+    href: "/contact",
   },
   {
     icon: Video,
@@ -48,7 +48,7 @@ const plans = [
       "Quick turnaround, tailored to your brand voice",
     ],
     cta: "Request a Quote",
-    href: "https://wa.me/3725395702",
+    href: "/contact",
   },
 ];
 
