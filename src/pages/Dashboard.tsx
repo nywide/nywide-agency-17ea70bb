@@ -339,15 +339,20 @@ export default function Dashboard() {
   const transferNet = Number(transferAmount) - transferCommission;
   const withdrawRefund = Number(withdrawAmount) / (1 - commissionRate / 100);
 
-  const getAccountBalance = (acc: any) => {
-    // Always use DB spend_limit (in dollars) as authoritative
+  const getAccountSpendLimit = (acc: any) => {
+    const fb = fbBalances[acc.account_id];
+    if (fb) return fb.spend_cap;
     return Number(acc.spend_limit);
   };
 
   const getAccountSpent = (acc: any) => {
     const fb = fbBalances[acc.account_id];
-    if (!fb) return Number(acc.current_spend);
-    return fb.amount_spent;
+    if (fb) return fb.amount_spent;
+    return Number(acc.amount_spent || acc.current_spend || 0);
+  };
+
+  const getAccountRemaining = (acc: any) => {
+    return Math.max(0, getAccountSpendLimit(acc) - getAccountSpent(acc));
   };
 
   const txnTotalPages = Math.ceil(txnCount / PAGE_SIZE);
