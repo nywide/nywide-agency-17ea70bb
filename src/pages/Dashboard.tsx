@@ -436,8 +436,8 @@ export default function Dashboard() {
                       </div>
                       <div className="text-right flex items-center gap-2">
                         <div>
-                          <p className="font-bold text-foreground">${getAccountBalance(acc).toFixed(2)}</p>
-                          <span className="flex items-center gap-1 text-xs">{statusIcon(acc.status)}<span className="capitalize text-muted-foreground">{acc.status}</span></span>
+                          <p className="font-bold text-foreground">${getAccountRemaining(acc).toFixed(2)}</p>
+                          <p className="text-xs text-muted-foreground">Limit: ${getAccountSpendLimit(acc).toFixed(2)} · Spent: ${getAccountSpent(acc).toFixed(2)}</p>
                         </div>
                         <Button size="icon" variant="ghost" onClick={() => refreshAccountBalance(acc.account_id)}
                           disabled={refreshingAccount === acc.account_id} className="h-8 w-8">
