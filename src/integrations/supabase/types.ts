@@ -86,7 +86,6 @@ export type Database = {
         Row: {
           account_id: string
           account_name: string
-          amount_spent: number
           assigned_at: string | null
           created_at: string
           currency: string
@@ -101,7 +100,6 @@ export type Database = {
         Insert: {
           account_id: string
           account_name: string
-          amount_spent?: number
           assigned_at?: string | null
           created_at?: string
           currency?: string
@@ -116,7 +114,6 @@ export type Database = {
         Update: {
           account_id?: string
           account_name?: string
-          amount_spent?: number
           assigned_at?: string | null
           created_at?: string
           currency?: string

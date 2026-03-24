@@ -27,7 +27,7 @@ export default function Admin() {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("overview");
 
-  const [overviewStats, setOverviewStats] = useState({ totalBalance: 0, totalRevenue: 0, totalUsers: 0, totalAccounts: 0, totalAdSpend: 0, totalAdRemaining: 0 });
+  const [overviewStats, setOverviewStats] = useState({ totalBalance: 0, totalRevenue: 0, totalUsers: 0, totalAccounts: 0 });
 
   const [users, setUsers] = useState<any[]>([]);
   const [userCount, setUserCount] = useState(0);
@@ -124,15 +124,12 @@ export default function Admin() {
   }, [user, activeTab]);
 
   const fetchOverviewStats = async () => {
-    const [balRes, revRes, userCountRes, accCountRes, adAccRes] = await Promise.all([
+    const [balRes, revRes, userCountRes, accCountRes] = await Promise.all([
       supabase.from("profiles").select("wallet_balance"),
       supabase.from("transactions").select("commission, type").eq("status", "completed").in("type", ["wallet_to_account", "account_to_wallet"]),
       supabase.from("profiles").select("id", { count: "exact", head: true }),
       supabase.from("ad_accounts").select("id", { count: "exact", head: true }),
-      supabase.from("ad_accounts").select("spend_limit, amount_spent, current_spend"),
     ]);
-    const totalAdSpend = (adAccRes.data || []).reduce((s, a) => s + Number(a.amount_spent || a.current_spend || 0), 0);
-    const totalAdRemaining = (adAccRes.data || []).reduce((s, a) => s + Math.max(0, Number(a.spend_limit) - Number(a.amount_spent || a.current_spend || 0)), 0);
     setOverviewStats({
       totalBalance: (balRes.data || []).reduce((s, u) => s + Number(u.wallet_balance || 0), 0),
       totalRevenue: (revRes.data || []).reduce((s, t) => {
@@ -141,8 +138,6 @@ export default function Admin() {
       }, 0),
       totalUsers: userCountRes.count || 0,
       totalAccounts: accCountRes.count || 0,
-      totalAdSpend,
-      totalAdRemaining,
     });
   };
 
@@ -249,11 +244,10 @@ export default function Admin() {
             setAdAccounts(prev => prev.map(acc => {
               const cached = fbData.results[acc.account_id];
               if (cached) {
-                // Values from edge function are already in dollars
-                const amountSpent = cached.amount_spent ?? Number(acc.amount_spent || acc.current_spend || 0);
-                const spendLimit = cached.spend_cap ?? Number(acc.spend_limit);
-                console.log(`Account ${acc.account_name}: spend_limit=$${spendLimit}, amount_spent=$${amountSpent} (dollars)`);
-                return { ...acc, spend_limit: spendLimit, amount_spent: amountSpent, current_spend: amountSpent };
+                const amountSpent = cached.amount_spent ?? acc.current_spend;
+                console.log(`Account ${acc.account_name}: DB spend_limit=${acc.spend_limit} (dollars), FB spend_cap=${cached.spend_cap}, current_spend=${amountSpent}`);
+                // Do NOT overwrite spend_limit from Facebook — DB value is authoritative (dollars)
+                return { ...acc, current_spend: amountSpent };
               }
               return acc;
             }));
@@ -275,9 +269,9 @@ export default function Admin() {
       } else {
         setAdAccounts(prev => prev.map(acc => {
           if (acc.account_id !== accountId) return acc;
-          // Values from edge function are already in dollars
-          console.log(`Refresh: spend_limit=$${data.spend_limit}, amount_spent=$${data.amount_spent} (dollars)`);
-          return { ...acc, spend_limit: data.spend_limit ?? acc.spend_limit, amount_spent: data.amount_spent ?? acc.amount_spent, current_spend: data.amount_spent ?? acc.current_spend };
+          console.log(`Refresh: DB spend_limit=${acc.spend_limit}, FB spend_cap=${data.spend_cap}, amount_spent=${data.amount_spent}`);
+          // Only update current_spend from Facebook — keep DB spend_limit as authoritative
+          return { ...acc, current_spend: data.amount_spent };
         }));
         toast({ title: "Account refreshed" });
       }
@@ -665,22 +659,14 @@ export default function Admin() {
         {/* Overview Tab */}
         {activeTab === "overview" && (
           <div className="space-y-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="bg-card border border-border rounded-xl p-5">
-                <p className="text-muted-foreground text-sm">Total User Wallet Balance</p>
+                <p className="text-muted-foreground text-sm">Total Platform Balance</p>
                 <p className="text-3xl font-bold text-foreground"><span className="text-primary">$</span>{overviewStats.totalBalance.toFixed(2)}</p>
               </div>
               <div className="bg-card border border-border rounded-xl p-5">
-                <p className="text-muted-foreground text-sm">Total Commission Earned</p>
+                <p className="text-muted-foreground text-sm">Total Revenue (Commissions)</p>
                 <p className="text-3xl font-bold text-foreground"><span className="text-primary">$</span>{overviewStats.totalRevenue.toFixed(2)}</p>
-              </div>
-              <div className="bg-card border border-border rounded-xl p-5">
-                <p className="text-muted-foreground text-sm">Total Ad Spend</p>
-                <p className="text-3xl font-bold text-foreground"><span className="text-primary">$</span>{overviewStats.totalAdSpend.toFixed(2)}</p>
-              </div>
-              <div className="bg-card border border-border rounded-xl p-5">
-                <p className="text-muted-foreground text-sm">Total Ad Account Remaining</p>
-                <p className="text-3xl font-bold text-foreground"><span className="text-primary">$</span>{overviewStats.totalAdRemaining.toFixed(2)}</p>
               </div>
               <div className="bg-card border border-border rounded-xl p-5">
                 <p className="text-muted-foreground text-sm">Total Users</p>
@@ -737,9 +723,8 @@ export default function Admin() {
                       <th className="text-left p-4 text-muted-foreground font-medium">Account ID</th>
                       <th className="text-left p-4 text-muted-foreground font-medium">Name</th>
                       <th className="text-left p-4 text-muted-foreground font-medium">Platform</th>
-                      <th className="text-left p-4 text-muted-foreground font-medium">Spending Limit</th>
-                      <th className="text-left p-4 text-muted-foreground font-medium">Amount Spent</th>
-                      <th className="text-left p-4 text-muted-foreground font-medium">Remaining</th>
+                      <th className="text-left p-4 text-muted-foreground font-medium">Balance</th>
+                      <th className="text-left p-4 text-muted-foreground font-medium">Current Spend</th>
                       <th className="text-left p-4 text-muted-foreground font-medium">Status</th>
                       <th className="text-left p-4 text-muted-foreground font-medium">Assigned To</th>
                     </tr></thead>
@@ -750,8 +735,7 @@ export default function Admin() {
                           <td className="p-4 text-foreground">{acc.account_name}</td>
                           <td className="p-4 text-foreground capitalize">{acc.platform}</td>
                           <td className="p-4 text-foreground">${Number(acc.spend_limit).toFixed(2)}</td>
-                          <td className="p-4 text-foreground">${Number(acc.amount_spent || acc.current_spend || 0).toFixed(2)}</td>
-                          <td className="p-4 text-primary font-medium">${Math.max(0, Number(acc.spend_limit) - Number(acc.amount_spent || acc.current_spend || 0)).toFixed(2)}</td>
+                          <td className="p-4 text-foreground">${Number(acc.current_spend).toFixed(2)}</td>
                           <td className="p-4 capitalize text-foreground">{acc.status}</td>
                           <td className="p-4 text-muted-foreground">{acc.profiles?.full_name || "Unassigned"}</td>
                         </tr>
@@ -843,31 +827,25 @@ export default function Admin() {
                     <th className="text-left p-4 text-muted-foreground font-medium">Platform</th>
                     <th className="text-left p-4 text-muted-foreground font-medium">Currency</th>
                     <th className="text-left p-4 text-muted-foreground font-medium">Timezone</th>
-                    <th className="text-left p-4 text-muted-foreground font-medium">Spending Limit</th>
-                    <th className="text-left p-4 text-muted-foreground font-medium">Amount Spent</th>
-                    <th className="text-left p-4 text-muted-foreground font-medium">Remaining</th>
+                    <th className="text-left p-4 text-muted-foreground font-medium">Balance</th>
+                    <th className="text-left p-4 text-muted-foreground font-medium">Current Spend</th>
                     <th className="text-left p-4 text-muted-foreground font-medium">Status</th>
                     <th className="text-left p-4 text-muted-foreground font-medium">Assigned To</th>
                     <th className="text-left p-4 text-muted-foreground font-medium">Actions</th>
                   </tr></thead>
                   <tbody>
-                    {adAccounts.map((acc) => {
-                      const spendLimit = Number(acc.spend_limit);
-                      const amountSpent = Number(acc.amount_spent || acc.current_spend || 0);
-                      const remaining = Math.max(0, spendLimit - amountSpent);
-                      return (
+                    {adAccounts.map((acc) => (
                       <tr key={acc.id} className="border-b border-border/50 hover:bg-secondary/50">
                         <td className="p-4 text-foreground font-mono text-xs">{acc.account_id}</td>
                         <td className="p-4 text-foreground">{acc.account_name}</td>
                         <td className="p-4 text-foreground capitalize">{acc.platform}</td>
                         <td className="p-4 text-foreground">{acc.currency}</td>
                         <td className="p-4 text-foreground text-xs">{acc.timezone}</td>
-                        <td className="p-4 text-foreground">${spendLimit.toFixed(2)}</td>
-                        <td className="p-4 text-foreground">${amountSpent.toFixed(2)}</td>
+                        <td className="p-4 text-foreground">${Number(acc.spend_limit).toFixed(2)}</td>
                         <td className="p-4">
                           <div className="space-y-1">
-                            <span className="text-primary font-medium">${remaining.toFixed(2)}</span>
-                            <Progress value={spendLimit > 0 ? (amountSpent / spendLimit) * 100 : 0} className="h-1.5" />
+                            <span className="text-foreground">${Number(acc.current_spend).toFixed(2)}</span>
+                            <Progress value={acc.spend_limit > 0 ? (acc.current_spend / acc.spend_limit) * 100 : 0} className="h-1.5" />
                           </div>
                         </td>
                         <td className="p-4 capitalize text-foreground">{acc.status}</td>
@@ -886,8 +864,7 @@ export default function Admin() {
                           </Button>
                         </td>
                       </tr>
-                      );
-                    })}
+                    ))}
                   </tbody>
                 </table>
               </div>
