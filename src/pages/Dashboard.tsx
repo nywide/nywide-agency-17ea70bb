@@ -753,7 +753,7 @@ export default function Dashboard() {
                 <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input type="number" min="1" placeholder="30" value={withdrawAmount} onChange={(e) => setWithdrawAmount(e.target.value)} className="pl-10 bg-secondary border-border text-foreground" />
               </div>
-              <p className="text-xs text-muted-foreground">Account Balance: ${getAccountBalance(withdrawOpen.account || {}).toFixed(2)}</p>
+              <p className="text-xs text-muted-foreground">Remaining Balance: ${getAccountRemaining(withdrawOpen.account || {}).toFixed(2)}</p>
             </div>
             {Number(withdrawAmount) > 0 && (
               <div className="bg-secondary rounded-xl p-4 space-y-1 text-sm">
