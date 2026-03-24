@@ -124,12 +124,15 @@ export default function Admin() {
   }, [user, activeTab]);
 
   const fetchOverviewStats = async () => {
-    const [balRes, revRes, userCountRes, accCountRes] = await Promise.all([
+    const [balRes, revRes, userCountRes, accCountRes, adAccRes] = await Promise.all([
       supabase.from("profiles").select("wallet_balance"),
       supabase.from("transactions").select("commission, type").eq("status", "completed").in("type", ["wallet_to_account", "account_to_wallet"]),
       supabase.from("profiles").select("id", { count: "exact", head: true }),
       supabase.from("ad_accounts").select("id", { count: "exact", head: true }),
+      supabase.from("ad_accounts").select("spend_limit, amount_spent, current_spend"),
     ]);
+    const totalAdSpend = (adAccRes.data || []).reduce((s, a) => s + Number(a.amount_spent || a.current_spend || 0), 0);
+    const totalAdRemaining = (adAccRes.data || []).reduce((s, a) => s + Math.max(0, Number(a.spend_limit) - Number(a.amount_spent || a.current_spend || 0)), 0);
     setOverviewStats({
       totalBalance: (balRes.data || []).reduce((s, u) => s + Number(u.wallet_balance || 0), 0),
       totalRevenue: (revRes.data || []).reduce((s, t) => {
@@ -138,6 +141,8 @@ export default function Admin() {
       }, 0),
       totalUsers: userCountRes.count || 0,
       totalAccounts: accCountRes.count || 0,
+      totalAdSpend,
+      totalAdRemaining,
     });
   };
 
