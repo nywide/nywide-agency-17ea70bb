@@ -741,7 +741,7 @@ export default function Dashboard() {
                 </div>
               </div>
             )}
-            <Button onClick={handleTransferToAccount} disabled={transferLoading || !transferAmount || Number(transferAmount) <= 0 || Number(transferAmount) > Number(profile?.wallet_balance || 0)} className="w-full bg-primary text-primary-foreground font-bold rounded-full">
+            <Button onClick={handleTransferToAccount} disabled={transferLoading || !transferAmount || Number(transferAmount) < 10 || Number(transferAmount) > Number(profile?.wallet_balance || 0)} className="w-full bg-primary text-primary-foreground font-bold rounded-full">
               {transferLoading ? "Processing..." : "Transfer to Account"}
             </Button>
           </div>
