@@ -135,7 +135,8 @@ export default function Dashboard() {
         body: { action: "refresh_balance", ad_account_id: accountId },
       });
       if (data && !data.error) {
-        setFbBalances(prev => ({ ...prev, [accountId]: { spend_cap: data.spend_cap, amount_spent: data.amount_spent } }));
+        // Edge function returns values in dollars
+        setFbBalances(prev => ({ ...prev, [accountId]: { spend_cap: data.spend_limit ?? data.spend_cap, amount_spent: data.amount_spent } }));
         toast({ title: "Balance refreshed" });
       }
     } catch { /* ignore */ }
