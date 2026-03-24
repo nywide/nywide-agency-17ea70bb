@@ -1,0 +1,1 @@
+ALTER TABLE public.ad_accounts ADD COLUMN IF NOT EXISTS amount_spent numeric NOT NULL DEFAULT 0;
