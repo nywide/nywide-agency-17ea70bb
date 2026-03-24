@@ -535,13 +535,13 @@ export default function Dashboard() {
                           )}
                         </div>
                       </div>
-                      {balance > 0 && (
+                      {spendLimit > 0 && (
                         <div className="mt-3">
                           <div className="flex justify-between text-xs text-muted-foreground mb-1">
                             <span>Spent: ${spent.toFixed(2)}</span>
-                            <span>Balance: ${balance.toFixed(2)}</span>
+                            <span>Remaining: ${remaining.toFixed(2)}</span>
                           </div>
-                          <Progress value={balance > 0 ? (spent / balance) * 100 : 0} className="h-1.5" />
+                          <Progress value={spendLimit > 0 ? (spent / spendLimit) * 100 : 0} className="h-1.5" />
                         </div>
                       )}
                     </div>
