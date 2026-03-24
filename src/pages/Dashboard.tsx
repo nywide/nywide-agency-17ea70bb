@@ -135,7 +135,8 @@ export default function Dashboard() {
         body: { action: "refresh_balance", ad_account_id: accountId },
       });
       if (data && !data.error) {
-        setFbBalances(prev => ({ ...prev, [accountId]: { spend_cap: data.spend_cap, amount_spent: data.amount_spent } }));
+        // Edge function returns values in dollars
+        setFbBalances(prev => ({ ...prev, [accountId]: { spend_cap: data.spend_limit ?? data.spend_cap, amount_spent: data.amount_spent } }));
         toast({ title: "Balance refreshed" });
       }
     } catch { /* ignore */ }
@@ -241,7 +242,10 @@ export default function Dashboard() {
 
   const handleTransferToAccount = async () => {
     const amount = Number(transferAmount);
-    if (!amount || amount <= 0) return;
+    if (!amount || amount < 10) {
+      toast({ title: "Minimum top-up amount is $10", variant: "destructive" });
+      return;
+    }
     if (amount > Number(profile?.wallet_balance || 0)) {
       toast({ title: "Insufficient balance", variant: "destructive" });
       return;
@@ -339,15 +343,20 @@ export default function Dashboard() {
   const transferNet = Number(transferAmount) - transferCommission;
   const withdrawRefund = Number(withdrawAmount) / (1 - commissionRate / 100);
 
-  const getAccountBalance = (acc: any) => {
-    // Always use DB spend_limit (in dollars) as authoritative
+  const getAccountSpendLimit = (acc: any) => {
+    const fb = fbBalances[acc.account_id];
+    if (fb) return fb.spend_cap;
     return Number(acc.spend_limit);
   };
 
   const getAccountSpent = (acc: any) => {
     const fb = fbBalances[acc.account_id];
-    if (!fb) return Number(acc.current_spend);
-    return fb.amount_spent;
+    if (fb) return fb.amount_spent;
+    return Number(acc.amount_spent || acc.current_spend || 0);
+  };
+
+  const getAccountRemaining = (acc: any) => {
+    return Math.max(0, getAccountSpendLimit(acc) - getAccountSpent(acc));
   };
 
   const txnTotalPages = Math.ceil(txnCount / PAGE_SIZE);
@@ -431,8 +440,8 @@ export default function Dashboard() {
                       </div>
                       <div className="text-right flex items-center gap-2">
                         <div>
-                          <p className="font-bold text-foreground">${getAccountBalance(acc).toFixed(2)}</p>
-                          <span className="flex items-center gap-1 text-xs">{statusIcon(acc.status)}<span className="capitalize text-muted-foreground">{acc.status}</span></span>
+                          <p className="font-bold text-foreground">${getAccountRemaining(acc).toFixed(2)}</p>
+                          <p className="text-xs text-muted-foreground">Limit: ${getAccountSpendLimit(acc).toFixed(2)} · Spent: ${getAccountSpent(acc).toFixed(2)}</p>
                         </div>
                         <Button size="icon" variant="ghost" onClick={() => refreshAccountBalance(acc.account_id)}
                           disabled={refreshingAccount === acc.account_id} className="h-8 w-8">
@@ -464,8 +473,9 @@ export default function Dashboard() {
             ) : (
               <div className="grid gap-4">
                 {adAccounts.map((acc) => {
-                  const balance = getAccountBalance(acc);
+                  const spendLimit = getAccountSpendLimit(acc);
                   const spent = getAccountSpent(acc);
+                  const remaining = getAccountRemaining(acc);
                   return (
                     <div key={acc.id} className="bg-card border border-border rounded-xl p-5">
                       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
@@ -483,8 +493,16 @@ export default function Dashboard() {
                             <p className="text-sm text-foreground capitalize">{acc.platform}</p>
                           </div>
                           <div>
-                            <p className="text-xs text-muted-foreground">Account Balance</p>
-                            <p className="text-sm font-medium text-foreground">${balance.toFixed(2)}</p>
+                            <p className="text-xs text-muted-foreground">Spending Limit</p>
+                            <p className="text-sm font-medium text-foreground">${spendLimit.toFixed(2)}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Amount Spent</p>
+                            <p className="text-sm font-medium text-foreground">${spent.toFixed(2)}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Remaining</p>
+                            <p className="text-sm font-medium text-primary">${remaining.toFixed(2)}</p>
                           </div>
                           <div>
                             <p className="text-xs text-muted-foreground">Currency</p>
@@ -521,13 +539,13 @@ export default function Dashboard() {
                           )}
                         </div>
                       </div>
-                      {balance > 0 && (
+                      {spendLimit > 0 && (
                         <div className="mt-3">
                           <div className="flex justify-between text-xs text-muted-foreground mb-1">
                             <span>Spent: ${spent.toFixed(2)}</span>
-                            <span>Balance: ${balance.toFixed(2)}</span>
+                            <span>Remaining: ${remaining.toFixed(2)}</span>
                           </div>
-                          <Progress value={balance > 0 ? (spent / balance) * 100 : 0} className="h-1.5" />
+                          <Progress value={spendLimit > 0 ? (spent / spendLimit) * 100 : 0} className="h-1.5" />
                         </div>
                       )}
                     </div>
@@ -673,12 +691,15 @@ export default function Dashboard() {
             <div className="space-y-2">
               <Label className="text-foreground">Payment Method</Label>
               <div className="grid grid-cols-2 gap-2">
-                {[{ id: "manual", label: "Bank / Crypto" }, { id: "stripe", label: "Card (Stripe)" }].map((m) => (
-                  <button key={m.id} onClick={() => setTopUpMethod(m.id)}
-                    className={`p-3 rounded-xl border text-sm font-medium transition-all ${topUpMethod === m.id ? "border-primary bg-primary/10 text-primary" : "border-border bg-secondary text-muted-foreground hover:border-primary/50"}`}>
-                    {m.label}
-                  </button>
-                ))}
+                <button onClick={() => setTopUpMethod("manual")}
+                  className={`p-3 rounded-xl border text-sm font-medium transition-all ${topUpMethod === "manual" ? "border-primary bg-primary/10 text-primary" : "border-border bg-secondary text-muted-foreground hover:border-primary/50"}`}>
+                  Bank / Crypto
+                </button>
+                <button disabled
+                  className="p-3 rounded-xl border text-sm font-medium border-border bg-secondary text-muted-foreground opacity-50 cursor-not-allowed relative">
+                  Card (Stripe)
+                  <span className="absolute -top-2 -right-2 bg-primary text-primary-foreground text-[10px] px-1.5 py-0.5 rounded-full font-bold">Soon</span>
+                </button>
               </div>
               {topUpMethod === "manual" && <p className="text-xs text-muted-foreground">Your request will be sent to admin for approval.</p>}
             </div>
@@ -701,7 +722,10 @@ export default function Dashboard() {
               <Label className="text-foreground">Amount (USD)</Label>
               <div className="relative">
                 <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input type="number" min="1" placeholder="50" value={transferAmount} onChange={(e) => setTransferAmount(e.target.value)} className="pl-10 bg-secondary border-border text-foreground" />
+              <Input type="number" min="10" placeholder="50" value={transferAmount} onChange={(e) => setTransferAmount(e.target.value)} className="pl-10 bg-secondary border-border text-foreground" />
+              {Number(transferAmount) > 0 && Number(transferAmount) < 10 && (
+                <p className="text-xs text-destructive">Minimum top-up amount is $10.</p>
+              )}
               </div>
               <p className="text-xs text-muted-foreground">Available: ${Number(profile?.wallet_balance || 0).toFixed(2)}</p>
             </div>
@@ -718,7 +742,7 @@ export default function Dashboard() {
                 </div>
               </div>
             )}
-            <Button onClick={handleTransferToAccount} disabled={transferLoading || !transferAmount || Number(transferAmount) <= 0 || Number(transferAmount) > Number(profile?.wallet_balance || 0)} className="w-full bg-primary text-primary-foreground font-bold rounded-full">
+            <Button onClick={handleTransferToAccount} disabled={transferLoading || !transferAmount || Number(transferAmount) < 10 || Number(transferAmount) > Number(profile?.wallet_balance || 0)} className="w-full bg-primary text-primary-foreground font-bold rounded-full">
               {transferLoading ? "Processing..." : "Transfer to Account"}
             </Button>
           </div>
@@ -739,7 +763,7 @@ export default function Dashboard() {
                 <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input type="number" min="1" placeholder="30" value={withdrawAmount} onChange={(e) => setWithdrawAmount(e.target.value)} className="pl-10 bg-secondary border-border text-foreground" />
               </div>
-              <p className="text-xs text-muted-foreground">Account Balance: ${getAccountBalance(withdrawOpen.account || {}).toFixed(2)}</p>
+              <p className="text-xs text-muted-foreground">Remaining Balance: ${getAccountRemaining(withdrawOpen.account || {}).toFixed(2)}</p>
             </div>
             {Number(withdrawAmount) > 0 && (
               <div className="bg-secondary rounded-xl p-4 space-y-1 text-sm">
