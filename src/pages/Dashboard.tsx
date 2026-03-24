@@ -687,12 +687,15 @@ export default function Dashboard() {
             <div className="space-y-2">
               <Label className="text-foreground">Payment Method</Label>
               <div className="grid grid-cols-2 gap-2">
-                {[{ id: "manual", label: "Bank / Crypto" }, { id: "stripe", label: "Card (Stripe)" }].map((m) => (
-                  <button key={m.id} onClick={() => setTopUpMethod(m.id)}
-                    className={`p-3 rounded-xl border text-sm font-medium transition-all ${topUpMethod === m.id ? "border-primary bg-primary/10 text-primary" : "border-border bg-secondary text-muted-foreground hover:border-primary/50"}`}>
-                    {m.label}
-                  </button>
-                ))}
+                <button onClick={() => setTopUpMethod("manual")}
+                  className={`p-3 rounded-xl border text-sm font-medium transition-all ${topUpMethod === "manual" ? "border-primary bg-primary/10 text-primary" : "border-border bg-secondary text-muted-foreground hover:border-primary/50"}`}>
+                  Bank / Crypto
+                </button>
+                <button disabled
+                  className="p-3 rounded-xl border text-sm font-medium border-border bg-secondary text-muted-foreground opacity-50 cursor-not-allowed relative">
+                  Card (Stripe)
+                  <span className="absolute -top-2 -right-2 bg-primary text-primary-foreground text-[10px] px-1.5 py-0.5 rounded-full font-bold">Soon</span>
+                </button>
               </div>
               {topUpMethod === "manual" && <p className="text-xs text-muted-foreground">Your request will be sent to admin for approval.</p>}
             </div>
