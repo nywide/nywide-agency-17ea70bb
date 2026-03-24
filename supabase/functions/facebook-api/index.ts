@@ -28,16 +28,17 @@ async function fbGet(adAccountId: string, fields: string, token: string) {
 }
 
 async function fbUpdateSpendCap(adAccountId: string, amountInDollars: number, token: string) {
-  console.log(`[FB API] Sending to Facebook (dollars): ${amountInDollars}`);
+  const amountInCents = Math.round(amountInDollars * 100);
+  console.log(`[FB API] Sending to Facebook: ${amountInDollars} dollars = ${amountInCents} cents`);
   const res = await fetch(`${FB_API_BASE}/act_${adAccountId}`, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: `spend_cap=${amountInDollars}&access_token=${token}`,
+    body: `spend_cap=${amountInCents}&access_token=${token}`,
   });
   return res.json();
 }
 
-// Facebook API returns values in dollars — no conversion needed
+// Facebook API returns values in CENTS — convert to dollars
 function toNumber(val: number | string | null | undefined): number {
   if (val === null || val === undefined) return 0;
   return Number(val);
@@ -50,10 +51,11 @@ async function syncAdAccountFromFacebook(adminClient: any, accountId: string, to
     console.log(`[FB API] syncAdAccount error for ${accountId}:`, fbData.error.message);
     return null;
   }
-  const spendLimitDollars = toNumber(fbData.spend_cap);
-  const amountSpentDollars = toNumber(fbData.amount_spent);
+  // Facebook returns cents — divide by 100 to get dollars
+  const spendLimitDollars = toNumber(fbData.spend_cap) / 100;
+  const amountSpentDollars = toNumber(fbData.amount_spent) / 100;
 
-  console.log(`[FB API] sync ${accountId}: FB returned spend_cap=${spendLimitDollars}, amount_spent=${amountSpentDollars} (dollars)`);
+  console.log(`[FB API] sync ${accountId}: FB returned spend_cap=${fbData.spend_cap} cents, converted to ${spendLimitDollars} dollars, amount_spent=${fbData.amount_spent} cents, converted to ${amountSpentDollars} dollars`);
 
   // Update ad_accounts table
   await adminClient.from("ad_accounts").update({
