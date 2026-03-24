@@ -718,7 +718,10 @@ export default function Dashboard() {
               <Label className="text-foreground">Amount (USD)</Label>
               <div className="relative">
                 <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input type="number" min="1" placeholder="50" value={transferAmount} onChange={(e) => setTransferAmount(e.target.value)} className="pl-10 bg-secondary border-border text-foreground" />
+              <Input type="number" min="10" placeholder="50" value={transferAmount} onChange={(e) => setTransferAmount(e.target.value)} className="pl-10 bg-secondary border-border text-foreground" />
+              {Number(transferAmount) > 0 && Number(transferAmount) < 10 && (
+                <p className="text-xs text-destructive">Minimum top-up amount is $10.</p>
+              )}
               </div>
               <p className="text-xs text-muted-foreground">Available: ${Number(profile?.wallet_balance || 0).toFixed(2)}</p>
             </div>
