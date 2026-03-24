@@ -241,7 +241,10 @@ export default function Dashboard() {
 
   const handleTransferToAccount = async () => {
     const amount = Number(transferAmount);
-    if (!amount || amount <= 0) return;
+    if (!amount || amount < 10) {
+      toast({ title: "Minimum top-up amount is $10", variant: "destructive" });
+      return;
+    }
     if (amount > Number(profile?.wallet_balance || 0)) {
       toast({ title: "Insufficient balance", variant: "destructive" });
       return;
