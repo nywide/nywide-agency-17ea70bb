@@ -749,7 +749,8 @@ export default function Admin() {
                           <td className="p-4 text-foreground">{acc.account_name}</td>
                           <td className="p-4 text-foreground capitalize">{acc.platform}</td>
                           <td className="p-4 text-foreground">${Number(acc.spend_limit).toFixed(2)}</td>
-                          <td className="p-4 text-foreground">${Number(acc.current_spend).toFixed(2)}</td>
+                          <td className="p-4 text-foreground">${Number(acc.amount_spent || acc.current_spend || 0).toFixed(2)}</td>
+                          <td className="p-4 text-primary font-medium">${Math.max(0, Number(acc.spend_limit) - Number(acc.amount_spent || acc.current_spend || 0)).toFixed(2)}</td>
                           <td className="p-4 capitalize text-foreground">{acc.status}</td>
                           <td className="p-4 text-muted-foreground">{acc.profiles?.full_name || "Unassigned"}</td>
                         </tr>
