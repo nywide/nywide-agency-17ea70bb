@@ -842,25 +842,31 @@ export default function Admin() {
                     <th className="text-left p-4 text-muted-foreground font-medium">Platform</th>
                     <th className="text-left p-4 text-muted-foreground font-medium">Currency</th>
                     <th className="text-left p-4 text-muted-foreground font-medium">Timezone</th>
-                    <th className="text-left p-4 text-muted-foreground font-medium">Balance</th>
-                    <th className="text-left p-4 text-muted-foreground font-medium">Current Spend</th>
+                    <th className="text-left p-4 text-muted-foreground font-medium">Spending Limit</th>
+                    <th className="text-left p-4 text-muted-foreground font-medium">Amount Spent</th>
+                    <th className="text-left p-4 text-muted-foreground font-medium">Remaining</th>
                     <th className="text-left p-4 text-muted-foreground font-medium">Status</th>
                     <th className="text-left p-4 text-muted-foreground font-medium">Assigned To</th>
                     <th className="text-left p-4 text-muted-foreground font-medium">Actions</th>
                   </tr></thead>
                   <tbody>
-                    {adAccounts.map((acc) => (
+                    {adAccounts.map((acc) => {
+                      const spendLimit = Number(acc.spend_limit);
+                      const amountSpent = Number(acc.amount_spent || acc.current_spend || 0);
+                      const remaining = Math.max(0, spendLimit - amountSpent);
+                      return (
                       <tr key={acc.id} className="border-b border-border/50 hover:bg-secondary/50">
                         <td className="p-4 text-foreground font-mono text-xs">{acc.account_id}</td>
                         <td className="p-4 text-foreground">{acc.account_name}</td>
                         <td className="p-4 text-foreground capitalize">{acc.platform}</td>
                         <td className="p-4 text-foreground">{acc.currency}</td>
                         <td className="p-4 text-foreground text-xs">{acc.timezone}</td>
-                        <td className="p-4 text-foreground">${Number(acc.spend_limit).toFixed(2)}</td>
+                        <td className="p-4 text-foreground">${spendLimit.toFixed(2)}</td>
+                        <td className="p-4 text-foreground">${amountSpent.toFixed(2)}</td>
                         <td className="p-4">
                           <div className="space-y-1">
-                            <span className="text-foreground">${Number(acc.current_spend).toFixed(2)}</span>
-                            <Progress value={acc.spend_limit > 0 ? (acc.current_spend / acc.spend_limit) * 100 : 0} className="h-1.5" />
+                            <span className="text-primary font-medium">${remaining.toFixed(2)}</span>
+                            <Progress value={spendLimit > 0 ? (amountSpent / spendLimit) * 100 : 0} className="h-1.5" />
                           </div>
                         </td>
                         <td className="p-4 capitalize text-foreground">{acc.status}</td>
