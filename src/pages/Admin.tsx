@@ -736,8 +736,9 @@ export default function Admin() {
                       <th className="text-left p-4 text-muted-foreground font-medium">Account ID</th>
                       <th className="text-left p-4 text-muted-foreground font-medium">Name</th>
                       <th className="text-left p-4 text-muted-foreground font-medium">Platform</th>
-                      <th className="text-left p-4 text-muted-foreground font-medium">Balance</th>
-                      <th className="text-left p-4 text-muted-foreground font-medium">Current Spend</th>
+                      <th className="text-left p-4 text-muted-foreground font-medium">Spending Limit</th>
+                      <th className="text-left p-4 text-muted-foreground font-medium">Amount Spent</th>
+                      <th className="text-left p-4 text-muted-foreground font-medium">Remaining</th>
                       <th className="text-left p-4 text-muted-foreground font-medium">Status</th>
                       <th className="text-left p-4 text-muted-foreground font-medium">Assigned To</th>
                     </tr></thead>
