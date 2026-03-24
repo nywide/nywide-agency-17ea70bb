@@ -469,8 +469,9 @@ export default function Dashboard() {
             ) : (
               <div className="grid gap-4">
                 {adAccounts.map((acc) => {
-                  const balance = getAccountBalance(acc);
+                  const spendLimit = getAccountSpendLimit(acc);
                   const spent = getAccountSpent(acc);
+                  const remaining = getAccountRemaining(acc);
                   return (
                     <div key={acc.id} className="bg-card border border-border rounded-xl p-5">
                       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
