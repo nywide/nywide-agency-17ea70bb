@@ -488,8 +488,16 @@ export default function Dashboard() {
                             <p className="text-sm text-foreground capitalize">{acc.platform}</p>
                           </div>
                           <div>
-                            <p className="text-xs text-muted-foreground">Account Balance</p>
-                            <p className="text-sm font-medium text-foreground">${balance.toFixed(2)}</p>
+                            <p className="text-xs text-muted-foreground">Spending Limit</p>
+                            <p className="text-sm font-medium text-foreground">${spendLimit.toFixed(2)}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Amount Spent</p>
+                            <p className="text-sm font-medium text-foreground">${spent.toFixed(2)}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Remaining</p>
+                            <p className="text-sm font-medium text-primary">${remaining.toFixed(2)}</p>
                           </div>
                           <div>
                             <p className="text-xs text-muted-foreground">Currency</p>
