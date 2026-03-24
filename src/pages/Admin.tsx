@@ -664,14 +664,22 @@ export default function Admin() {
         {/* Overview Tab */}
         {activeTab === "overview" && (
           <div className="space-y-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               <div className="bg-card border border-border rounded-xl p-5">
-                <p className="text-muted-foreground text-sm">Total Platform Balance</p>
+                <p className="text-muted-foreground text-sm">Total User Wallet Balance</p>
                 <p className="text-3xl font-bold text-foreground"><span className="text-primary">$</span>{overviewStats.totalBalance.toFixed(2)}</p>
               </div>
               <div className="bg-card border border-border rounded-xl p-5">
-                <p className="text-muted-foreground text-sm">Total Revenue (Commissions)</p>
+                <p className="text-muted-foreground text-sm">Total Commission Earned</p>
                 <p className="text-3xl font-bold text-foreground"><span className="text-primary">$</span>{overviewStats.totalRevenue.toFixed(2)}</p>
+              </div>
+              <div className="bg-card border border-border rounded-xl p-5">
+                <p className="text-muted-foreground text-sm">Total Ad Spend</p>
+                <p className="text-3xl font-bold text-foreground"><span className="text-primary">$</span>{overviewStats.totalAdSpend.toFixed(2)}</p>
+              </div>
+              <div className="bg-card border border-border rounded-xl p-5">
+                <p className="text-muted-foreground text-sm">Total Ad Account Remaining</p>
+                <p className="text-3xl font-bold text-foreground"><span className="text-primary">$</span>{overviewStats.totalAdRemaining.toFixed(2)}</p>
               </div>
               <div className="bg-card border border-border rounded-xl p-5">
                 <p className="text-muted-foreground text-sm">Total Users</p>
