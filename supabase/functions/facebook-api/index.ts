@@ -27,12 +27,13 @@ async function fbGet(adAccountId: string, fields: string, token: string) {
   return res.json();
 }
 
-async function fbUpdateSpendCap(adAccountId: string, newCap: number, token: string) {
-  console.log(`[FB API] fbUpdateSpendCap: sending spend_cap=${newCap} (dollars) to act_${adAccountId}`);
+async function fbUpdateSpendCap(adAccountId: string, newCapDollars: number, token: string) {
+  const newCapCents = Math.round(newCapDollars * 100);
+  console.log(`[FB API] fbUpdateSpendCap: dollars=${newCapDollars}, cents=${newCapCents} to act_${adAccountId}`);
   const res = await fetch(`${FB_API_BASE}/act_${adAccountId}`, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: `spend_cap=${newCap}&access_token=${token}`,
+    body: `spend_cap=${newCapCents}&access_token=${token}`,
   });
   return res.json();
 }
@@ -95,10 +96,10 @@ Deno.serve(async (req) => {
         try {
           const fbData = await fbGet(id, "spend_cap,amount_spent", FB_ACCESS_TOKEN);
           if (fbData.error) return;
-          // Facebook returns dollars — store as-is
+          // Facebook returns cents — convert to dollars
           const entry = {
-            spend_cap: fbData.spend_cap ? Number(fbData.spend_cap) : 0,
-            amount_spent: fbData.amount_spent ? Number(fbData.amount_spent) : 0,
+            spend_cap: fbData.spend_cap ? Number(fbData.spend_cap) / 100 : 0,
+            amount_spent: fbData.amount_spent ? Number(fbData.amount_spent) / 100 : 0,
           };
           cacheMap[id] = { ...entry, cached: false };
           await adminClient.from("ad_account_cache").upsert({
@@ -115,10 +116,10 @@ Deno.serve(async (req) => {
     if (action === "refresh_balance") {
       const fbData = await fbGet(ad_account_id, "spend_cap,amount_spent", FB_ACCESS_TOKEN);
       if (fbData.error) return jsonResponse({ error: fbData.error.message }, 400);
-      // Facebook returns dollars — store as-is
+      // Facebook returns cents — convert to dollars
       const entry = {
-        spend_cap: fbData.spend_cap ? Number(fbData.spend_cap) : 0,
-        amount_spent: fbData.amount_spent ? Number(fbData.amount_spent) : 0,
+        spend_cap: fbData.spend_cap ? Number(fbData.spend_cap) / 100 : 0,
+        amount_spent: fbData.amount_spent ? Number(fbData.amount_spent) / 100 : 0,
       };
       await adminClient.from("ad_account_cache").upsert({
         account_id: ad_account_id, ...entry, last_fetched_at: new Date().toISOString(),
@@ -129,9 +130,10 @@ Deno.serve(async (req) => {
     if (action === "get_spend_limit") {
       const fbData = await fbGet(ad_account_id, "spend_cap,amount_spent", FB_ACCESS_TOKEN);
       if (fbData.error) return jsonResponse({ error: fbData.error.message }, 400);
+      // Facebook returns cents — convert to dollars
       return jsonResponse({
-        spend_cap: fbData.spend_cap ? Number(fbData.spend_cap) : null,
-        amount_spent: fbData.amount_spent ? Number(fbData.amount_spent) : 0,
+        spend_cap: fbData.spend_cap ? Number(fbData.spend_cap) / 100 : null,
+        amount_spent: fbData.amount_spent ? Number(fbData.amount_spent) / 100 : 0,
       });
     }
 
