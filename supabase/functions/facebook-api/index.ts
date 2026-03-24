@@ -27,9 +27,9 @@ async function fbGet(adAccountId: string, fields: string, token: string) {
   return res.json();
 }
 
-async function fbUpdateSpendCap(adAccountId: string, newCapDollars: number, token: string) {
-  const newCapCents = Math.round(newCapDollars * 100);
-  console.log(`[FB API] fbUpdateSpendCap: dollars=${newCapDollars}, cents=${newCapCents} to act_${adAccountId}`);
+// Accepts CENTS and sends CENTS to Facebook
+async function fbUpdateSpendCap(adAccountId: string, newCapCents: number, token: string) {
+  console.log(`[FB API] fbUpdateSpendCap: sending spend_cap=${newCapCents} cents to act_${adAccountId}`);
   const res = await fetch(`${FB_API_BASE}/act_${adAccountId}`, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -96,7 +96,7 @@ Deno.serve(async (req) => {
         try {
           const fbData = await fbGet(id, "spend_cap,amount_spent", FB_ACCESS_TOKEN);
           if (fbData.error) return;
-          // Facebook returns cents — convert to dollars
+          // Facebook returns cents — convert to dollars for storage
           const entry = {
             spend_cap: fbData.spend_cap ? Number(fbData.spend_cap) / 100 : 0,
             amount_spent: fbData.amount_spent ? Number(fbData.amount_spent) / 100 : 0,
@@ -138,35 +138,46 @@ Deno.serve(async (req) => {
     }
 
     if (action === "wallet_to_account") {
-      let amountDollars = amount;
-      // Safety: if amount > 1000, assume it was passed in cents and convert to dollars
-      if (amountDollars > 1000) {
-        console.warn(`[FB API] wallet_to_account: Received amount ${amountDollars} is > 1000; dividing by 100 to convert to dollars.`);
-        amountDollars = amountDollars / 100;
-      }
       const targetUserId = user_id || user.id;
       const commissionRate = await getCommissionRate(adminClient, targetUserId);
 
+      // --- Step 1: Normalize amount to dollars ---
+      let rawAmount = Number(amount);
+      let amountDollars = rawAmount;
+      if (rawAmount > 1000) {
+        console.warn(`[FB API] wallet_to_account: rawAmount ${rawAmount} > 1000, dividing by 100 to get dollars.`);
+        amountDollars = rawAmount / 100;
+      }
+      console.log(`[FB API] wallet_to_account: rawAmount=${rawAmount}, amountDollars=${amountDollars}`);
+
+      // --- Step 2: Validate wallet balance ---
       const { data: profile } = await adminClient
         .from("profiles").select("wallet_balance").eq("id", targetUserId).single();
       if (!profile || Number(profile.wallet_balance) < amountDollars) {
         return jsonResponse({ error: "Insufficient wallet balance" }, 400);
       }
 
-      const commission = amountDollars * (commissionRate / 100);
-      const amountToFb = amountDollars - commission;
-
-      // Use DB spend_limit (dollars) as authoritative source
+      // --- Step 3: Get current spend_limit from DB (dollars) ---
       const { data: adAccount } = await adminClient
         .from("ad_accounts").select("spend_limit").eq("account_id", ad_account_id).single();
       const currentCapDollars = adAccount ? Number(adAccount.spend_limit) : 0;
+
+      // --- Step 4: Calculate commission and new cap in dollars ---
+      const commission = amountDollars * (commissionRate / 100);
+      const amountToFb = amountDollars - commission;
       const newCapDollars = currentCapDollars + amountToFb;
-      console.log(`[FB API] wallet_to_account: rawAmount=${amount}, amountDollars=${amountDollars}, commission=${commission}, amountToFb=${amountToFb}, currentCapDollars=${currentCapDollars}, newCapDollars=${newCapDollars}, newCapCents=${Math.round(newCapDollars * 100)}`);
+      const newCapCents = Math.round(newCapDollars * 100);
 
-      // fbUpdateSpendCap accepts dollars and converts to cents internally
-      const fbUpdateData = await fbUpdateSpendCap(ad_account_id, newCapDollars, FB_ACCESS_TOKEN);
-      if (fbUpdateData.error) return jsonResponse({ error: `Facebook API: ${fbUpdateData.error.message}` }, 400);
+      console.log(`[FB API] wallet_to_account: currentCapDollars=${currentCapDollars}, newCapDollars=${newCapDollars}, newCapCents=${newCapCents}`);
 
+      // --- Step 5: Send CENTS to Facebook ---
+      const fbUpdateData = await fbUpdateSpendCap(ad_account_id, newCapCents, FB_ACCESS_TOKEN);
+      if (fbUpdateData.error) {
+        console.error("[FB API] Facebook error:", fbUpdateData.error);
+        return jsonResponse({ error: `Facebook API: ${fbUpdateData.error.message}` }, 400);
+      }
+
+      // --- Step 6: Update database (store dollars) ---
       await adminClient.from("profiles").update({
         wallet_balance: Number(profile.wallet_balance) - amountDollars,
       }).eq("id", targetUserId);
@@ -185,19 +196,21 @@ Deno.serve(async (req) => {
       return jsonResponse({
         success: true, commission, amount_sent: amountToFb,
         new_wallet_balance: Number(profile.wallet_balance) - amountDollars,
-        debug_received_raw: amount,
-        debug_amount_dollars: amountDollars,
-        debug_current_cap_dollars: currentCapDollars,
-        debug_new_cap_dollars: newCapDollars,
-        debug_new_cap_cents: Math.round(newCapDollars * 100),
+        debug_rawAmount: rawAmount,
+        debug_amountDollars: amountDollars,
+        debug_currentCapDollars: currentCapDollars,
+        debug_newCapDollars: newCapDollars,
+        debug_newCapCents: newCapCents,
+        debug_facebookResponse: fbUpdateData,
       });
     }
 
     if (action === "account_to_wallet") {
-      let amountDollars = amount;
-      if (amountDollars > 1000) {
-        console.warn(`[FB API] account_to_wallet: Received amount ${amountDollars} is > 1000; dividing by 100 to convert to dollars.`);
-        amountDollars = amountDollars / 100;
+      let rawAmount = Number(amount);
+      let amountDollars = rawAmount;
+      if (rawAmount > 1000) {
+        console.warn(`[FB API] account_to_wallet: rawAmount ${rawAmount} > 1000, dividing by 100 to get dollars.`);
+        amountDollars = rawAmount / 100;
       }
       const targetUserId = user_id || user.id;
       const commissionRate = await getCommissionRate(adminClient, targetUserId);
@@ -207,7 +220,7 @@ Deno.serve(async (req) => {
       const currentCapDollars = adAccount ? Number(adAccount.spend_limit) : 0;
       const amountSpent = adAccount ? Number(adAccount.current_spend) : 0;
       const availableBalance = currentCapDollars - amountSpent;
-      console.log(`[FB API] account_to_wallet: rawAmount=${amount}, amountDollars=${amountDollars}, currentCapDollars=${currentCapDollars}, amountSpent=${amountSpent}, available=${availableBalance}`);
+      console.log(`[FB API] account_to_wallet: rawAmount=${rawAmount}, amountDollars=${amountDollars}, currentCapDollars=${currentCapDollars}, amountSpent=${amountSpent}, available=${availableBalance}`);
 
       if (amountDollars > availableBalance) {
         return jsonResponse({ error: `Insufficient account balance. Available: $${availableBalance.toFixed(2)}` }, 400);
@@ -215,8 +228,10 @@ Deno.serve(async (req) => {
 
       const refund = amountDollars / (1 - commissionRate / 100);
       const newCapDollars = currentCapDollars - amountDollars;
+      const newCapCents = Math.round(newCapDollars * 100);
 
-      const fbUpdateData = await fbUpdateSpendCap(ad_account_id, newCapDollars, FB_ACCESS_TOKEN);
+      // Send CENTS to Facebook
+      const fbUpdateData = await fbUpdateSpendCap(ad_account_id, newCapCents, FB_ACCESS_TOKEN);
       if (fbUpdateData.error) return jsonResponse({ error: `Facebook API: ${fbUpdateData.error.message}` }, 400);
 
       const { data: profile } = await adminClient
@@ -240,25 +255,27 @@ Deno.serve(async (req) => {
       return jsonResponse({
         success: true, refund, amount_withdrawn: amountDollars,
         new_wallet_balance: Number(profile!.wallet_balance) + refund,
-        debug_received_raw: amount,
-        debug_amount_dollars: amountDollars,
-        debug_current_cap_dollars: currentCapDollars,
-        debug_new_cap_dollars: newCapDollars,
-        debug_new_cap_cents: Math.round(newCapDollars * 100),
+        debug_rawAmount: rawAmount,
+        debug_amountDollars: amountDollars,
+        debug_currentCapDollars: currentCapDollars,
+        debug_newCapDollars: newCapDollars,
+        debug_newCapCents: newCapCents,
       });
     }
 
-    // Admin: set spend limit directly on a Facebook ad account (value in dollars)
+    // Admin: set spend limit directly — amount is in DOLLARS, convert to cents for Facebook
     if (action === "set_spend_limit") {
-      console.log("[FB API] set_spend_limit: sending dollars directly to Facebook:", amount);
-      const fbUpdateData = await fbUpdateSpendCap(ad_account_id, amount || 0, FB_ACCESS_TOKEN);
+      const amountDollars = amount || 0;
+      const amountCents = Math.round(amountDollars * 100);
+      console.log(`[FB API] set_spend_limit: dollars=${amountDollars}, cents=${amountCents}`);
+      const fbUpdateData = await fbUpdateSpendCap(ad_account_id, amountCents, FB_ACCESS_TOKEN);
       if (fbUpdateData.error) return jsonResponse({ error: `Facebook API: ${fbUpdateData.error.message}` }, 400);
 
       await adminClient.from("ad_account_cache").upsert({
-        account_id: ad_account_id, spend_cap: amount || 0, last_fetched_at: new Date().toISOString(),
+        account_id: ad_account_id, spend_cap: amountDollars, last_fetched_at: new Date().toISOString(),
       }, { onConflict: "account_id" });
 
-      return jsonResponse({ success: true, spend_limit: amount });
+      return jsonResponse({ success: true, spend_limit: amountDollars });
     }
 
     return jsonResponse({ error: "Unknown action" }, 400);
