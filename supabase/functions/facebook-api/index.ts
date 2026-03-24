@@ -138,69 +138,85 @@ Deno.serve(async (req) => {
     }
 
     if (action === "wallet_to_account") {
+      let amountDollars = amount;
+      // Safety: if amount > 1000, assume it was passed in cents and convert to dollars
+      if (amountDollars > 1000) {
+        console.warn(`[FB API] wallet_to_account: Received amount ${amountDollars} is > 1000; dividing by 100 to convert to dollars.`);
+        amountDollars = amountDollars / 100;
+      }
       const targetUserId = user_id || user.id;
       const commissionRate = await getCommissionRate(adminClient, targetUserId);
 
       const { data: profile } = await adminClient
         .from("profiles").select("wallet_balance").eq("id", targetUserId).single();
-      if (!profile || Number(profile.wallet_balance) < amount) {
+      if (!profile || Number(profile.wallet_balance) < amountDollars) {
         return jsonResponse({ error: "Insufficient wallet balance" }, 400);
       }
 
-      const commission = amount * (commissionRate / 100);
-      const amountToFb = amount - commission;
+      const commission = amountDollars * (commissionRate / 100);
+      const amountToFb = amountDollars - commission;
 
-      // Use DB spend_limit (dollars) as authoritative source instead of Facebook's spend_cap
+      // Use DB spend_limit (dollars) as authoritative source
       const { data: adAccount } = await adminClient
         .from("ad_accounts").select("spend_limit").eq("account_id", ad_account_id).single();
-      const currentCap = adAccount ? Number(adAccount.spend_limit) : 0;
-      const newCap = currentCap + amountToFb;
-      console.log(`[FB API] wallet_to_account: amount=${amount}, commission=${commission}, amountToFb=${amountToFb}, currentCap(DB)=${currentCap}, newCap=${newCap}`);
+      const currentCapDollars = adAccount ? Number(adAccount.spend_limit) : 0;
+      const newCapDollars = currentCapDollars + amountToFb;
+      console.log(`[FB API] wallet_to_account: rawAmount=${amount}, amountDollars=${amountDollars}, commission=${commission}, amountToFb=${amountToFb}, currentCapDollars=${currentCapDollars}, newCapDollars=${newCapDollars}, newCapCents=${Math.round(newCapDollars * 100)}`);
 
-      const fbUpdateData = await fbUpdateSpendCap(ad_account_id, newCap, FB_ACCESS_TOKEN);
+      // fbUpdateSpendCap accepts dollars and converts to cents internally
+      const fbUpdateData = await fbUpdateSpendCap(ad_account_id, newCapDollars, FB_ACCESS_TOKEN);
       if (fbUpdateData.error) return jsonResponse({ error: `Facebook API: ${fbUpdateData.error.message}` }, 400);
 
       await adminClient.from("profiles").update({
-        wallet_balance: Number(profile.wallet_balance) - amount,
+        wallet_balance: Number(profile.wallet_balance) - amountDollars,
       }).eq("id", targetUserId);
 
-      await adminClient.from("ad_accounts").update({ spend_limit: newCap }).eq("account_id", ad_account_id);
+      await adminClient.from("ad_accounts").update({ spend_limit: newCapDollars }).eq("account_id", ad_account_id);
 
       await adminClient.from("ad_account_cache").upsert({
-        account_id: ad_account_id, spend_cap: newCap, last_fetched_at: new Date().toISOString(),
+        account_id: ad_account_id, spend_cap: newCapDollars, last_fetched_at: new Date().toISOString(),
       }, { onConflict: "account_id" });
 
       await adminClient.from("transactions").insert({
-        user_id: targetUserId, type: "wallet_to_account", amount, commission,
+        user_id: targetUserId, type: "wallet_to_account", amount: amountDollars, commission,
         ad_account_id, status: "completed", payment_method: "platform",
       });
 
       return jsonResponse({
         success: true, commission, amount_sent: amountToFb,
-        new_wallet_balance: Number(profile.wallet_balance) - amount,
+        new_wallet_balance: Number(profile.wallet_balance) - amountDollars,
+        debug_received_raw: amount,
+        debug_amount_dollars: amountDollars,
+        debug_current_cap_dollars: currentCapDollars,
+        debug_new_cap_dollars: newCapDollars,
+        debug_new_cap_cents: Math.round(newCapDollars * 100),
       });
     }
 
     if (action === "account_to_wallet") {
+      let amountDollars = amount;
+      if (amountDollars > 1000) {
+        console.warn(`[FB API] account_to_wallet: Received amount ${amountDollars} is > 1000; dividing by 100 to convert to dollars.`);
+        amountDollars = amountDollars / 100;
+      }
       const targetUserId = user_id || user.id;
       const commissionRate = await getCommissionRate(adminClient, targetUserId);
 
-      // Use DB spend_limit (dollars) as authoritative source
       const { data: adAccount } = await adminClient
         .from("ad_accounts").select("spend_limit, current_spend").eq("account_id", ad_account_id).single();
-      const currentCap = adAccount ? Number(adAccount.spend_limit) : 0;
+      const currentCapDollars = adAccount ? Number(adAccount.spend_limit) : 0;
       const amountSpent = adAccount ? Number(adAccount.current_spend) : 0;
-      const availableBalance = currentCap - amountSpent;
-      console.log(`[FB API] account_to_wallet: amount=${amount}, currentCap(DB)=${currentCap}, amountSpent(DB)=${amountSpent}, available=${availableBalance}`);
+      const availableBalance = currentCapDollars - amountSpent;
+      console.log(`[FB API] account_to_wallet: rawAmount=${amount}, amountDollars=${amountDollars}, currentCapDollars=${currentCapDollars}, amountSpent=${amountSpent}, available=${availableBalance}`);
 
-      if (amount > availableBalance) {
+      if (amountDollars > availableBalance) {
         return jsonResponse({ error: `Insufficient account balance. Available: $${availableBalance.toFixed(2)}` }, 400);
       }
 
-      const refund = amount / (1 - commissionRate / 100);
-      const newCap = currentCap - amount;
+      const refund = amountDollars / (1 - commissionRate / 100);
+      const newCapDollars = currentCapDollars - amountDollars;
 
-      const fbUpdateData = await fbUpdateSpendCap(ad_account_id, newCap, FB_ACCESS_TOKEN);
+      const fbUpdateData = await fbUpdateSpendCap(ad_account_id, newCapDollars, FB_ACCESS_TOKEN);
       if (fbUpdateData.error) return jsonResponse({ error: `Facebook API: ${fbUpdateData.error.message}` }, 400);
 
       const { data: profile } = await adminClient
@@ -209,21 +225,26 @@ Deno.serve(async (req) => {
         wallet_balance: Number(profile!.wallet_balance) + refund,
       }).eq("id", targetUserId);
 
-      await adminClient.from("ad_accounts").update({ spend_limit: newCap }).eq("account_id", ad_account_id);
+      await adminClient.from("ad_accounts").update({ spend_limit: newCapDollars }).eq("account_id", ad_account_id);
 
       await adminClient.from("ad_account_cache").upsert({
-        account_id: ad_account_id, spend_cap: newCap, amount_spent: amountSpent,
+        account_id: ad_account_id, spend_cap: newCapDollars, amount_spent: amountSpent,
         last_fetched_at: new Date().toISOString(),
       }, { onConflict: "account_id" });
 
       await adminClient.from("transactions").insert({
         user_id: targetUserId, type: "account_to_wallet", amount: refund,
-        commission: refund - amount, ad_account_id, status: "completed", payment_method: "platform",
+        commission: refund - amountDollars, ad_account_id, status: "completed", payment_method: "platform",
       });
 
       return jsonResponse({
-        success: true, refund, amount_withdrawn: amount,
+        success: true, refund, amount_withdrawn: amountDollars,
         new_wallet_balance: Number(profile!.wallet_balance) + refund,
+        debug_received_raw: amount,
+        debug_amount_dollars: amountDollars,
+        debug_current_cap_dollars: currentCapDollars,
+        debug_new_cap_dollars: newCapDollars,
+        debug_new_cap_cents: Math.round(newCapDollars * 100),
       });
     }
 
