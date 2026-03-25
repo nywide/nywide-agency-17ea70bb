@@ -20,18 +20,35 @@ export default function Login() {
     e.preventDefault();
     setLoading(true);
     const { error } = await supabase.auth.signInWithPassword({ email, password });
-    setLoading(false);
     if (error) {
+      setLoading(false);
       toast({ title: "Login failed", description: error.message, variant: "destructive" });
-    } else {
-      // Role check and redirect
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", user.id);
-        const isAdmin = roles?.some((r: any) => r.role === "admin");
-        navigate(isAdmin ? "/admin" : "/dashboard", { replace: true });
-      }
+      return;
     }
+    // Check if user is disabled
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    if (authUser) {
+      const { data: profileData } = await supabase
+        .from("profiles")
+        .select("is_disabled")
+        .eq("id", authUser.id)
+        .single();
+      if (profileData?.is_disabled) {
+        await supabase.auth.signOut();
+        setLoading(false);
+        toast({
+          title: "Account Disabled",
+          description: "Your account has been disabled. Please contact support.",
+          variant: "destructive",
+        });
+        return;
+      }
+      // Role check and redirect
+      const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", authUser.id);
+      const isAdmin = roles?.some((r: any) => r.role === "admin");
+      navigate(isAdmin ? "/admin" : "/dashboard", { replace: true });
+    }
+    setLoading(false);
   };
 
   const handleGoogleLogin = async () => {
