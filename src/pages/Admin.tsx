@@ -908,7 +908,9 @@ export default function Admin() {
                     <th className="text-left p-4 text-muted-foreground font-medium">Role</th>
                     <th className="text-left p-4 text-muted-foreground font-medium">Commission (%)</th>
                     <th className="text-left p-4 text-muted-foreground font-medium">Wallet Balance</th>
-                    <th className="text-left p-4 text-muted-foreground font-medium">Total Spent</th>
+                    <th className="text-left p-4 text-muted-foreground font-medium">Total Spending Limit</th>
+                    <th className="text-left p-4 text-muted-foreground font-medium">Total Amount Spent</th>
+                    <th className="text-left p-4 text-muted-foreground font-medium">Total Remaining</th>
                     <th className="text-left p-4 text-muted-foreground font-medium">Date Joined</th>
                     <th className="text-left p-4 text-muted-foreground font-medium">Actions</th>
                   </tr></thead>
