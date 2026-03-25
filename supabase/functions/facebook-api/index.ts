@@ -28,22 +28,33 @@ async function fbGet(adAccountId: string, fields: string, token: string) {
 }
 
 async function fbUpdateSpendCap(adAccountId: string, newCapDollars: number, token: string) {
-  console.log(`[FB API] Sending spend_cap=${newCapDollars} dollars to act_${adAccountId}`);
+  // Convert dollars to cents for Facebook API
+  const newCapCents = Math.round(newCapDollars * 100);
+  console.log(`[FB API] Sending spend_cap=${newCapCents} cents (${newCapDollars} dollars) to act_${adAccountId}`);
   const res = await fetch(`${FB_API_BASE}/act_${adAccountId}`, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: `spend_cap=${newCapDollars}&access_token=${token}`,
+    body: `spend_cap=${newCapCents}&access_token=${token}`,
   });
   return res.json();
 }
 
-// Facebook API returns values in CENTS — convert to dollars
 function toNumber(val: number | string | null | undefined): number {
   if (val === null || val === undefined) return 0;
   return Number(val);
 }
 
-/** Sync an ad account from Facebook API and update DB. Returns values in dollars. */
+async function logAdAccountTransaction(adminClient: any, data: {
+  ad_account_id: string; user_id?: string; type: string; amount: number;
+  old_spend_limit: number; new_spend_limit: number; old_amount_spent: number; new_amount_spent: number;
+}) {
+  try {
+    await adminClient.from("ad_account_transactions").insert(data);
+  } catch (err) {
+    console.warn("[FB API] Failed to log ad_account_transaction:", err);
+  }
+}
+
 async function syncAdAccountFromFacebook(adminClient: any, accountId: string, token: string) {
   const fbData = await fbGet(accountId, "spend_cap,amount_spent", token);
   if (fbData.error) {
@@ -54,16 +65,14 @@ async function syncAdAccountFromFacebook(adminClient: any, accountId: string, to
   const spendLimitDollars = toNumber(fbData.spend_cap) / 100;
   const amountSpentDollars = toNumber(fbData.amount_spent) / 100;
 
-  console.log(`[FB API] sync ${accountId}: FB returned spend_cap=${fbData.spend_cap} cents, converted to ${spendLimitDollars} dollars, amount_spent=${fbData.amount_spent} cents, converted to ${amountSpentDollars} dollars`);
+  console.log(`[FB API] sync ${accountId}: FB returned spend_cap=${fbData.spend_cap} cents -> $${spendLimitDollars}, amount_spent=${fbData.amount_spent} cents -> $${amountSpentDollars}`);
 
-  // Update ad_accounts table
   await adminClient.from("ad_accounts").update({
     spend_limit: spendLimitDollars,
     amount_spent: amountSpentDollars,
     current_spend: amountSpentDollars,
   }).eq("account_id", accountId);
 
-  // Update cache
   await adminClient.from("ad_account_cache").upsert({
     account_id: accountId,
     spend_cap: spendLimitDollars,
@@ -107,14 +116,12 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const { action, ad_account_id, amount, user_id, account_ids } = body;
 
-    // Sync a single account from Facebook
     if (action === "sync_account") {
       const result = await syncAdAccountFromFacebook(adminClient, ad_account_id, FB_ACCESS_TOKEN);
       if (!result) return jsonResponse({ error: "Failed to sync from Facebook" }, 400);
       return jsonResponse(result);
     }
 
-    // Batch fetch spend limits with caching — returns values in DOLLARS
     if (action === "batch_get_spend_limits") {
       const ids: string[] = account_ids || [];
       if (!ids.length) return jsonResponse({ results: {} });
@@ -127,7 +134,6 @@ Deno.serve(async (req) => {
 
       for (const c of cached || []) {
         if (c.last_fetched_at > oneHourAgo) {
-          // Cache values are already in dollars
           cacheMap[c.account_id] = { spend_cap: Number(c.spend_cap), amount_spent: Number(c.amount_spent), cached: true };
         } else {
           staleIds.push(c.account_id);
@@ -149,7 +155,6 @@ Deno.serve(async (req) => {
       return jsonResponse({ results: cacheMap });
     }
 
-    // Single account refresh (force sync from Facebook)
     if (action === "refresh_balance") {
       const result = await syncAdAccountFromFacebook(adminClient, ad_account_id, FB_ACCESS_TOKEN);
       if (!result) return jsonResponse({ error: "Failed to sync from Facebook" }, 400);
@@ -159,10 +164,7 @@ Deno.serve(async (req) => {
     if (action === "get_spend_limit") {
       const result = await syncAdAccountFromFacebook(adminClient, ad_account_id, FB_ACCESS_TOKEN);
       if (!result) return jsonResponse({ error: "Failed to sync from Facebook" }, 400);
-      return jsonResponse({
-        spend_cap: result.spend_limit,
-        amount_spent: result.amount_spent,
-      });
+      return jsonResponse({ spend_cap: result.spend_limit, amount_spent: result.amount_spent });
     }
 
     if (action === "wallet_to_account") {
@@ -178,15 +180,13 @@ Deno.serve(async (req) => {
       const commission = amount * (commissionRate / 100);
       const amountToFb = amount - commission;
 
-      // Sync from Facebook first to get current state
       const synced = await syncAdAccountFromFacebook(adminClient, ad_account_id, FB_ACCESS_TOKEN);
       const currentCap = synced ? synced.spend_limit : 0;
+      const currentSpent = synced ? synced.amount_spent : 0;
       const newCap = currentCap + amountToFb;
 
       console.log(`[FB API] wallet_to_account: amount=$${amount}, commission=$${commission}, amountToFb=$${amountToFb}, currentCap=$${currentCap}, newCap=$${newCap}`);
 
-      // Send to Facebook in dollars
-      console.log(`[FB API] Sending to Facebook (dollars): ${newCap}`);
       const fbUpdateData = await fbUpdateSpendCap(ad_account_id, newCap, FB_ACCESS_TOKEN);
       if (fbUpdateData.error) return jsonResponse({ error: `Facebook API: ${fbUpdateData.error.message}` }, 400);
 
@@ -205,6 +205,12 @@ Deno.serve(async (req) => {
         ad_account_id, status: "completed", payment_method: "platform",
       });
 
+      await logAdAccountTransaction(adminClient, {
+        ad_account_id, user_id: targetUserId, type: "topup", amount: amountToFb,
+        old_spend_limit: currentCap, new_spend_limit: newCap,
+        old_amount_spent: currentSpent, new_amount_spent: currentSpent,
+      });
+
       return jsonResponse({
         success: true, commission, amount_sent: amountToFb,
         new_wallet_balance: Number(profile.wallet_balance) - amount,
@@ -215,13 +221,10 @@ Deno.serve(async (req) => {
       const targetUserId = user_id || user.id;
       const commissionRate = await getCommissionRate(adminClient, targetUserId);
 
-      // Sync from Facebook first
       const synced = await syncAdAccountFromFacebook(adminClient, ad_account_id, FB_ACCESS_TOKEN);
       const currentCap = synced ? synced.spend_limit : 0;
       const amountSpent = synced ? synced.amount_spent : 0;
       const availableBalance = currentCap - amountSpent;
-
-      console.log(`[FB API] account_to_wallet: amount=$${amount}, currentCap=$${currentCap}, amountSpent=$${amountSpent}, available=$${availableBalance}`);
 
       if (amount > availableBalance) {
         return jsonResponse({ error: `Insufficient account balance. Available: $${availableBalance.toFixed(2)}` }, 400);
@@ -230,8 +233,6 @@ Deno.serve(async (req) => {
       const refund = amount / (1 - commissionRate / 100);
       const newCap = currentCap - amount;
 
-      // Send to Facebook in dollars
-      console.log(`[FB API] Sending to Facebook (dollars): ${newCap}`);
       const fbUpdateData = await fbUpdateSpendCap(ad_account_id, newCap, FB_ACCESS_TOKEN);
       if (fbUpdateData.error) return jsonResponse({ error: `Facebook API: ${fbUpdateData.error.message}` }, 400);
 
@@ -253,22 +254,36 @@ Deno.serve(async (req) => {
         commission: refund - amount, ad_account_id, status: "completed", payment_method: "platform",
       });
 
+      await logAdAccountTransaction(adminClient, {
+        ad_account_id, user_id: targetUserId, type: "withdrawal", amount,
+        old_spend_limit: currentCap, new_spend_limit: newCap,
+        old_amount_spent: amountSpent, new_amount_spent: amountSpent,
+      });
+
       return jsonResponse({
         success: true, refund, amount_withdrawn: amount,
         new_wallet_balance: Number(profile!.wallet_balance) + refund,
       });
     }
 
-    // Admin: set spend limit directly (value in dollars)
     if (action === "set_spend_limit") {
       const amountDollars = amount || 0;
-      console.log(`[FB API] set_spend_limit: Sending to Facebook (dollars): ${amountDollars}`);
+      
+      // Get old values for logging
+      const { data: oldAcc } = await adminClient.from("ad_accounts").select("spend_limit, amount_spent").eq("account_id", ad_account_id).maybeSingle();
+      
       const fbUpdateData = await fbUpdateSpendCap(ad_account_id, amountDollars, FB_ACCESS_TOKEN);
       if (fbUpdateData.error) return jsonResponse({ error: `Facebook API: ${fbUpdateData.error.message}` }, 400);
 
       await adminClient.from("ad_account_cache").upsert({
         account_id: ad_account_id, spend_cap: amountDollars, last_fetched_at: new Date().toISOString(),
       }, { onConflict: "account_id" });
+
+      await logAdAccountTransaction(adminClient, {
+        ad_account_id, type: "admin_set", amount: amountDollars,
+        old_spend_limit: Number(oldAcc?.spend_limit || 0), new_spend_limit: amountDollars,
+        old_amount_spent: Number(oldAcc?.amount_spent || 0), new_amount_spent: Number(oldAcc?.amount_spent || 0),
+      });
 
       return jsonResponse({ success: true, spend_limit: amountDollars });
     }
