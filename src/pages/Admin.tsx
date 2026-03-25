@@ -81,6 +81,10 @@ export default function Admin() {
   const [disableDialog, setDisableDialog] = useState<{ open: boolean; account?: any }>({ open: false });
   const [disableReason, setDisableReason] = useState("");
   const [togglingDisable, setTogglingDisable] = useState(false);
+  const [userDisableDialog, setUserDisableDialog] = useState<{ open: boolean; userId?: string; userName?: string }>({ open: false });
+  const [userDisableReason, setUserDisableReason] = useState("");
+  const [togglingUserDisable, setTogglingUserDisable] = useState(false);
+  const [userEnableConfirm, setUserEnableConfirm] = useState<{ open: boolean; userId?: string; userName?: string }>({ open: false });
 
   const [allUsersForDropdown, setAllUsersForDropdown] = useState<any[]>([]);
   const [userTotalSpent, setUserTotalSpent] = useState<Record<string, number>>({});
