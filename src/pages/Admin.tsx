@@ -543,6 +543,30 @@ export default function Admin() {
     }
   };
 
+  const handleToggleDisable = async (account: any, reason?: string) => {
+    setTogglingDisable(true);
+    try {
+      const newDisabled = !account.is_disabled;
+      const updateData: any = { is_disabled: newDisabled };
+      if (newDisabled && reason) updateData.disabled_reason = reason;
+      if (!newDisabled) updateData.disabled_reason = null;
+
+      const { error } = await supabase.from("ad_accounts").update(updateData).eq("id", account.id);
+      if (error) {
+        toast({ title: "Error", description: error.message, variant: "destructive" });
+      } else {
+        toast({ title: newDisabled ? "Account disabled" : "Account enabled" });
+        fetchAccounts();
+      }
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally {
+      setTogglingDisable(false);
+      setDisableDialog({ open: false });
+      setDisableReason("");
+    }
+  };
+
   const handleApproveRequest = async (req: any, selectedAccountId?: string) => {
     setApprovingId(req.id);
     if (selectedAccountId) {
