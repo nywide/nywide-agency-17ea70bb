@@ -400,6 +400,7 @@ export default function Dashboard() {
           <div className="flex items-center gap-3">
             <span className="text-sm text-muted-foreground hidden sm:block">{profile?.full_name || user?.email}</span>
             <NotificationBell recipientType="user" />
+            <Link to="/settings"><Button variant="ghost" size="icon"><Settings className="w-4 h-4" /></Button></Link>
             <Link to="/"><Button variant="ghost" size="icon"><Home className="w-4 h-4" /></Button></Link>
             <Button variant="ghost" size="icon" onClick={signOut}><LogOut className="w-4 h-4" /></Button>
           </div>
@@ -564,6 +565,12 @@ export default function Dashboard() {
                             <div className="flex items-center gap-1.5">
                               <p className="text-sm font-medium text-foreground">{getAccountDisplayName(acc)}</p>
                               {acc.is_disabled && <Ban className="w-3.5 h-3.5 text-destructive" />}
+                              {!acc.is_disabled && (
+                                <button onClick={() => { setRenameDialog({ open: true, account: acc }); setRenameValue(acc.account_name); }}
+                                  className="text-muted-foreground hover:text-primary transition-colors">
+                                  <Pencil className="w-3 h-3" />
+                                </button>
+                              )}
                             </div>
                           </div>
                           <div>
@@ -958,6 +965,7 @@ export default function Dashboard() {
                 <Input type="number" min="1" placeholder="30" value={withdrawAmount} onChange={(e) => setWithdrawAmount(e.target.value)} className="pl-10 bg-secondary border-border text-foreground" />
               </div>
               <p className="text-xs text-muted-foreground">Remaining Balance: ${getAccountRemaining(withdrawOpen.account || {}).toFixed(2)}</p>
+              <p className="text-xs text-primary">Minimum remaining balance $0.01 required. Max withdraw: ${Math.max(0, getAccountRemaining(withdrawOpen.account || {}) - 0.01).toFixed(2)}</p>
             </div>
             {Number(withdrawAmount) > 0 && (
               <div className="bg-secondary rounded-xl p-4 space-y-1 text-sm">
@@ -1006,25 +1014,17 @@ export default function Dashboard() {
               <Label className="text-foreground">Account Name *</Label>
               <Input placeholder="e.g. Client X - US Campaign" value={requestAccountName} onChange={(e) => setRequestAccountName(e.target.value)} className="bg-secondary border-border text-foreground" />
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            {hasActiveAccounts && (
               <div className="space-y-2">
-                <Label className="text-foreground">Currency *</Label>
-                <Input placeholder="USD, EUR..." value={requestCurrency} onChange={(e) => setRequestCurrency(e.target.value)} className="bg-secondary border-border text-foreground" />
+                <Label className="text-foreground">Initial Balance (USD) *</Label>
+                <Input type="number" min="10" placeholder="Minimum $10"
+                  value={requestPreferredLimit} onChange={(e) => setRequestPreferredLimit(e.target.value)}
+                  className="bg-secondary border-border text-foreground" required />
               </div>
-              <div className="space-y-2">
-                <Label className="text-foreground">Timezone *</Label>
-                <Input placeholder="America/New_York" value={requestTimezone} onChange={(e) => setRequestTimezone(e.target.value)} className="bg-secondary border-border text-foreground" />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label className="text-foreground">
-                Initial Balance (USD){hasActiveAccounts ? " *" : " (optional)"}
-              </Label>
-              <Input type="number" placeholder={hasActiveAccounts ? "Required for additional accounts" : "e.g. 1000 or leave empty"}
-                value={requestPreferredLimit} onChange={(e) => setRequestPreferredLimit(e.target.value)}
-                className="bg-secondary border-border text-foreground" required={hasActiveAccounts} />
-              {!hasActiveAccounts && <p className="text-xs text-muted-foreground">Optional for your first account request.</p>}
-            </div>
+            )}
+            {!hasActiveAccounts && (
+              <p className="text-xs text-muted-foreground">Your first account is free — no initial balance required.</p>
+            )}
             <Button onClick={handleRequestAccount} disabled={requestLoading || requestPlatform !== "facebook"} className="w-full bg-primary text-primary-foreground font-bold rounded-full">
               {requestLoading ? "Submitting..." : "Submit Request"}
             </Button>
