@@ -9,6 +9,7 @@ type UserProfile = {
   full_name: string | null;
   wallet_balance: number;
   email?: string | null;
+  is_disabled?: boolean | null;
 };
 
 interface AuthContextType {
@@ -53,7 +54,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     console.log("[Auth] Fetching profile and role for:", userId);
 
     const [profileRes, roleRes] = await Promise.all([
-      supabase.from("profiles").select("full_name, wallet_balance, email").eq("id", userId).maybeSingle(),
+      supabase.from("profiles").select("full_name, wallet_balance, email, is_disabled").eq("id", userId).maybeSingle(),
       supabase.from("user_roles").select("role").eq("user_id", userId),
     ]);
 
