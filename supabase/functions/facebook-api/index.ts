@@ -24,17 +24,27 @@ async function getCommissionRate(adminClient: any, userId: string): Promise<numb
 
 async function fbGet(adAccountId: string, fields: string, token: string) {
   const res = await fetch(`${FB_API_BASE}/act_${adAccountId}?fields=${fields}&access_token=${token}`);
-  return res.json();
+  const data = await res.json();
+  // Convert cents → dollars
+  if (data.spend_cap) {
+    const rawCap = Number(data.spend_cap);
+    data.spend_cap = rawCap / 100;
+    console.log(`[FB API] Received spend_cap raw=${rawCap} cents -> $${data.spend_cap}`);
+  }
+  if (data.amount_spent) {
+    const rawSpent = Number(data.amount_spent);
+    data.amount_spent = rawSpent / 100;
+    console.log(`[FB API] Received amount_spent raw=${rawSpent} cents -> $${data.amount_spent}`);
+  }
+  return data;
 }
 
 async function fbUpdateSpendCap(adAccountId: string, newCapDollars: number, token: string) {
-  // Convert dollars to cents for Facebook API
-  const newCapCents = Math.round(newCapDollars * 100);
-  console.log(`[FB API] Sending spend_cap=${newCapCents} cents (${newCapDollars} dollars) to act_${adAccountId}`);
+  console.log(`[FB API] Sending spend_cap=${newCapDollars} dollars to act_${adAccountId}`);
   const res = await fetch(`${FB_API_BASE}/act_${adAccountId}`, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: `spend_cap=${newCapCents}&access_token=${token}`,
+    body: `spend_cap=${newCapDollars}&access_token=${token}`,
   });
   return res.json();
 }
