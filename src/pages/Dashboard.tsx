@@ -548,12 +548,15 @@ export default function Dashboard() {
                   const spent = getAccountSpent(acc);
                   const remaining = getAccountRemaining(acc);
                   return (
-                    <div key={acc.id} className="bg-card border border-border rounded-xl p-5">
+                    <div key={acc.id} className={`bg-card border rounded-xl p-5 ${acc.is_disabled ? "border-destructive/30" : "border-border"}`}>
                       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                         <div className="flex-1 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-4">
                           <div>
                             <p className="text-xs text-muted-foreground">Account Name</p>
-                            <p className="text-sm font-medium text-foreground">{getAccountDisplayName(acc)}</p>
+                            <div className="flex items-center gap-1.5">
+                              <p className="text-sm font-medium text-foreground">{getAccountDisplayName(acc)}</p>
+                              {acc.is_disabled && <Ban className="w-3.5 h-3.5 text-destructive" />}
+                            </div>
                           </div>
                           <div>
                             <p className="text-xs text-muted-foreground">Account ID</p>
@@ -585,10 +588,17 @@ export default function Dashboard() {
                           </div>
                           <div>
                             <p className="text-xs text-muted-foreground">Status</p>
-                            <span className="flex items-center gap-1.5 text-sm">
-                              {statusIcon(acc.status)}
-                              <span className="capitalize text-muted-foreground">{acc.status}</span>
-                            </span>
+                            {acc.is_disabled ? (
+                              <span className="flex items-center gap-1.5 text-sm">
+                                <Ban className="w-4 h-4 text-destructive" />
+                                <span className="text-destructive font-medium">Disabled</span>
+                              </span>
+                            ) : (
+                              <span className="flex items-center gap-1.5 text-sm">
+                                {statusIcon(acc.status)}
+                                <span className="capitalize text-muted-foreground">{acc.status}</span>
+                              </span>
+                            )}
                           </div>
                         </div>
                         <div className="flex gap-2">
@@ -596,7 +606,7 @@ export default function Dashboard() {
                             disabled={refreshingAccount === acc.account_id} className="rounded-full">
                             <RefreshCw className={`w-3.5 h-3.5 ${refreshingAccount === acc.account_id ? "animate-spin" : ""}`} />
                           </Button>
-                          {acc.status === "active" && (
+                          {acc.status === "active" && !acc.is_disabled && (
                             <>
                               <Button size="sm" onClick={() => { setTransferOpen({ open: true, account: acc }); setTransferAmount(""); }}
                                 className="bg-primary text-primary-foreground font-bold rounded-full">
@@ -610,6 +620,9 @@ export default function Dashboard() {
                           )}
                         </div>
                       </div>
+                      {acc.is_disabled && acc.disabled_reason && (
+                        <p className="text-xs text-destructive mt-2">Reason: {acc.disabled_reason}</p>
+                      )}
                       {spendLimit > 0 && (
                         <div className="mt-3">
                           <div className="flex justify-between text-xs text-muted-foreground mb-1">
