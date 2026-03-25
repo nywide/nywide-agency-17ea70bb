@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   Users, Monitor, FileText, Settings, LogOut, Home, Plus,
-  DollarSign, CheckCircle, XCircle, Clock, Search, BarChart3, Receipt, CreditCard, Trash2, CalendarDays, History
+  DollarSign, CheckCircle, XCircle, Clock, Search, BarChart3, Receipt, CreditCard, Trash2, CalendarDays, History, Ban, ShieldCheck
 } from "lucide-react";
 
 const PAGE_SIZE = 50;
@@ -78,6 +78,9 @@ export default function Admin() {
   const [updatingAccount, setUpdatingAccount] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; account?: any }>({ open: false });
   const [deletingAccount, setDeletingAccount] = useState(false);
+  const [disableDialog, setDisableDialog] = useState<{ open: boolean; account?: any }>({ open: false });
+  const [disableReason, setDisableReason] = useState("");
+  const [togglingDisable, setTogglingDisable] = useState(false);
 
   const [allUsersForDropdown, setAllUsersForDropdown] = useState<any[]>([]);
   const [userTotalSpent, setUserTotalSpent] = useState<Record<string, number>>({});
