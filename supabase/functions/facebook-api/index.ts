@@ -71,11 +71,11 @@ async function syncAdAccountFromFacebook(adminClient: any, accountId: string, to
     console.log(`[FB API] syncAdAccount error for ${accountId}:`, fbData.error.message);
     return null;
   }
-  // Facebook returns cents — divide by 100 to get dollars
-  const spendLimitDollars = toNumber(fbData.spend_cap) / 100;
-  const amountSpentDollars = toNumber(fbData.amount_spent) / 100;
+  // fbGet already converts cents → dollars
+  const spendLimitDollars = toNumber(fbData.spend_cap);
+  const amountSpentDollars = toNumber(fbData.amount_spent);
 
-  console.log(`[FB API] sync ${accountId}: FB returned spend_cap=${fbData.spend_cap} cents -> $${spendLimitDollars}, amount_spent=${fbData.amount_spent} cents -> $${amountSpentDollars}`);
+  console.log(`[FB API] sync ${accountId}: spend_cap=$${spendLimitDollars}, amount_spent=$${amountSpentDollars}`);
 
   await adminClient.from("ad_accounts").update({
     spend_limit: spendLimitDollars,
