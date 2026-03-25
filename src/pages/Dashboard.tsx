@@ -201,16 +201,8 @@ export default function Dashboard() {
       toast({ title: "Account Name is required", variant: "destructive" });
       return;
     }
-    if (!requestCurrency) {
-      toast({ title: "Currency is required", variant: "destructive" });
-      return;
-    }
-    if (!requestTimezone) {
-      toast({ title: "Timezone is required", variant: "destructive" });
-      return;
-    }
-    if (hasActiveAccounts && !requestPreferredLimit) {
-      toast({ title: "Initial Balance required", description: "Please specify an initial balance for additional accounts.", variant: "destructive" });
+    if (hasActiveAccounts && (!requestPreferredLimit || Number(requestPreferredLimit) < 10)) {
+      toast({ title: "Initial Balance required (min $10)", description: "Please specify an initial balance of at least $10 for additional accounts.", variant: "destructive" });
       return;
     }
     setRequestLoading(true);
@@ -220,8 +212,6 @@ export default function Dashboard() {
         platform: requestPlatform,
         preferred_limit: requestPreferredLimit || null,
         account_name: requestAccountName,
-        currency: requestCurrency,
-        timezone: requestTimezone,
       };
       const { error } = await supabase.from("account_requests").insert(insertData as any).select();
       if (error) {
@@ -232,8 +222,6 @@ export default function Dashboard() {
         setRequestPreferredLimit("");
         setRequestPlatform("facebook");
         setRequestAccountName("");
-        setRequestCurrency("USD");
-        setRequestTimezone("America/New_York");
         fetchAccountRequests();
       }
     } catch (err: any) {
@@ -241,6 +229,22 @@ export default function Dashboard() {
     } finally {
       setRequestLoading(false);
     }
+  };
+
+  const handleRenameAccount = async () => {
+    if (!renameDialog.account || !renameValue.trim()) return;
+    setRenaming(true);
+    const { error } = await supabase.from("ad_accounts")
+      .update({ account_name: renameValue.trim() } as any)
+      .eq("id", renameDialog.account.id);
+    if (error) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Account renamed" });
+      fetchAccounts();
+    }
+    setRenaming(false);
+    setRenameDialog({ open: false });
   };
 
   const handleTransferToAccount = async () => {
