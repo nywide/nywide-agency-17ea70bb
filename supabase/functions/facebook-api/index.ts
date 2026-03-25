@@ -65,7 +65,31 @@ async function logAdAccountTransaction(adminClient: any, data: {
   }
 }
 
+async function logSpendChangeIfNeeded(adminClient: any, accountId: string, oldSpent: number, newSpent: number, userId?: string) {
+  if (Math.abs(newSpent - oldSpent) > 0.01) {
+    console.log(`[FB API] Spend change detected for ${accountId}: $${oldSpent} -> $${newSpent}`);
+    await adminClient.from("ad_account_transactions").insert({
+      ad_account_id: accountId,
+      user_id: userId || null,
+      type: "spend",
+      amount: newSpent - oldSpent,
+      old_amount_spent: oldSpent,
+      new_amount_spent: newSpent,
+      old_spend_limit: 0,
+      new_spend_limit: 0,
+    });
+  }
+}
+
 async function syncAdAccountFromFacebook(adminClient: any, accountId: string, token: string) {
+  // Pre-fetch current values for spend change tracking
+  const { data: currentAccount } = await adminClient
+    .from("ad_accounts")
+    .select("amount_spent, user_id")
+    .eq("account_id", accountId)
+    .maybeSingle();
+  const oldSpent = Number(currentAccount?.amount_spent || 0);
+
   const fbData = await fbGet(accountId, "spend_cap,amount_spent", token);
   if (fbData.error) {
     console.log(`[FB API] syncAdAccount error for ${accountId}:`, fbData.error.message);
@@ -89,6 +113,9 @@ async function syncAdAccountFromFacebook(adminClient: any, accountId: string, to
     amount_spent: amountSpentDollars,
     last_fetched_at: new Date().toISOString(),
   }, { onConflict: "account_id" });
+
+  // Log spend change if any
+  await logSpendChangeIfNeeded(adminClient, accountId, oldSpent, amountSpentDollars, currentAccount?.user_id);
 
   return { spend_limit: spendLimitDollars, amount_spent: amountSpentDollars };
 }
@@ -135,6 +162,14 @@ Deno.serve(async (req) => {
     if (action === "batch_get_spend_limits") {
       const ids: string[] = account_ids || [];
       if (!ids.length) return jsonResponse({ results: {} });
+
+      // Pre-fetch current spends for change tracking
+      const { data: currentSpends } = await adminClient
+        .from("ad_accounts")
+        .select("account_id, amount_spent, user_id")
+        .in("account_id", ids);
+      const spendMap = new Map<string, { amount: number; userId: string | null }>();
+      (currentSpends || []).forEach((c: any) => spendMap.set(c.account_id, { amount: Number(c.amount_spent), userId: c.user_id }));
 
       const { data: cached } = await adminClient
         .from("ad_account_cache").select("*").in("account_id", ids);
@@ -254,8 +289,15 @@ Deno.serve(async (req) => {
         return jsonResponse({ error: `Insufficient account balance. Available: $${availableBalance.toFixed(2)}` }, 400);
       }
 
-      const refund = amount / (1 - commissionRate / 100);
       const newCap = currentCap - amount;
+
+      // Enforce minimum remaining balance
+      const remainingAfterWithdraw = newCap - amountSpent;
+      if (remainingAfterWithdraw < 0.01 && newCap > 0) {
+        return jsonResponse({ error: "Account must retain at least $0.01 balance." }, 400);
+      }
+
+      const refund = amount / (1 - commissionRate / 100);
 
       const fbUpdateData = await fbUpdateSpendCap(ad_account_id, newCap, FB_ACCESS_TOKEN);
       if (fbUpdateData.error) return jsonResponse({ error: `Facebook API: ${fbUpdateData.error.message}` }, 400);
