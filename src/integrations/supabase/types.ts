@@ -82,6 +82,53 @@ export type Database = {
         }
         Relationships: []
       }
+      ad_account_transactions: {
+        Row: {
+          ad_account_id: string
+          amount: number | null
+          created_at: string
+          id: string
+          new_amount_spent: number | null
+          new_spend_limit: number | null
+          old_amount_spent: number | null
+          old_spend_limit: number | null
+          type: string
+          user_id: string | null
+        }
+        Insert: {
+          ad_account_id: string
+          amount?: number | null
+          created_at?: string
+          id?: string
+          new_amount_spent?: number | null
+          new_spend_limit?: number | null
+          old_amount_spent?: number | null
+          old_spend_limit?: number | null
+          type: string
+          user_id?: string | null
+        }
+        Update: {
+          ad_account_id?: string
+          amount?: number | null
+          created_at?: string
+          id?: string
+          new_amount_spent?: number | null
+          new_spend_limit?: number | null
+          old_amount_spent?: number | null
+          old_spend_limit?: number | null
+          type?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ad_account_transactions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ad_accounts: {
         Row: {
           account_id: string
@@ -91,6 +138,7 @@ export type Database = {
           created_at: string
           currency: string
           current_spend: number
+          display_name: string | null
           id: string
           platform: string
           spend_limit: number
@@ -106,6 +154,7 @@ export type Database = {
           created_at?: string
           currency?: string
           current_spend?: number
+          display_name?: string | null
           id?: string
           platform?: string
           spend_limit?: number
@@ -121,6 +170,7 @@ export type Database = {
           created_at?: string
           currency?: string
           current_spend?: number
+          display_name?: string | null
           id?: string
           platform?: string
           spend_limit?: number
@@ -251,6 +301,7 @@ export type Database = {
           id: string
           invoice_number: string
           pdf_url: string | null
+          status: string | null
           user_id: string
         }
         Insert: {
@@ -260,6 +311,7 @@ export type Database = {
           id?: string
           invoice_number: string
           pdf_url?: string | null
+          status?: string | null
           user_id: string
         }
         Update: {
@@ -269,11 +321,53 @@ export type Database = {
           id?: string
           invoice_number?: string
           pdf_url?: string | null
+          status?: string | null
           user_id?: string
         }
         Relationships: [
           {
             foreignKeyName: "invoices_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notifications: {
+        Row: {
+          created_at: string
+          id: string
+          is_read: boolean | null
+          message: string | null
+          recipient_type: string | null
+          title: string
+          type: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_read?: boolean | null
+          message?: string | null
+          recipient_type?: string | null
+          title: string
+          type?: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_read?: boolean | null
+          message?: string | null
+          recipient_type?: string | null
+          title?: string
+          type?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
@@ -304,6 +398,44 @@ export type Database = {
           wallet_balance?: number
         }
         Relationships: []
+      }
+      spend_history: {
+        Row: {
+          amount_spent: number | null
+          commission_earned: number | null
+          created_at: string
+          id: string
+          period_end: string | null
+          period_start: string | null
+          user_id: string | null
+        }
+        Insert: {
+          amount_spent?: number | null
+          commission_earned?: number | null
+          created_at?: string
+          id?: string
+          period_end?: string | null
+          period_start?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          amount_spent?: number | null
+          commission_earned?: number | null
+          created_at?: string
+          id?: string
+          period_end?: string | null
+          period_start?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "spend_history_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       suppressed_emails: {
         Row: {
