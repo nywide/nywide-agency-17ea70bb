@@ -941,7 +941,9 @@ export default function Admin() {
                           </button>
                         </td>
                         <td className="p-4 text-foreground">${Number(u.wallet_balance).toFixed(2)}</td>
-                        <td className="p-4 text-foreground">${(userTotalSpent[u.id] || 0).toFixed(2)}</td>
+                        <td className="p-4 text-foreground">${(userAccountStats[u.id]?.totalSpendLimit || 0).toFixed(2)}</td>
+                        <td className="p-4 text-foreground">${(userAccountStats[u.id]?.totalAmountSpent || 0).toFixed(2)}</td>
+                        <td className="p-4 text-primary font-medium">${((userAccountStats[u.id]?.totalSpendLimit || 0) - (userAccountStats[u.id]?.totalAmountSpent || 0)).toFixed(2)}</td>
                         <td className="p-4 text-muted-foreground">{new Date(u.created_at).toLocaleDateString()}</td>
                         <td className="p-4 flex gap-2 flex-wrap">
                           <Button size="sm" variant="outline" className="rounded-full border-primary text-primary" onClick={() => setTopUpDialog({ open: true, userId: u.id, userName: u.full_name })}>
