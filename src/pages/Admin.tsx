@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { NLogo } from "@/components/nywide/NLogo";
+import { NotificationBell } from "@/components/nywide/NotificationBell";
 import { Link } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -17,7 +18,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   Users, Monitor, FileText, Settings, LogOut, Home, Plus,
-  DollarSign, CheckCircle, XCircle, Clock, Search, BarChart3, Receipt, CreditCard, Trash2
+  DollarSign, CheckCircle, XCircle, Clock, Search, BarChart3, Receipt, CreditCard, Trash2, CalendarDays, History
 } from "lucide-react";
 
 const PAGE_SIZE = 50;
@@ -27,7 +28,11 @@ export default function Admin() {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("overview");
 
-  const [overviewStats, setOverviewStats] = useState({ totalBalance: 0, totalRevenue: 0, totalUsers: 0, totalAccounts: 0, totalAdSpend: 0, totalAdRemaining: 0 });
+  const [overviewStats, setOverviewStats] = useState({ totalBalance: 0, totalRevenue: 0, totalUsers: 0, totalAccounts: 0, totalAdSpend: 0, totalAdRemaining: 0, avgCommissionRate: 0 });
+
+  // Date filter for overview
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
 
   const [users, setUsers] = useState<any[]>([]);
   const [userCount, setUserCount] = useState(0);
@@ -47,9 +52,15 @@ export default function Admin() {
   const [searchTerm, setSearchTerm] = useState("");
   const [txnFilter, setTxnFilter] = useState({ user: "", type: "", date: "" });
   const [invoiceSearch, setInvoiceSearch] = useState("");
+  const [invoiceStatusFilter, setInvoiceStatusFilter] = useState("");
 
   // Top-up requests
   const [topupRequests, setTopupRequests] = useState<any[]>([]);
+
+  // Ad account transaction log
+  const [accountLogDialog, setAccountLogDialog] = useState<{ open: boolean; accountId?: string; accountName?: string }>({ open: false });
+  const [accountLogs, setAccountLogs] = useState<any[]>([]);
+  const [loadingLogs, setLoadingLogs] = useState(false);
 
   // Dialogs
   const [topUpDialog, setTopUpDialog] = useState<{ open: boolean; userId?: string; userName?: string }>({ open: false });
@@ -69,8 +80,6 @@ export default function Admin() {
   const [deletingAccount, setDeletingAccount] = useState(false);
 
   const [allUsersForDropdown, setAllUsersForDropdown] = useState<any[]>([]);
-
-  // User total spent cache
   const [userTotalSpent, setUserTotalSpent] = useState<Record<string, number>>({});
 
   useEffect(() => {
@@ -81,11 +90,9 @@ export default function Admin() {
     fetchTopupRequests();
     fetchUsers();
 
-    // Realtime subscription for profiles changes (new signups)
     const channel = supabase
       .channel('admin-profiles')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => {
-        console.log("[Admin] Profiles table changed, refreshing...");
         fetchOverviewStats();
         fetchAllUsersForDropdown();
         if (activeTab === "users") fetchUsers();
@@ -117,32 +124,51 @@ export default function Admin() {
 
   useEffect(() => {
     if (user && activeTab === "invoices") fetchInvoices();
-  }, [user, activeTab, invPage, invoiceSearch]);
+  }, [user, activeTab, invPage, invoiceSearch, invoiceStatusFilter]);
 
   useEffect(() => {
     if (user && activeTab === "overview") fetchOverviewUsers();
   }, [user, activeTab]);
 
+  useEffect(() => {
+    if (user && activeTab === "overview") fetchOverviewStats();
+  }, [dateFrom, dateTo]);
+
   const fetchOverviewStats = async () => {
-    const [balRes, revRes, userCountRes, accCountRes, adAccRes] = await Promise.all([
+    let txnQuery = supabase.from("transactions").select("commission, type, amount").eq("status", "completed").in("type", ["wallet_to_account", "account_to_wallet"]);
+    if (dateFrom) txnQuery = txnQuery.gte("created_at", dateFrom);
+    if (dateTo) txnQuery = txnQuery.lte("created_at", dateTo + "T23:59:59");
+
+    const [balRes, revRes, userCountRes, accCountRes, adAccRes, overridesRes] = await Promise.all([
       supabase.from("profiles").select("wallet_balance"),
-      supabase.from("transactions").select("commission, type").eq("status", "completed").in("type", ["wallet_to_account", "account_to_wallet"]),
+      txnQuery,
       supabase.from("profiles").select("id", { count: "exact", head: true }),
       supabase.from("ad_accounts").select("id", { count: "exact", head: true }),
       supabase.from("ad_accounts").select("spend_limit, amount_spent, current_spend"),
+      supabase.from("user_commission_overrides").select("rate"),
     ]);
+
     const totalAdSpend = (adAccRes.data || []).reduce((s, a) => s + Number(a.amount_spent || a.current_spend || 0), 0);
     const totalAdRemaining = (adAccRes.data || []).reduce((s, a) => s + Math.max(0, Number(a.spend_limit) - Number(a.amount_spent || a.current_spend || 0)), 0);
+
+    const totalRevenue = (revRes.data || []).reduce((s, t) => {
+      const comm = Number(t.commission || 0);
+      return t.type === "account_to_wallet" ? s - comm : s + comm;
+    }, 0);
+
+    // Calculate average commission rate (weighted)
+    const totalSpentForComm = (revRes.data || []).filter(t => t.type === "wallet_to_account").reduce((s, t) => s + Number(t.amount || 0), 0);
+    const totalCommission = (revRes.data || []).filter(t => t.type === "wallet_to_account").reduce((s, t) => s + Number(t.commission || 0), 0);
+    const avgCommissionRate = totalSpentForComm > 0 ? (totalCommission / totalSpentForComm) * 100 : commissionRate;
+
     setOverviewStats({
       totalBalance: (balRes.data || []).reduce((s, u) => s + Number(u.wallet_balance || 0), 0),
-      totalRevenue: (revRes.data || []).reduce((s, t) => {
-        const comm = Number(t.commission || 0);
-        return t.type === "account_to_wallet" ? s - comm : s + comm;
-      }, 0),
+      totalRevenue,
       totalUsers: userCountRes.count || 0,
       totalAccounts: accCountRes.count || 0,
       totalAdSpend,
       totalAdRemaining,
+      avgCommissionRate,
     });
   };
 
@@ -181,7 +207,6 @@ export default function Admin() {
   };
 
   const fetchUsers = async () => {
-    console.log("[Admin] fetchUsers called, page:", userPage, "search:", searchTerm);
     try {
       let query = supabase.from("profiles").select("*", { count: "exact" });
       if (searchTerm) query = query.or(`full_name.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`);
@@ -190,13 +215,10 @@ export default function Admin() {
         supabase.from("user_roles").select("user_id, role"),
       ]);
       const { data, count, error } = profilesResult;
-      console.log("[Admin] fetchUsers result - data length:", data?.length, "count:", count, "error:", error);
       if (error) {
-        console.error("[Admin] fetchUsers error:", error);
         toast({ title: "Error loading users", description: error.message, variant: "destructive" });
         return;
       }
-      // Build roles map
       const rolesMap: Record<string, string[]> = {};
       (rolesResult.data || []).forEach((r: any) => {
         if (!rolesMap[r.user_id]) rolesMap[r.user_id] = [];
@@ -204,7 +226,6 @@ export default function Admin() {
       });
       if (data) {
         const enriched = data.map(u => ({ ...u, _roles: rolesMap[u.id] || ["user"] }));
-        console.log("[Admin] Setting users state with", enriched.length, "users");
         setUsers(enriched);
         setUserCount(count || data.length);
         const userIds = data.map((u: any) => u.id);
@@ -219,46 +240,34 @@ export default function Admin() {
         setUserCount(count || 0);
       }
     } catch (err: any) {
-      console.error("[Admin] fetchUsers exception:", err);
       toast({ title: "Error loading users", description: err.message, variant: "destructive" });
     }
   };
 
   const [refreshingAccountId, setRefreshingAccountId] = useState<string | null>(null);
-  const [accountCache, setAccountCache] = useState<Record<string, { spend_cap: number; amount_spent: number }>>({});
 
   const fetchAccounts = async () => {
     const { data, count } = await supabase.from("ad_accounts").select("*, profiles(full_name, email)", { count: "exact" })
       .order("created_at", { ascending: false }).range(accPage * PAGE_SIZE, (accPage + 1) * PAGE_SIZE - 1);
     if (data) {
-      console.log("=== Ad accounts from database ===");
-      data.forEach(acc => {
-        console.log(`Account ${acc.account_name}: spend_limit stored = ${acc.spend_limit} (should be dollars)`);
-      });
       setAdAccounts(data);
-      // totalAccounts is tracked via overviewStats
-      // Background fetch from Facebook for cached spend data
       const fbAccountIds = data.filter(a => a.platform === "facebook").map(a => a.account_id);
       if (fbAccountIds.length > 0) {
         supabase.functions.invoke("facebook-api", {
           body: { action: "batch_get_spend_limits", account_ids: fbAccountIds },
         }).then(({ data: fbData }) => {
           if (fbData?.results) {
-            console.log("=== Cached/fetched spend data from Facebook ===");
-            console.log("Raw results:", JSON.stringify(fbData.results));
             setAdAccounts(prev => prev.map(acc => {
               const cached = fbData.results[acc.account_id];
               if (cached) {
-                // Values from edge function are already in dollars
                 const amountSpent = cached.amount_spent ?? Number(acc.amount_spent || acc.current_spend || 0);
                 const spendLimit = cached.spend_cap ?? Number(acc.spend_limit);
-                console.log(`Account ${acc.account_name}: spend_limit=$${spendLimit}, amount_spent=$${amountSpent} (dollars)`);
                 return { ...acc, spend_limit: spendLimit, amount_spent: amountSpent, current_spend: amountSpent };
               }
               return acc;
             }));
           }
-        }).catch(err => console.warn("[Admin] Cache fetch failed:", err));
+        }).catch(() => {});
       }
     }
     setAccCount(count || 0);
@@ -275,8 +284,6 @@ export default function Admin() {
       } else {
         setAdAccounts(prev => prev.map(acc => {
           if (acc.account_id !== accountId) return acc;
-          // Values from edge function are already in dollars
-          console.log(`Refresh: spend_limit=$${data.spend_limit}, amount_spent=$${data.amount_spent} (dollars)`);
           return { ...acc, spend_limit: data.spend_limit ?? acc.spend_limit, amount_spent: data.amount_spent ?? acc.amount_spent, current_spend: data.amount_spent ?? acc.current_spend };
         }));
         toast({ title: "Account refreshed" });
@@ -311,30 +318,40 @@ export default function Admin() {
   const fetchInvoices = async () => {
     let query = supabase.from("invoices").select("*, profiles(full_name, email)", { count: "exact" });
     if (invoiceSearch) query = query.or(`invoice_number.ilike.%${invoiceSearch}%`);
+    if (invoiceStatusFilter) {
+      if (invoiceStatusFilter === "pending") {
+        query = query.is("pdf_url", null);
+      } else if (invoiceStatusFilter === "generated") {
+        query = query.not("pdf_url", "is", null);
+      }
+    }
     const { data, count } = await query.order("created_at", { ascending: false }).range(invPage * PAGE_SIZE, (invPage + 1) * PAGE_SIZE - 1);
     if (data) setAllInvoices(data);
     setInvCount(count || 0);
+  };
+
+  const fetchAccountLogs = async (accountId: string) => {
+    setLoadingLogs(true);
+    const { data } = await supabase.from("ad_account_transactions").select("*").eq("ad_account_id", accountId).order("created_at", { ascending: false }).limit(50);
+    if (data) setAccountLogs(data);
+    setLoadingLogs(false);
   };
 
   const handleManualTopUp = async () => {
     if (!topUpDialog.userId || !topUpAmount || Number(topUpAmount) <= 0) return;
     setToppingUp(true);
     try {
-      // Insert transaction first
       const { error: txnError } = await supabase.from("transactions").insert({
         user_id: topUpDialog.userId, type: "wallet_topup", amount: Number(topUpAmount),
         status: "completed", payment_method: "manual",
       });
       if (txnError) {
-        console.error("[Admin] Transaction insert error:", txnError);
         toast({ title: "Error adding top-up", description: txnError.message, variant: "destructive" });
         setToppingUp(false);
         return;
       }
-      // Fetch current balance then update
       const { data: prof, error: profError } = await supabase.from("profiles").select("wallet_balance").eq("id", topUpDialog.userId).single();
       if (profError || !prof) {
-        console.error("[Admin] Profile fetch error:", profError);
         toast({ title: "Error fetching profile", description: profError?.message || "Profile not found", variant: "destructive" });
         setToppingUp(false);
         return;
@@ -343,18 +360,24 @@ export default function Admin() {
         wallet_balance: Number(prof.wallet_balance) + Number(topUpAmount),
       }).eq("id", topUpDialog.userId);
       if (updateError) {
-        console.error("[Admin] Profile update error:", updateError);
         toast({ title: "Error updating balance", description: updateError.message, variant: "destructive" });
         setToppingUp(false);
         return;
       }
+      // Create notification for user
+      await supabase.from("notifications").insert({
+        user_id: topUpDialog.userId,
+        title: "Top-up approved",
+        message: `$${Number(topUpAmount).toFixed(2)} has been added to your wallet.`,
+        type: "topup",
+        recipient_type: "user",
+      } as any);
       toast({ title: "Top-up added", description: `$${topUpAmount} added to ${topUpDialog.userName}'s wallet.` });
       setTopUpDialog({ open: false });
       setTopUpAmount("");
       fetchOverviewStats();
       if (activeTab === "users") fetchUsers();
     } catch (err: any) {
-      console.error("[Admin] handleManualTopUp exception:", err);
       toast({ title: "Error", description: err.message, variant: "destructive" });
     } finally {
       setToppingUp(false);
@@ -374,6 +397,14 @@ export default function Admin() {
       status: "completed", payment_method: req.payment_method || "manual",
     });
     await supabase.from("topup_requests").update({ status: "approved" } as any).eq("id", req.id);
+    // Notify user
+    await supabase.from("notifications").insert({
+      user_id: req.user_id,
+      title: "Top-up approved",
+      message: `Your top-up request for $${Number(req.amount).toFixed(2)} has been approved.`,
+      type: "topup",
+      recipient_type: "user",
+    } as any);
     setApprovingId(null);
     toast({ title: "Top-up approved", description: `$${Number(req.amount).toFixed(2)} added to ${req.profiles?.full_name || "user"}'s wallet.` });
     fetchTopupRequests();
@@ -383,6 +414,14 @@ export default function Admin() {
   const handleRejectTopup = async (req: any) => {
     setApprovingId(req.id);
     await supabase.from("topup_requests").update({ status: "rejected" } as any).eq("id", req.id);
+    // Notify user
+    await supabase.from("notifications").insert({
+      user_id: req.user_id,
+      title: "Top-up rejected",
+      message: `Your top-up request for $${Number(req.amount).toFixed(2)} has been rejected.`,
+      type: "topup",
+      recipient_type: "user",
+    } as any);
     setApprovingId(null);
     toast({ title: "Top-up rejected" });
     fetchTopupRequests();
@@ -400,7 +439,6 @@ export default function Admin() {
 
   const handleAddAccount = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    console.log("[Admin] handleAddAccount called with data:", JSON.stringify(newAccount));
     if (!newAccount.account_id || !newAccount.account_name) {
       toast({ title: "Account ID and Name are required", variant: "destructive" });
       return;
@@ -408,8 +446,6 @@ export default function Admin() {
     setAddingAccount(true);
     try {
       const spendLimit = Number(newAccount.spend_limit) || 0;
-      console.log("=== Sending to Facebook ===");
-      console.log("Original balance in dollars (from form):", spendLimit);
       const insertData = {
         account_id: newAccount.account_id.trim(),
         account_name: newAccount.account_name.trim(),
@@ -421,45 +457,28 @@ export default function Admin() {
         assigned_at: newAccount.user_id ? new Date().toISOString() : null,
       };
 
-      // If Facebook account with balance, set spend limit on FB first
       if (spendLimit > 0 && insertData.platform === "facebook") {
-        console.log("[Admin] Setting Facebook spend limit to $" + spendLimit);
-        console.log("Sending to Facebook API (dollars):", spendLimit);
         const { data: fbData, error: fbError } = await supabase.functions.invoke("facebook-api", {
           body: { action: "set_spend_limit", ad_account_id: insertData.account_id, amount: spendLimit },
         });
-        if (fbError) {
-          console.error("[Admin] FB API error:", fbError);
-          toast({ title: "Facebook API error", description: fbError.message, variant: "destructive" });
+        if (fbError || fbData?.error) {
+          toast({ title: "Facebook API error", description: fbError?.message || fbData?.error, variant: "destructive" });
           setAddingAccount(false);
           return;
         }
-        if (fbData?.error) {
-          console.error("[Admin] FB API returned error:", fbData.error);
-          toast({ title: "Facebook API error", description: fbData.error, variant: "destructive" });
-          setAddingAccount(false);
-          return;
-        }
-        console.log("=== Response from Facebook ===");
-        console.log("Response data:", fbData);
-        console.log("[Admin] Facebook spend limit set successfully");
       }
 
-      // Insert into database
-      const { data, error } = await supabase.from("ad_accounts").insert(insertData).select();
+      const { error } = await supabase.from("ad_accounts").insert(insertData).select();
       if (error) {
-        console.error("[Admin] Insert error:", error);
         toast({ title: "Error creating account", description: error.message, variant: "destructive" });
         return;
       }
-      console.log("[Admin] Account created:", data);
       toast({ title: "Account created successfully" });
       setAddAccountDialog(false);
       setNewAccount({ account_id: "", account_name: "", currency: "USD", timezone: "America/New_York", spend_limit: "", user_id: "", platform: "facebook" });
       fetchAccounts();
       fetchOverviewStats();
     } catch (err: any) {
-      console.error("[Admin] handleAddAccount exception:", err);
       toast({ title: "Error", description: err.message, variant: "destructive" });
     } finally {
       setAddingAccount(false);
@@ -472,16 +491,12 @@ export default function Admin() {
     const acc = editAccountDialog.account;
     try {
       const newSpendLimit = Number(acc.spend_limit);
-      // Update Facebook spend limit if it's a facebook account
       if (acc.platform === "facebook" && newSpendLimit >= 0) {
-        console.log("[Admin] Updating Facebook spend limit to $" + newSpendLimit);
         const { data: fbData, error: fbError } = await supabase.functions.invoke("facebook-api", {
           body: { action: "set_spend_limit", ad_account_id: acc.account_id, amount: newSpendLimit },
         });
         if (fbError || fbData?.error) {
-          const msg = fbError?.message || fbData?.error;
-          console.error("[Admin] FB API error on update:", msg);
-          toast({ title: "Facebook API error", description: msg, variant: "destructive" });
+          toast({ title: "Facebook API error", description: fbError?.message || fbData?.error, variant: "destructive" });
           setUpdatingAccount(false);
           return;
         }
@@ -497,7 +512,6 @@ export default function Admin() {
         toast({ title: "Account updated" });
       }
     } catch (err: any) {
-      console.error("[Admin] handleUpdateAccount exception:", err);
       toast({ title: "Error", description: err.message, variant: "destructive" });
     } finally {
       setUpdatingAccount(false);
@@ -526,26 +540,42 @@ export default function Admin() {
     }
   };
 
-  const handleApproveRequest = async (req: any) => {
+  const handleApproveRequest = async (req: any, selectedAccountId?: string) => {
     setApprovingId(req.id);
-    await supabase.from("ad_accounts").insert({
-      account_id: `FB-${Date.now().toString(36).toUpperCase()}`,
-      account_name: (req as any).account_name || `Account for ${req.profiles?.full_name || "User"}`,
-      platform: req.platform || "facebook",
-      currency: (req as any).currency || "USD",
-      timezone: (req as any).timezone || "America/New_York",
-      user_id: req.user_id, spend_limit: Number(req.preferred_limit) || 0,
-      assigned_at: new Date().toISOString(),
-    });
+    if (selectedAccountId) {
+      // Assign existing account
+      await supabase.from("ad_accounts").update({
+        user_id: req.user_id,
+        assigned_at: new Date().toISOString(),
+        display_name: req.account_name || null,
+      } as any).eq("id", selectedAccountId);
+    }
     await supabase.from("account_requests").update({ status: "approved" }).eq("id", req.id);
+    // Notify user
+    await supabase.from("notifications").insert({
+      user_id: req.user_id,
+      title: "Account request approved",
+      message: `Your ad account request "${req.account_name || "Account"}" has been approved.`,
+      type: "account_request",
+      recipient_type: "user",
+    } as any);
     setApprovingId(null);
-    toast({ title: "Request approved", description: "Ad account created and assigned." });
+    toast({ title: "Request approved", description: selectedAccountId ? "Account assigned." : "Request approved." });
     fetchRequests();
+    fetchAccounts();
     fetchOverviewStats();
   };
 
   const handleRejectRequest = async (req: any) => {
     await supabase.from("account_requests").update({ status: "rejected" }).eq("id", req.id);
+    // Notify user
+    await supabase.from("notifications").insert({
+      user_id: req.user_id,
+      title: "Account request rejected",
+      message: `Your ad account request "${req.account_name || "Account"}" has been rejected.`,
+      type: "account_request",
+      recipient_type: "user",
+    } as any);
     toast({ title: "Request rejected" });
     fetchRequests();
   };
@@ -601,12 +631,13 @@ export default function Admin() {
   };
 
   const pendingTopupCount = topupRequests.filter(r => r.status === "pending").length;
+  const pendingRequestCount = requests.filter(r => r.status === "pending").length;
 
   const tabs = [
     { id: "overview", label: "Overview", icon: BarChart3 },
     { id: "users", label: "Users", icon: Users },
     { id: "accounts", label: "Ad Accounts", icon: Monitor },
-    { id: "requests", label: "Requests", icon: FileText, badge: requests.filter(r => r.status === "pending").length },
+    { id: "requests", label: "Requests", icon: FileText, badge: pendingRequestCount },
     { id: "topups", label: "Pending Top-Ups", icon: CreditCard, badge: pendingTopupCount },
     { id: "transactions", label: "Transactions", icon: DollarSign },
     { id: "invoices", label: "Invoices", icon: Receipt },
@@ -640,6 +671,7 @@ export default function Admin() {
             <span className="ml-2 px-2 py-0.5 bg-primary/20 text-primary text-xs font-bold rounded-full">ADMIN</span>
           </Link>
           <div className="flex items-center gap-3">
+            <NotificationBell recipientType="admin" />
             <Link to="/"><Button variant="ghost" size="icon"><Home className="w-4 h-4" /></Button></Link>
             <Button variant="ghost" size="icon" onClick={signOut}><LogOut className="w-4 h-4" /></Button>
           </div>
@@ -665,6 +697,18 @@ export default function Admin() {
         {/* Overview Tab */}
         {activeTab === "overview" && (
           <div className="space-y-6">
+            {/* Date Filter */}
+            <div className="flex flex-wrap items-center gap-3 bg-card border border-border rounded-xl p-4">
+              <CalendarDays className="w-4 h-4 text-muted-foreground" />
+              <span className="text-sm text-muted-foreground">Filter by date:</span>
+              <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="bg-secondary border-border text-foreground w-40 h-9" placeholder="From" />
+              <span className="text-muted-foreground">to</span>
+              <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="bg-secondary border-border text-foreground w-40 h-9" placeholder="To" />
+              {(dateFrom || dateTo) && (
+                <Button size="sm" variant="ghost" onClick={() => { setDateFrom(""); setDateTo(""); }} className="text-xs text-muted-foreground">Clear</Button>
+              )}
+            </div>
+
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               <div className="bg-card border border-border rounded-xl p-5">
                 <p className="text-muted-foreground text-sm">Total User Wallet Balance</p>
@@ -673,6 +717,7 @@ export default function Admin() {
               <div className="bg-card border border-border rounded-xl p-5">
                 <p className="text-muted-foreground text-sm">Total Commission Earned</p>
                 <p className="text-3xl font-bold text-foreground"><span className="text-primary">$</span>{overviewStats.totalRevenue.toFixed(2)}</p>
+                <p className="text-xs text-muted-foreground mt-1">Avg rate: {overviewStats.avgCommissionRate.toFixed(1)}%</p>
               </div>
               <div className="bg-card border border-border rounded-xl p-5">
                 <p className="text-muted-foreground text-sm">Total Ad Spend</p>
@@ -842,7 +887,6 @@ export default function Admin() {
                     <th className="text-left p-4 text-muted-foreground font-medium">Name</th>
                     <th className="text-left p-4 text-muted-foreground font-medium">Platform</th>
                     <th className="text-left p-4 text-muted-foreground font-medium">Currency</th>
-                    <th className="text-left p-4 text-muted-foreground font-medium">Timezone</th>
                     <th className="text-left p-4 text-muted-foreground font-medium">Spending Limit</th>
                     <th className="text-left p-4 text-muted-foreground font-medium">Amount Spent</th>
                     <th className="text-left p-4 text-muted-foreground font-medium">Remaining</th>
@@ -861,7 +905,6 @@ export default function Admin() {
                         <td className="p-4 text-foreground">{acc.account_name}</td>
                         <td className="p-4 text-foreground capitalize">{acc.platform}</td>
                         <td className="p-4 text-foreground">{acc.currency}</td>
-                        <td className="p-4 text-foreground text-xs">{acc.timezone}</td>
                         <td className="p-4 text-foreground">${spendLimit.toFixed(2)}</td>
                         <td className="p-4 text-foreground">${amountSpent.toFixed(2)}</td>
                         <td className="p-4">
@@ -874,6 +917,12 @@ export default function Admin() {
                         <td className="p-4 text-muted-foreground">{acc.profiles?.full_name || "Unassigned"}</td>
                         <td className="p-4 flex gap-1">
                           <Button size="sm" variant="ghost" className="text-primary" onClick={() => setEditAccountDialog({ open: true, account: { ...acc } })}>Edit</Button>
+                          <Button size="sm" variant="ghost" className="text-muted-foreground" onClick={() => {
+                            setAccountLogDialog({ open: true, accountId: acc.account_id, accountName: acc.account_name });
+                            fetchAccountLogs(acc.account_id);
+                          }}>
+                            <History className="w-3.5 h-3.5" />
+                          </Button>
                           {acc.platform === "facebook" && (
                             <Button size="sm" variant="ghost" className="text-muted-foreground" disabled={refreshingAccountId === acc.account_id}
                               onClick={() => handleRefreshAccount(acc.account_id)}>
@@ -896,7 +945,7 @@ export default function Admin() {
           </div>
         )}
 
-        {/* Requests Tab */}
+        {/* Requests Tab - No "Create New" option, only assign existing */}
         {activeTab === "requests" && (
           <div className="space-y-4">
             <h2 className="text-xl font-bold text-foreground">Account Requests</h2>
@@ -906,7 +955,7 @@ export default function Admin() {
               </div>
             ) : (
               <div className="grid gap-3">
-        {requests.map((req) => {
+                {requests.map((req) => {
                   const unassignedAccounts = adAccounts.filter(a => !a.user_id);
                   return (
                   <div key={req.id} className="bg-card border border-border rounded-xl p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
@@ -915,9 +964,9 @@ export default function Admin() {
                       <p className="text-sm text-muted-foreground">{req.profiles?.email || ""}</p>
                       <p className="text-sm text-muted-foreground">
                         Platform: {req.platform}
-                        {(req as any).account_name && ` · Name: ${(req as any).account_name}`}
-                        {(req as any).currency && ` · Currency: ${(req as any).currency}`}
-                        {(req as any).timezone && ` · TZ: ${(req as any).timezone}`}
+                        {req.account_name && ` · Name: ${req.account_name}`}
+                        {req.currency && ` · Currency: ${req.currency}`}
+                        {req.timezone && ` · TZ: ${req.timezone}`}
                       </p>
                       <p className="text-sm text-muted-foreground">Initial Balance: {req.preferred_limit || "Not specified"}</p>
                       <p className="text-xs text-muted-foreground">{new Date(req.created_at).toLocaleDateString()}</p>
@@ -925,7 +974,7 @@ export default function Admin() {
                     <div className="flex items-center gap-2">
                       {req.status === "pending" ? (
                         <>
-                          {unassignedAccounts.length > 0 && (
+                          {unassignedAccounts.length > 0 ? (
                             <div className="flex items-center gap-2">
                               <select
                                 id={`assign-${req.id}`}
@@ -937,31 +986,17 @@ export default function Admin() {
                                   <option key={acc.id} value={acc.id}>{acc.account_name} ({acc.account_id})</option>
                                 ))}
                               </select>
-                              <Button size="sm" className="bg-primary text-primary-foreground rounded-full text-xs" onClick={async () => {
+                              <Button size="sm" className="bg-primary text-primary-foreground rounded-full text-xs" onClick={() => {
                                 const select = document.getElementById(`assign-${req.id}`) as HTMLSelectElement;
                                 if (!select?.value) { toast({ title: "Select an account to assign", variant: "destructive" }); return; }
-                                setApprovingId(req.id);
-                                const accToAssign = unassignedAccounts.find(a => a.id === select.value);
-                                if (accToAssign) {
-                                  await supabase.from("ad_accounts").update({
-                                    user_id: req.user_id,
-                                    assigned_at: new Date().toISOString(),
-                                  }).eq("id", accToAssign.id);
-                                  await supabase.from("account_requests").update({ status: "approved" }).eq("id", req.id);
-                                  toast({ title: "Account assigned", description: `${accToAssign.account_name} assigned to ${req.profiles?.full_name || "user"}.` });
-                                  fetchRequests();
-                                  fetchAccounts();
-                                  fetchOverviewStats();
-                                }
-                                setApprovingId(null);
+                                handleApproveRequest(req, select.value);
                               }} disabled={approvingId === req.id}>
                                 Assign
                               </Button>
                             </div>
+                          ) : (
+                            <p className="text-xs text-muted-foreground">No unassigned accounts available</p>
                           )}
-                          <Button size="sm" onClick={() => handleApproveRequest(req)} disabled={approvingId === req.id} className="bg-green-600 hover:bg-green-700 text-foreground rounded-full">
-                            <CheckCircle className="w-3.5 h-3.5 mr-1" />Create New
-                          </Button>
                           <Button size="sm" variant="destructive" onClick={() => handleRejectRequest(req)} className="rounded-full">
                             <XCircle className="w-3.5 h-3.5 mr-1" />Reject
                           </Button>
@@ -1096,9 +1131,16 @@ export default function Admin() {
         {activeTab === "invoices" && (
           <div className="space-y-4">
             <h2 className="text-xl font-bold text-foreground">All Invoices</h2>
-            <div className="relative max-w-sm">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input placeholder="Search invoices by number..." value={invoiceSearch} onChange={(e) => { setInvoiceSearch(e.target.value); setInvPage(0); }} className="pl-10 bg-secondary border-border text-foreground" />
+            <div className="flex flex-wrap gap-3">
+              <div className="relative flex-1 max-w-sm">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input placeholder="Search invoices by number..." value={invoiceSearch} onChange={(e) => { setInvoiceSearch(e.target.value); setInvPage(0); }} className="pl-10 bg-secondary border-border text-foreground" />
+              </div>
+              <select value={invoiceStatusFilter} onChange={(e) => { setInvoiceStatusFilter(e.target.value); setInvPage(0); }} className="h-10 rounded-md bg-secondary border border-border px-3 text-foreground text-sm">
+                <option value="">All statuses</option>
+                <option value="pending">Pending</option>
+                <option value="generated">Generated</option>
+              </select>
             </div>
             <div className="bg-card border border-border rounded-xl overflow-hidden">
               <div className="overflow-x-auto">
@@ -1108,7 +1150,8 @@ export default function Admin() {
                     <th className="text-left p-4 text-muted-foreground font-medium">User</th>
                     <th className="text-left p-4 text-muted-foreground font-medium">Amount</th>
                     <th className="text-left p-4 text-muted-foreground font-medium">Date</th>
-                    <th className="text-left p-4 text-muted-foreground font-medium">Download</th>
+                    <th className="text-left p-4 text-muted-foreground font-medium">Status</th>
+                    <th className="text-left p-4 text-muted-foreground font-medium">Action</th>
                   </tr></thead>
                   <tbody>
                     {allInvoices.map((inv) => (
@@ -1117,6 +1160,11 @@ export default function Admin() {
                         <td className="p-4 text-foreground">{inv.profiles?.full_name || inv.profiles?.email || "—"}</td>
                         <td className="p-4 text-foreground">${Number(inv.amount).toFixed(2)} {inv.currency}</td>
                         <td className="p-4 text-muted-foreground">{new Date(inv.created_at).toLocaleDateString()}</td>
+                        <td className="p-4">
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${inv.pdf_url ? "bg-green-500/20 text-green-500" : "bg-primary/20 text-primary"}`}>
+                            {inv.pdf_url ? "Generated" : "Pending"}
+                          </span>
+                        </td>
                         <td className="p-4">
                           <Button size="sm" variant="outline" className="rounded-full border-border" disabled={!inv.pdf_url}>
                             {inv.pdf_url ? "Download" : "PDF Pending"}
@@ -1313,6 +1361,46 @@ export default function Admin() {
               {savingOverride ? "Saving..." : "Save Custom Rate"}
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Ad Account Transaction Log Dialog */}
+      <Dialog open={accountLogDialog.open} onOpenChange={(open) => setAccountLogDialog({ ...accountLogDialog, open })}>
+        <DialogContent className="bg-card border-border max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-foreground">Transaction Log – {accountLogDialog.accountName}</DialogTitle>
+            <DialogDescription>History of balance changes for this ad account.</DialogDescription>
+          </DialogHeader>
+          {loadingLogs ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : accountLogs.length === 0 ? (
+            <p className="text-center text-muted-foreground py-8">No transaction logs yet.</p>
+          ) : (
+            <div className="max-h-96 overflow-y-auto">
+              <table className="w-full text-sm">
+                <thead><tr className="border-b border-border">
+                  <th className="text-left p-3 text-muted-foreground font-medium">Date</th>
+                  <th className="text-left p-3 text-muted-foreground font-medium">Type</th>
+                  <th className="text-left p-3 text-muted-foreground font-medium">Amount</th>
+                  <th className="text-left p-3 text-muted-foreground font-medium">New Limit</th>
+                  <th className="text-left p-3 text-muted-foreground font-medium">New Spent</th>
+                </tr></thead>
+                <tbody>
+                  {accountLogs.map((log: any) => (
+                    <tr key={log.id} className="border-b border-border/50">
+                      <td className="p-3 text-foreground">{new Date(log.created_at).toLocaleString()}</td>
+                      <td className="p-3 text-foreground capitalize">{log.type}</td>
+                      <td className="p-3 text-foreground">${Number(log.amount || 0).toFixed(2)}</td>
+                      <td className="p-3 text-foreground">${Number(log.new_spend_limit || 0).toFixed(2)}</td>
+                      <td className="p-3 text-foreground">${Number(log.new_amount_spent || 0).toFixed(2)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 
