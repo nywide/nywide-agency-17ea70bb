@@ -453,10 +453,16 @@ export default function Dashboard() {
                 <h2 className="text-lg font-bold text-foreground mb-3">Ad Accounts</h2>
                 <div className="grid gap-3">
                   {adAccounts.slice(0, 3).map((acc) => (
-                    <div key={acc.id} className="bg-card border border-border rounded-xl p-4 flex items-center justify-between">
+                    <div key={acc.id} className={`bg-card border rounded-xl p-4 flex items-center justify-between ${acc.is_disabled ? "border-destructive/30 opacity-70" : "border-border"}`}>
                       <div>
-                        <p className="font-medium text-foreground">{getAccountDisplayName(acc)}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium text-foreground">{getAccountDisplayName(acc)}</p>
+                          {acc.is_disabled && <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-destructive/20 text-destructive">Disabled</span>}
+                        </div>
                         <p className="text-sm text-muted-foreground">{acc.account_id} · {acc.platform} · {acc.currency}</p>
+                        {acc.is_disabled && acc.disabled_reason && (
+                          <p className="text-xs text-destructive mt-1">Reason: {acc.disabled_reason}</p>
+                        )}
                       </div>
                       <div className="text-right flex items-center gap-2">
                         <div>
