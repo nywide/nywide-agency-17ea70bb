@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { NLogo } from "@/components/nywide/NLogo";
+import { NotificationBell } from "@/components/nywide/NotificationBell";
 import { Link } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -14,7 +15,7 @@ import { Label } from "@/components/ui/label";
 import {
   Wallet, Monitor, FileText, Receipt, Plus, LogOut, Home,
   DollarSign, Clock, CheckCircle, XCircle, AlertCircle,
-  ArrowUpRight, ArrowDownLeft, Search, LayoutDashboard, RefreshCw
+  ArrowUpRight, ArrowDownLeft, Search, LayoutDashboard, RefreshCw, ClipboardList
 } from "lucide-react";
 
 const PAGE_SIZE = 50;
@@ -57,11 +58,17 @@ export default function Dashboard() {
   const [requestTimezone, setRequestTimezone] = useState("America/New_York");
   const [requestPreferredLimit, setRequestPreferredLimit] = useState("");
 
+  // Pending account requests & topup requests
+  const [accountRequests, setAccountRequests] = useState<any[]>([]);
+  const [pendingTopups, setPendingTopups] = useState<any[]>([]);
+
   useEffect(() => {
     if (user) {
       fetchAccounts();
       fetchCommission();
       fetchDashStats();
+      fetchAccountRequests();
+      fetchPendingTopups();
     }
   }, [user]);
 
@@ -111,6 +118,16 @@ export default function Dashboard() {
     });
   };
 
+  const fetchAccountRequests = async () => {
+    const { data } = await supabase.from("account_requests").select("*").eq("user_id", user!.id).order("created_at", { ascending: false });
+    if (data) setAccountRequests(data);
+  };
+
+  const fetchPendingTopups = async () => {
+    const { data } = await supabase.from("topup_requests").select("*").eq("user_id", user!.id).order("created_at", { ascending: false });
+    if (data) setPendingTopups(data);
+  };
+
   const fetchTransactions = async () => {
     let query = supabase.from("transactions").select("*", { count: "exact" }).eq("user_id", user!.id);
     if (txnTypeFilter) query = query.eq("type", txnTypeFilter);
@@ -135,7 +152,6 @@ export default function Dashboard() {
         body: { action: "refresh_balance", ad_account_id: accountId },
       });
       if (data && !data.error) {
-        // Edge function returns values in dollars
         setFbBalances(prev => ({ ...prev, [accountId]: { spend_cap: data.spend_limit ?? data.spend_cap, amount_spent: data.amount_spent } }));
         toast({ title: "Balance refreshed" });
       }
@@ -146,7 +162,7 @@ export default function Dashboard() {
   const handleTopUp = async () => {
     console.log("[Dashboard] handleTopUp called", { topUpAmount, topUpMethod });
     if (!topUpAmount || Number(topUpAmount) < 10) {
-      toast({ title: "Minimum $10", variant: "destructive" });
+      toast({ title: "Minimum top-up amount is $10", variant: "destructive" });
       return;
     }
     setTopUpLoading(true);
@@ -155,33 +171,19 @@ export default function Dashboard() {
         const insertData = {
           user_id: user!.id, amount: Number(topUpAmount), currency: "USD", payment_method: topUpMethod, status: "pending",
         };
-        console.log("[Dashboard] Inserting topup request:", insertData);
         const { data, error } = await supabase.from("topup_requests").insert(insertData as any).select();
-        console.log("[Dashboard] Topup insert result:", { data, error });
         if (error) {
           toast({ title: "Error", description: error.message, variant: "destructive" });
         } else {
           toast({ title: "Top-up request submitted", description: "Admin will review and approve your request." });
           setTopUpOpen(false);
           setTopUpAmount("");
+          fetchPendingTopups();
         }
       } else {
-        const { data, error } = await supabase.from("transactions").insert({
-          user_id: user!.id, type: "wallet_topup", amount: Number(topUpAmount),
-          status: "pending", payment_method: topUpMethod,
-        }).select();
-        console.log("[Dashboard] Stripe topup result:", { data, error });
-        if (error) {
-          toast({ title: "Error", description: error.message, variant: "destructive" });
-        } else {
-          toast({ title: "Top-up request submitted", description: "Processing payment..." });
-          setTopUpOpen(false);
-          setTopUpAmount("");
-          fetchDashStats();
-        }
+        toast({ title: "Coming Soon", description: "Stripe payments will be available soon.", variant: "default" });
       }
     } catch (err: any) {
-      console.error("[Dashboard] handleTopUp exception:", err);
       toast({ title: "Error", description: err.message, variant: "destructive" });
     } finally {
       setTopUpLoading(false);
@@ -191,7 +193,6 @@ export default function Dashboard() {
   const hasActiveAccounts = adAccounts.some(a => a.status === "active");
 
   const handleRequestAccount = async () => {
-    console.log("[Dashboard] handleRequestAccount called");
     if (!requestAccountName) {
       toast({ title: "Account Name is required", variant: "destructive" });
       return;
@@ -218,9 +219,7 @@ export default function Dashboard() {
         currency: requestCurrency,
         timezone: requestTimezone,
       };
-      console.log("[Dashboard] Inserting account request:", insertData);
-      const { data, error } = await supabase.from("account_requests").insert(insertData as any).select();
-      console.log("[Dashboard] Insert result:", { data, error });
+      const { error } = await supabase.from("account_requests").insert(insertData as any).select();
       if (error) {
         toast({ title: "Error", description: error.message, variant: "destructive" });
       } else {
@@ -231,9 +230,9 @@ export default function Dashboard() {
         setRequestAccountName("");
         setRequestCurrency("USD");
         setRequestTimezone("America/New_York");
+        fetchAccountRequests();
       }
     } catch (err: any) {
-      console.error("[Dashboard] handleRequestAccount exception:", err);
       toast({ title: "Error", description: err.message, variant: "destructive" });
     } finally {
       setRequestLoading(false);
@@ -295,18 +294,19 @@ export default function Dashboard() {
     const invoiceNumber = `INV-${Date.now().toString(36).toUpperCase()}`;
     const { error } = await supabase.from("invoices").insert({
       user_id: user!.id, invoice_number: invoiceNumber, amount: txn.amount, currency: txn.currency,
-    });
+      pdf_url: null,
+    } as any);
     if (error) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     } else {
-      toast({ title: "Invoice generated", description: `Invoice ${invoiceNumber} created.` });
+      toast({ title: "Invoice created", description: `Invoice ${invoiceNumber} is pending PDF generation.` });
       fetchInvoices();
       fetchDashStats();
     }
   };
 
   const statusIcon = (status: string) => {
-    if (status === "completed" || status === "active") return <CheckCircle className="w-4 h-4 text-green-500" />;
+    if (status === "completed" || status === "active" || status === "approved") return <CheckCircle className="w-4 h-4 text-green-500" />;
     if (status === "pending") return <Clock className="w-4 h-4 text-primary" />;
     if (status === "rejected" || status === "suspended") return <XCircle className="w-4 h-4 text-destructive" />;
     return <AlertCircle className="w-4 h-4 text-muted-foreground" />;
@@ -335,6 +335,7 @@ export default function Dashboard() {
   const tabs = [
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
     { id: "accounts", label: "Ad Accounts", icon: Monitor },
+    { id: "requests", label: "My Requests", icon: ClipboardList },
     { id: "transactions", label: "Transactions", icon: FileText },
     { id: "invoices", label: "Invoices", icon: Receipt },
   ];
@@ -359,8 +360,26 @@ export default function Dashboard() {
     return Math.max(0, getAccountSpendLimit(acc) - getAccountSpent(acc));
   };
 
+  const getAccountDisplayName = (acc: any) => {
+    return acc.display_name || acc.account_name;
+  };
+
   const txnTotalPages = Math.ceil(txnCount / PAGE_SIZE);
   const invTotalPages = Math.ceil(invCount / PAGE_SIZE);
+
+  // Combine transactions + pending topups for transaction view
+  const pendingTopupAsTransactions = pendingTopups.map(t => ({
+    id: t.id,
+    created_at: t.created_at,
+    type: "wallet_topup",
+    amount: t.amount,
+    commission: null,
+    status: t.status === "approved" ? "completed" : t.status,
+    ad_account_id: null,
+    payment_method: t.payment_method,
+    currency: t.currency,
+    _source: "topup_request",
+  }));
 
   return (
     <div className="min-h-screen bg-background">
@@ -372,6 +391,7 @@ export default function Dashboard() {
           </Link>
           <div className="flex items-center gap-3">
             <span className="text-sm text-muted-foreground hidden sm:block">{profile?.full_name || user?.email}</span>
+            <NotificationBell recipientType="user" />
             <Link to="/"><Button variant="ghost" size="icon"><Home className="w-4 h-4" /></Button></Link>
             <Button variant="ghost" size="icon" onClick={signOut}><LogOut className="w-4 h-4" /></Button>
           </div>
@@ -435,7 +455,7 @@ export default function Dashboard() {
                   {adAccounts.slice(0, 3).map((acc) => (
                     <div key={acc.id} className="bg-card border border-border rounded-xl p-4 flex items-center justify-between">
                       <div>
-                        <p className="font-medium text-foreground">{acc.account_name}</p>
+                        <p className="font-medium text-foreground">{getAccountDisplayName(acc)}</p>
                         <p className="text-sm text-muted-foreground">{acc.account_id} · {acc.platform} · {acc.currency}</p>
                       </div>
                       <div className="text-right flex items-center gap-2">
@@ -448,6 +468,51 @@ export default function Dashboard() {
                           <RefreshCw className={`w-3.5 h-3.5 ${refreshingAccount === acc.account_id ? "animate-spin" : ""}`} />
                         </Button>
                       </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Pending Topup Requests on Dashboard */}
+            {pendingTopups.filter(t => t.status === "pending").length > 0 && (
+              <div>
+                <h2 className="text-lg font-bold text-foreground mb-3">Pending Top-Up Requests</h2>
+                <div className="grid gap-3">
+                  {pendingTopups.filter(t => t.status === "pending").map((t) => (
+                    <div key={t.id} className="bg-card border border-primary/20 rounded-xl p-4 flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <Clock className="w-5 h-5 text-primary" />
+                        <div>
+                          <p className="font-medium text-foreground">${Number(t.amount).toFixed(2)}</p>
+                          <p className="text-sm text-muted-foreground capitalize">{t.payment_method || "Manual"} · {new Date(t.created_at).toLocaleDateString()}</p>
+                        </div>
+                      </div>
+                      <span className="px-3 py-1 rounded-full text-xs font-medium bg-primary/20 text-primary">Pending</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Pending Account Requests on Dashboard */}
+            {accountRequests.filter(r => r.status === "pending").length > 0 && (
+              <div>
+                <h2 className="text-lg font-bold text-foreground mb-3">Pending Account Requests</h2>
+                <div className="grid gap-3">
+                  {accountRequests.filter(r => r.status === "pending").map((r) => (
+                    <div key={r.id} className="bg-card border border-primary/20 rounded-xl p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="font-medium text-foreground">{r.account_name || "Unnamed Account"}</p>
+                        <span className="px-3 py-1 rounded-full text-xs font-medium bg-primary/20 text-primary">Pending</span>
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm text-muted-foreground">
+                        <div><span className="text-xs text-muted-foreground">Platform:</span> <span className="text-foreground capitalize">{r.platform}</span></div>
+                        <div><span className="text-xs text-muted-foreground">Currency:</span> <span className="text-foreground">{r.currency}</span></div>
+                        <div><span className="text-xs text-muted-foreground">Timezone:</span> <span className="text-foreground text-xs">{r.timezone}</span></div>
+                        <div><span className="text-xs text-muted-foreground">Balance:</span> <span className="text-foreground">{r.preferred_limit || "N/A"}</span></div>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-2">{new Date(r.created_at).toLocaleDateString()}</p>
                     </div>
                   ))}
                 </div>
@@ -482,7 +547,7 @@ export default function Dashboard() {
                         <div className="flex-1 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-4">
                           <div>
                             <p className="text-xs text-muted-foreground">Account Name</p>
-                            <p className="text-sm font-medium text-foreground">{acc.account_name}</p>
+                            <p className="text-sm font-medium text-foreground">{getAccountDisplayName(acc)}</p>
                           </div>
                           <div>
                             <p className="text-xs text-muted-foreground">Account ID</p>
@@ -556,6 +621,82 @@ export default function Dashboard() {
           </div>
         )}
 
+        {/* My Requests Tab */}
+        {activeTab === "requests" && (
+          <div className="space-y-6">
+            <h2 className="text-xl font-bold text-foreground">My Requests</h2>
+
+            {/* Account Requests */}
+            <div>
+              <h3 className="text-lg font-semibold text-foreground mb-3">Account Requests</h3>
+              {accountRequests.length === 0 ? (
+                <div className="bg-card border border-border rounded-2xl p-8 text-center">
+                  <p className="text-muted-foreground">No account requests yet.</p>
+                </div>
+              ) : (
+                <div className="grid gap-3">
+                  {accountRequests.map((r) => (
+                    <div key={r.id} className="bg-card border border-border rounded-xl p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="font-medium text-foreground">{r.account_name || "Unnamed"}</p>
+                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                          r.status === "pending" ? "bg-primary/20 text-primary" :
+                          r.status === "approved" ? "bg-green-500/20 text-green-500" :
+                          "bg-destructive/20 text-destructive"
+                        }`}>{r.status}</span>
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-sm">
+                        <div><span className="text-xs text-muted-foreground">Platform</span><p className="text-foreground capitalize">{r.platform}</p></div>
+                        <div><span className="text-xs text-muted-foreground">Currency</span><p className="text-foreground">{r.currency}</p></div>
+                        <div><span className="text-xs text-muted-foreground">Timezone</span><p className="text-foreground text-xs">{r.timezone}</p></div>
+                        <div><span className="text-xs text-muted-foreground">Initial Balance</span><p className="text-foreground">{r.preferred_limit || "N/A"}</p></div>
+                        <div><span className="text-xs text-muted-foreground">Date</span><p className="text-foreground">{new Date(r.created_at).toLocaleDateString()}</p></div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Top-Up Requests */}
+            <div>
+              <h3 className="text-lg font-semibold text-foreground mb-3">Top-Up Requests</h3>
+              {pendingTopups.length === 0 ? (
+                <div className="bg-card border border-border rounded-2xl p-8 text-center">
+                  <p className="text-muted-foreground">No top-up requests yet.</p>
+                </div>
+              ) : (
+                <div className="bg-card border border-border rounded-xl overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead><tr className="border-b border-border">
+                      <th className="text-left p-4 text-muted-foreground font-medium">Date</th>
+                      <th className="text-left p-4 text-muted-foreground font-medium">Amount</th>
+                      <th className="text-left p-4 text-muted-foreground font-medium">Method</th>
+                      <th className="text-left p-4 text-muted-foreground font-medium">Status</th>
+                    </tr></thead>
+                    <tbody>
+                      {pendingTopups.map((t) => (
+                        <tr key={t.id} className="border-b border-border/50 hover:bg-secondary/50">
+                          <td className="p-4 text-foreground">{new Date(t.created_at).toLocaleDateString()}</td>
+                          <td className="p-4 text-foreground font-medium">${Number(t.amount).toFixed(2)}</td>
+                          <td className="p-4 text-foreground capitalize">{t.payment_method || "Manual"}</td>
+                          <td className="p-4">
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              t.status === "pending" ? "bg-primary/20 text-primary" :
+                              t.status === "approved" ? "bg-green-500/20 text-green-500" :
+                              "bg-destructive/20 text-destructive"
+                            }`}>{t.status}</span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Transactions Tab */}
         {activeTab === "transactions" && (
           <div className="space-y-4">
@@ -572,6 +713,27 @@ export default function Dashboard() {
                 <option value="account_to_wallet">Withdraw to Wallet</option>
               </select>
             </div>
+
+            {/* Show pending topups as pending transactions */}
+            {pendingTopups.filter(t => t.status === "pending").length > 0 && (
+              <div className="bg-primary/5 border border-primary/20 rounded-xl p-4">
+                <p className="text-sm font-medium text-primary mb-2">Pending Top-Up Requests</p>
+                {pendingTopups.filter(t => t.status === "pending").map(t => (
+                  <div key={t.id} className="flex items-center justify-between py-2 border-b border-border/30 last:border-0">
+                    <div className="flex items-center gap-2">
+                      <Clock className="w-4 h-4 text-primary" />
+                      <span className="text-sm text-foreground">{new Date(t.created_at).toLocaleDateString()}</span>
+                      <span className="text-sm text-foreground">Wallet Top-Up</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm font-medium text-green-500">+${Number(t.amount).toFixed(2)}</span>
+                      <span className="px-2 py-0.5 rounded-full text-xs bg-primary/20 text-primary">Pending</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
             {transactions.length === 0 ? (
               <div className="bg-card border border-border rounded-2xl p-12 text-center">
                 <FileText className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
@@ -648,7 +810,12 @@ export default function Dashboard() {
                   {invoices.map((inv) => (
                     <div key={inv.id} className="bg-card border border-border rounded-xl p-4 flex items-center justify-between">
                       <div>
-                        <p className="font-medium text-foreground">{inv.invoice_number}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium text-foreground">{inv.invoice_number}</p>
+                          {!inv.pdf_url && (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-primary/20 text-primary">Pending</span>
+                          )}
+                        </div>
                         <p className="text-sm text-muted-foreground">{new Date(inv.created_at).toLocaleDateString()} · ${Number(inv.amount).toFixed(2)} {inv.currency}</p>
                       </div>
                       <Button size="sm" variant="outline" className="rounded-full border-border" disabled={!inv.pdf_url}>
@@ -695,7 +862,7 @@ export default function Dashboard() {
                   className={`p-3 rounded-xl border text-sm font-medium transition-all ${topUpMethod === "manual" ? "border-primary bg-primary/10 text-primary" : "border-border bg-secondary text-muted-foreground hover:border-primary/50"}`}>
                   Bank / Crypto
                 </button>
-                <button disabled
+                <button onClick={() => toast({ title: "Coming Soon", description: "Stripe payments will be available soon." })}
                   className="p-3 rounded-xl border text-sm font-medium border-border bg-secondary text-muted-foreground opacity-50 cursor-not-allowed relative">
                   Card (Stripe)
                   <span className="absolute -top-2 -right-2 bg-primary text-primary-foreground text-[10px] px-1.5 py-0.5 rounded-full font-bold">Soon</span>
