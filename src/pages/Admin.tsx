@@ -88,6 +88,7 @@ export default function Admin() {
 
   const [allUsersForDropdown, setAllUsersForDropdown] = useState<any[]>([]);
   const [userTotalSpent, setUserTotalSpent] = useState<Record<string, number>>({});
+  const [userAccountStats, setUserAccountStats] = useState<Record<string, { totalSpendLimit: number; totalAmountSpent: number }>>({});
 
   useEffect(() => {
     if (!user) return;
@@ -246,10 +247,22 @@ export default function Admin() {
         setUserCount(count || data.length);
         const userIds = data.map((u: any) => u.id);
         if (userIds.length > 0) {
-          const { data: spentData } = await supabase.from("transactions").select("user_id, amount").eq("type", "wallet_to_account").eq("status", "completed").in("user_id", userIds);
+          const [spentResult, accountsResult] = await Promise.all([
+            supabase.from("transactions").select("user_id, amount").eq("type", "wallet_to_account").eq("status", "completed").in("user_id", userIds),
+            supabase.from("ad_accounts").select("user_id, spend_limit, amount_spent").in("user_id", userIds),
+          ]);
           const spentMap: Record<string, number> = {};
-          (spentData || []).forEach((t: any) => { spentMap[t.user_id] = (spentMap[t.user_id] || 0) + Number(t.amount); });
+          (spentResult.data || []).forEach((t: any) => { spentMap[t.user_id] = (spentMap[t.user_id] || 0) + Number(t.amount); });
           setUserTotalSpent(spentMap);
+
+          const statsMap: Record<string, { totalSpendLimit: number; totalAmountSpent: number }> = {};
+          (accountsResult.data || []).forEach((acc: any) => {
+            if (!acc.user_id) return;
+            if (!statsMap[acc.user_id]) statsMap[acc.user_id] = { totalSpendLimit: 0, totalAmountSpent: 0 };
+            statsMap[acc.user_id].totalSpendLimit += Number(acc.spend_limit);
+            statsMap[acc.user_id].totalAmountSpent += Number(acc.amount_spent);
+          });
+          setUserAccountStats(statsMap);
         }
       } else {
         setUsers([]);
