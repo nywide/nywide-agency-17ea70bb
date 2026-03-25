@@ -194,6 +194,24 @@ export type Database = {
           },
         ]
       }
+      admin_settings: {
+        Row: {
+          id: string
+          notification_settings: Json | null
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          notification_settings?: Json | null
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          notification_settings?: Json | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       commission_settings: {
         Row: {
           id: string
@@ -389,6 +407,7 @@ export type Database = {
           full_name: string | null
           id: string
           is_disabled: boolean | null
+          notification_settings: Json | null
           wallet_balance: number
         }
         Insert: {
@@ -398,6 +417,7 @@ export type Database = {
           full_name?: string | null
           id: string
           is_disabled?: boolean | null
+          notification_settings?: Json | null
           wallet_balance?: number
         }
         Update: {
@@ -407,6 +427,7 @@ export type Database = {
           full_name?: string | null
           id?: string
           is_disabled?: boolean | null
+          notification_settings?: Json | null
           wallet_balance?: number
         }
         Relationships: []
