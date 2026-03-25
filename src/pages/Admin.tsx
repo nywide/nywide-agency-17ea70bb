@@ -146,13 +146,14 @@ export default function Admin() {
     if (dateFrom) txnQuery = txnQuery.gte("created_at", dateFrom);
     if (dateTo) txnQuery = txnQuery.lte("created_at", dateTo + "T23:59:59");
 
-    const [balRes, revRes, userCountRes, accCountRes, adAccRes, overridesRes] = await Promise.all([
+    const [balRes, revRes, userCountRes, accCountRes, adAccRes, overridesRes, spendTxnRes] = await Promise.all([
       supabase.from("profiles").select("wallet_balance"),
       txnQuery,
       supabase.from("profiles").select("id", { count: "exact", head: true }),
       supabase.from("ad_accounts").select("id", { count: "exact", head: true }),
       supabase.from("ad_accounts").select("spend_limit, amount_spent, current_spend"),
       supabase.from("user_commission_overrides").select("rate"),
+      supabase.from("ad_account_transactions").select("old_amount_spent, new_amount_spent").eq("type", "spend"),
     ]);
 
     const totalAdSpend = (adAccRes.data || []).reduce((s, a) => s + Number(a.amount_spent || a.current_spend || 0), 0);
@@ -168,6 +169,13 @@ export default function Admin() {
     const totalCommission = (revRes.data || []).filter(t => t.type === "wallet_to_account").reduce((s, t) => s + Number(t.commission || 0), 0);
     const avgCommissionRate = totalSpentForComm > 0 ? (totalCommission / totalSpentForComm) * 100 : commissionRate;
 
+    // All-time ad spend from transaction logs
+    let allTimeAdSpend = 0;
+    (spendTxnRes.data || []).forEach((txn: any) => {
+      const inc = (Number(txn.new_amount_spent) || 0) - (Number(txn.old_amount_spent) || 0);
+      if (inc > 0) allTimeAdSpend += inc;
+    });
+
     setOverviewStats({
       totalBalance: (balRes.data || []).reduce((s, u) => s + Number(u.wallet_balance || 0), 0),
       totalRevenue,
@@ -176,6 +184,7 @@ export default function Admin() {
       totalAdSpend,
       totalAdRemaining,
       avgCommissionRate,
+      allTimeAdSpend,
     });
   };
 
