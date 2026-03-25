@@ -887,8 +887,13 @@ export default function Admin() {
                   </tr></thead>
                   <tbody>
                     {users.map((u) => (
-                      <tr key={u.id} className="border-b border-border/50 hover:bg-secondary/50">
-                        <td className="p-4 text-foreground font-medium">{u.full_name || "—"}</td>
+                      <tr key={u.id} className={`border-b border-border/50 hover:bg-secondary/50 ${u.is_disabled ? "opacity-60" : ""}`}>
+                        <td className="p-4 text-foreground font-medium">
+                          {u.full_name || "—"}
+                          {u.is_disabled && (
+                            <span className="ml-2 px-2 py-0.5 rounded-full text-xs font-medium bg-destructive/20 text-destructive" title={u.disabled_reason || ""}>Disabled</span>
+                          )}
+                        </td>
                         <td className="p-4 text-muted-foreground text-xs">{u.email || "—"}</td>
                         <td className="p-4">
                           <select value={getUserRole(u)} onChange={(e) => handleChangeRole(u.id, e.target.value)}
