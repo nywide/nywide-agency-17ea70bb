@@ -625,9 +625,28 @@ export default function Admin() {
         assigned_at: new Date().toISOString(),
         display_name: req.account_name || null,
       } as any).eq("id", selectedAccountId);
+
+      // Auto top-up if preferred_limit > 0
+      const preferredLimit = Number(req.preferred_limit || 0);
+      if (preferredLimit > 0) {
+        const { data: assignedAcc } = await supabase.from("ad_accounts").select("account_id").eq("id", selectedAccountId).single();
+        if (assignedAcc) {
+          try {
+            const { data: topupResult, error: topupError } = await supabase.functions.invoke("facebook-api", {
+              body: { action: "wallet_to_account", ad_account_id: assignedAcc.account_id, amount: preferredLimit, user_id: req.user_id },
+            });
+            if (topupError || topupResult?.error) {
+              toast({ title: "Account assigned but auto top-up failed", description: topupResult?.error || topupError?.message, variant: "destructive" });
+            } else {
+              toast({ title: "Auto top-up successful", description: `$${topupResult.amount_sent?.toFixed(2)} sent to account.` });
+            }
+          } catch (err: any) {
+            toast({ title: "Auto top-up error", description: err.message, variant: "destructive" });
+          }
+        }
+      }
     }
     await supabase.from("account_requests").update({ status: "approved" }).eq("id", req.id);
-    // Notify user
     await supabase.from("notifications").insert({
       user_id: req.user_id,
       title: "Account request approved",
