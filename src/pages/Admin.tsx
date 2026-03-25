@@ -927,7 +927,7 @@ export default function Admin() {
                       const amountSpent = Number(acc.amount_spent || acc.current_spend || 0);
                       const remaining = Math.max(0, spendLimit - amountSpent);
                       return (
-                      <tr key={acc.id} className="border-b border-border/50 hover:bg-secondary/50">
+                      <tr key={acc.id} className={`border-b border-border/50 hover:bg-secondary/50 ${acc.is_disabled ? "opacity-60" : ""}`}>
                         <td className="p-4 text-foreground font-mono text-xs">{acc.account_id}</td>
                         <td className="p-4 text-foreground">{acc.account_name}</td>
                         <td className="p-4 text-foreground capitalize">{acc.platform}</td>
@@ -940,9 +940,15 @@ export default function Admin() {
                             <Progress value={spendLimit > 0 ? (amountSpent / spendLimit) * 100 : 0} className="h-1.5" />
                           </div>
                         </td>
-                        <td className="p-4 capitalize text-foreground">{acc.status}</td>
+                        <td className="p-4">
+                          {acc.is_disabled ? (
+                            <span className="px-2 py-1 rounded-full text-xs font-medium bg-destructive/20 text-destructive" title={acc.disabled_reason || ""}>Disabled</span>
+                          ) : (
+                            <span className="capitalize text-foreground">{acc.status}</span>
+                          )}
+                        </td>
                         <td className="p-4 text-muted-foreground">{acc.profiles?.full_name || "Unassigned"}</td>
-                        <td className="p-4 flex gap-1">
+                        <td className="p-4 flex gap-1 flex-wrap">
                           <Button size="sm" variant="ghost" className="text-primary" onClick={() => setEditAccountDialog({ open: true, account: { ...acc } })}>Edit</Button>
                           <Button size="sm" variant="ghost" className="text-muted-foreground" onClick={() => {
                             setAccountLogDialog({ open: true, accountId: acc.account_id, accountName: acc.account_name });
@@ -954,6 +960,17 @@ export default function Admin() {
                             <Button size="sm" variant="ghost" className="text-muted-foreground" disabled={refreshingAccountId === acc.account_id}
                               onClick={() => handleRefreshAccount(acc.account_id)}>
                               {refreshingAccountId === acc.account_id ? "..." : "↻"}
+                            </Button>
+                          )}
+                          {acc.is_disabled ? (
+                            <Button size="sm" variant="ghost" className="text-green-500 hover:text-green-400"
+                              onClick={() => handleToggleDisable(acc)}>
+                              <ShieldCheck className="w-3.5 h-3.5 mr-1" />Enable
+                            </Button>
+                          ) : (
+                            <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive"
+                              onClick={() => { setDisableDialog({ open: true, account: acc }); setDisableReason(""); }}>
+                              <Ban className="w-3.5 h-3.5 mr-1" />Disable
                             </Button>
                           )}
                           <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive"
