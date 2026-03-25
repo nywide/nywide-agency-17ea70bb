@@ -138,8 +138,10 @@ export type Database = {
           created_at: string
           currency: string
           current_spend: number
+          disabled_reason: string | null
           display_name: string | null
           id: string
+          is_disabled: boolean | null
           platform: string
           spend_limit: number
           status: string
@@ -154,8 +156,10 @@ export type Database = {
           created_at?: string
           currency?: string
           current_spend?: number
+          disabled_reason?: string | null
           display_name?: string | null
           id?: string
+          is_disabled?: boolean | null
           platform?: string
           spend_limit?: number
           status?: string
@@ -170,8 +174,10 @@ export type Database = {
           created_at?: string
           currency?: string
           current_spend?: number
+          disabled_reason?: string | null
           display_name?: string | null
           id?: string
+          is_disabled?: boolean | null
           platform?: string
           spend_limit?: number
           status?: string
