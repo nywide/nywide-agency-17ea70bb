@@ -384,23 +384,29 @@ export type Database = {
       profiles: {
         Row: {
           created_at: string
+          disabled_reason: string | null
           email: string | null
           full_name: string | null
           id: string
+          is_disabled: boolean | null
           wallet_balance: number
         }
         Insert: {
           created_at?: string
+          disabled_reason?: string | null
           email?: string | null
           full_name?: string | null
           id: string
+          is_disabled?: boolean | null
           wallet_balance?: number
         }
         Update: {
           created_at?: string
+          disabled_reason?: string | null
           email?: string | null
           full_name?: string | null
           id?: string
+          is_disabled?: boolean | null
           wallet_balance?: number
         }
         Relationships: []

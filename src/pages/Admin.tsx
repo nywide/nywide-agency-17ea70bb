@@ -81,6 +81,10 @@ export default function Admin() {
   const [disableDialog, setDisableDialog] = useState<{ open: boolean; account?: any }>({ open: false });
   const [disableReason, setDisableReason] = useState("");
   const [togglingDisable, setTogglingDisable] = useState(false);
+  const [userDisableDialog, setUserDisableDialog] = useState<{ open: boolean; userId?: string; userName?: string }>({ open: false });
+  const [userDisableReason, setUserDisableReason] = useState("");
+  const [togglingUserDisable, setTogglingUserDisable] = useState(false);
+  const [userEnableConfirm, setUserEnableConfirm] = useState<{ open: boolean; userId?: string; userName?: string }>({ open: false });
 
   const [allUsersForDropdown, setAllUsersForDropdown] = useState<any[]>([]);
   const [userTotalSpent, setUserTotalSpent] = useState<Record<string, number>>({});
@@ -567,6 +571,29 @@ export default function Admin() {
     }
   };
 
+  const handleToggleUserDisable = async (userId: string, disable: boolean, reason?: string) => {
+    setTogglingUserDisable(true);
+    try {
+      const updateData: any = { is_disabled: disable };
+      if (disable && reason) updateData.disabled_reason = reason;
+      if (!disable) updateData.disabled_reason = null;
+      const { error } = await supabase.from("profiles").update(updateData).eq("id", userId);
+      if (error) {
+        toast({ title: "Error", description: error.message, variant: "destructive" });
+      } else {
+        toast({ title: disable ? "User disabled" : "User enabled" });
+        fetchUsers();
+      }
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally {
+      setTogglingUserDisable(false);
+      setUserDisableDialog({ open: false });
+      setUserDisableReason("");
+      setUserEnableConfirm({ open: false });
+    }
+  };
+
   const handleApproveRequest = async (req: any, selectedAccountId?: string) => {
     setApprovingId(req.id);
     if (selectedAccountId) {
@@ -860,8 +887,13 @@ export default function Admin() {
                   </tr></thead>
                   <tbody>
                     {users.map((u) => (
-                      <tr key={u.id} className="border-b border-border/50 hover:bg-secondary/50">
-                        <td className="p-4 text-foreground font-medium">{u.full_name || "—"}</td>
+                      <tr key={u.id} className={`border-b border-border/50 hover:bg-secondary/50 ${u.is_disabled ? "opacity-60" : ""}`}>
+                        <td className="p-4 text-foreground font-medium">
+                          {u.full_name || "—"}
+                          {u.is_disabled && (
+                            <span className="ml-2 px-2 py-0.5 rounded-full text-xs font-medium bg-destructive/20 text-destructive" title={u.disabled_reason || ""}>Disabled</span>
+                          )}
+                        </td>
                         <td className="p-4 text-muted-foreground text-xs">{u.email || "—"}</td>
                         <td className="p-4">
                           <select value={getUserRole(u)} onChange={(e) => handleChangeRole(u.id, e.target.value)}
@@ -882,10 +914,21 @@ export default function Admin() {
                         <td className="p-4 text-foreground">${Number(u.wallet_balance).toFixed(2)}</td>
                         <td className="p-4 text-foreground">${(userTotalSpent[u.id] || 0).toFixed(2)}</td>
                         <td className="p-4 text-muted-foreground">{new Date(u.created_at).toLocaleDateString()}</td>
-                        <td className="p-4 flex gap-2">
+                        <td className="p-4 flex gap-2 flex-wrap">
                           <Button size="sm" variant="outline" className="rounded-full border-primary text-primary" onClick={() => setTopUpDialog({ open: true, userId: u.id, userName: u.full_name })}>
                             <Plus className="w-3.5 h-3.5 mr-1" />Top Up
                           </Button>
+                          {u.is_disabled ? (
+                            <Button size="sm" variant="ghost" className="text-green-500 hover:text-green-400"
+                              onClick={() => setUserEnableConfirm({ open: true, userId: u.id, userName: u.full_name })}>
+                              <ShieldCheck className="w-3.5 h-3.5 mr-1" />Enable
+                            </Button>
+                          ) : (
+                            <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive"
+                              onClick={() => { setUserDisableDialog({ open: true, userId: u.id, userName: u.full_name }); setUserDisableReason(""); }}>
+                              <Ban className="w-3.5 h-3.5 mr-1" />Disable
+                            </Button>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -1486,6 +1529,42 @@ export default function Admin() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Disable User Dialog */}
+      <Dialog open={userDisableDialog.open} onOpenChange={(open) => setUserDisableDialog({ ...userDisableDialog, open })}>
+        <DialogContent className="bg-card border-border">
+          <DialogHeader>
+            <DialogTitle className="text-foreground">Disable User – {userDisableDialog.userName || "User"}</DialogTitle>
+            <DialogDescription>This user will be blocked from logging in and accessing the platform.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label className="text-foreground">Reason</Label>
+              <Input placeholder="e.g. Fraud, non-payment, ToS violation..." value={userDisableReason} onChange={(e) => setUserDisableReason(e.target.value)} className="bg-secondary border-border text-foreground" />
+            </div>
+            <Button onClick={() => handleToggleUserDisable(userDisableDialog.userId!, true, userDisableReason)} disabled={togglingUserDisable || !userDisableReason}
+              className="w-full bg-destructive text-destructive-foreground hover:bg-destructive/90 font-bold rounded-full">
+              {togglingUserDisable ? "Disabling..." : "Disable User"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Enable User Confirm */}
+      <AlertDialog open={userEnableConfirm.open} onOpenChange={(open) => setUserEnableConfirm({ ...userEnableConfirm, open })}>
+        <AlertDialogContent className="bg-card border-border">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-foreground">Enable User</AlertDialogTitle>
+            <AlertDialogDescription>Are you sure you want to re-enable {userEnableConfirm.userName || "this user"}? They will be able to log in and use the platform again.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="rounded-full">Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => handleToggleUserDisable(userEnableConfirm.userId!, false)} className="bg-primary text-primary-foreground rounded-full">
+              {togglingUserDisable ? "Enabling..." : "Enable User"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
