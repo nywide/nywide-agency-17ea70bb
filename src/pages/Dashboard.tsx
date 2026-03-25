@@ -1031,6 +1031,25 @@ export default function Dashboard() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Rename Account Dialog */}
+      <Dialog open={renameDialog.open} onOpenChange={(open) => setRenameDialog({ ...renameDialog, open })}>
+        <DialogContent className="bg-card border-border">
+          <DialogHeader>
+            <DialogTitle className="text-foreground">Rename Account</DialogTitle>
+            <DialogDescription>Change the display name for this ad account.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label className="text-foreground">Account Name</Label>
+              <Input value={renameValue} onChange={(e) => setRenameValue(e.target.value)} className="bg-secondary border-border text-foreground" />
+            </div>
+            <Button onClick={handleRenameAccount} disabled={renaming || !renameValue.trim()} className="w-full bg-primary text-primary-foreground font-bold rounded-full">
+              {renaming ? "Saving..." : "Save Name"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
