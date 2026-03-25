@@ -55,9 +55,12 @@ export default function Dashboard() {
   // Account request form fields
   const [requestPlatform, setRequestPlatform] = useState("facebook");
   const [requestAccountName, setRequestAccountName] = useState("");
-  const [requestCurrency, setRequestCurrency] = useState("USD");
-  const [requestTimezone, setRequestTimezone] = useState("America/New_York");
   const [requestPreferredLimit, setRequestPreferredLimit] = useState("");
+
+  // Rename account dialog
+  const [renameDialog, setRenameDialog] = useState<{ open: boolean; account?: any }>({ open: false });
+  const [renameValue, setRenameValue] = useState("");
+  const [renaming, setRenaming] = useState(false);
 
   // Pending account requests & topup requests
   const [accountRequests, setAccountRequests] = useState<any[]>([]);
