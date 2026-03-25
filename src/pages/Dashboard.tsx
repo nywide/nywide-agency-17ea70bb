@@ -15,7 +15,7 @@ import { Label } from "@/components/ui/label";
 import {
   Wallet, Monitor, FileText, Receipt, Plus, LogOut, Home,
   DollarSign, Clock, CheckCircle, XCircle, AlertCircle,
-  ArrowUpRight, ArrowDownLeft, Search, LayoutDashboard, RefreshCw, ClipboardList
+  ArrowUpRight, ArrowDownLeft, Search, LayoutDashboard, RefreshCw, ClipboardList, Ban
 } from "lucide-react";
 
 const PAGE_SIZE = 50;
@@ -453,10 +453,16 @@ export default function Dashboard() {
                 <h2 className="text-lg font-bold text-foreground mb-3">Ad Accounts</h2>
                 <div className="grid gap-3">
                   {adAccounts.slice(0, 3).map((acc) => (
-                    <div key={acc.id} className="bg-card border border-border rounded-xl p-4 flex items-center justify-between">
+                    <div key={acc.id} className={`bg-card border rounded-xl p-4 flex items-center justify-between ${acc.is_disabled ? "border-destructive/30 opacity-70" : "border-border"}`}>
                       <div>
-                        <p className="font-medium text-foreground">{getAccountDisplayName(acc)}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium text-foreground">{getAccountDisplayName(acc)}</p>
+                          {acc.is_disabled && <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-destructive/20 text-destructive">Disabled</span>}
+                        </div>
                         <p className="text-sm text-muted-foreground">{acc.account_id} · {acc.platform} · {acc.currency}</p>
+                        {acc.is_disabled && acc.disabled_reason && (
+                          <p className="text-xs text-destructive mt-1">Reason: {acc.disabled_reason}</p>
+                        )}
                       </div>
                       <div className="text-right flex items-center gap-2">
                         <div>
@@ -542,12 +548,15 @@ export default function Dashboard() {
                   const spent = getAccountSpent(acc);
                   const remaining = getAccountRemaining(acc);
                   return (
-                    <div key={acc.id} className="bg-card border border-border rounded-xl p-5">
+                    <div key={acc.id} className={`bg-card border rounded-xl p-5 ${acc.is_disabled ? "border-destructive/30" : "border-border"}`}>
                       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                         <div className="flex-1 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-4">
                           <div>
                             <p className="text-xs text-muted-foreground">Account Name</p>
-                            <p className="text-sm font-medium text-foreground">{getAccountDisplayName(acc)}</p>
+                            <div className="flex items-center gap-1.5">
+                              <p className="text-sm font-medium text-foreground">{getAccountDisplayName(acc)}</p>
+                              {acc.is_disabled && <Ban className="w-3.5 h-3.5 text-destructive" />}
+                            </div>
                           </div>
                           <div>
                             <p className="text-xs text-muted-foreground">Account ID</p>
@@ -579,10 +588,17 @@ export default function Dashboard() {
                           </div>
                           <div>
                             <p className="text-xs text-muted-foreground">Status</p>
-                            <span className="flex items-center gap-1.5 text-sm">
-                              {statusIcon(acc.status)}
-                              <span className="capitalize text-muted-foreground">{acc.status}</span>
-                            </span>
+                            {acc.is_disabled ? (
+                              <span className="flex items-center gap-1.5 text-sm">
+                                <Ban className="w-4 h-4 text-destructive" />
+                                <span className="text-destructive font-medium">Disabled</span>
+                              </span>
+                            ) : (
+                              <span className="flex items-center gap-1.5 text-sm">
+                                {statusIcon(acc.status)}
+                                <span className="capitalize text-muted-foreground">{acc.status}</span>
+                              </span>
+                            )}
                           </div>
                         </div>
                         <div className="flex gap-2">
@@ -590,7 +606,7 @@ export default function Dashboard() {
                             disabled={refreshingAccount === acc.account_id} className="rounded-full">
                             <RefreshCw className={`w-3.5 h-3.5 ${refreshingAccount === acc.account_id ? "animate-spin" : ""}`} />
                           </Button>
-                          {acc.status === "active" && (
+                          {acc.status === "active" && !acc.is_disabled && (
                             <>
                               <Button size="sm" onClick={() => { setTransferOpen({ open: true, account: acc }); setTransferAmount(""); }}
                                 className="bg-primary text-primary-foreground font-bold rounded-full">
@@ -604,6 +620,9 @@ export default function Dashboard() {
                           )}
                         </div>
                       </div>
+                      {acc.is_disabled && acc.disabled_reason && (
+                        <p className="text-xs text-destructive mt-2">Reason: {acc.disabled_reason}</p>
+                      )}
                       {spendLimit > 0 && (
                         <div className="mt-3">
                           <div className="flex justify-between text-xs text-muted-foreground mb-1">
