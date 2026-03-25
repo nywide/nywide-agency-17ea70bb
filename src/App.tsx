@@ -16,6 +16,7 @@ const Admin = lazy(() => import("./pages/Admin.tsx"));
 const NotFound = lazy(() => import("./pages/NotFound.tsx"));
 const Unsubscribe = lazy(() => import("./pages/Unsubscribe.tsx"));
 const Contact = lazy(() => import("./pages/Contact.tsx"));
+const Settings = lazy(() => import("./pages/Settings.tsx"));
 
 const queryClient = new QueryClient();
 
@@ -40,6 +41,7 @@ const AppRoutes = () => {
       <Route path="/signup-custom" element={<SignupCustom />} />
       <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
       <Route path="/admin" element={<ProtectedRoute requiredRole="admin"><Admin /></ProtectedRoute>} />
+      <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
       <Route path="/unsubscribe" element={<Unsubscribe />} />
       <Route path="/contact" element={<Contact />} />
       <Route path="*" element={<NotFound />} />
