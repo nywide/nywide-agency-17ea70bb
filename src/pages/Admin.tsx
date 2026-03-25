@@ -1466,6 +1466,26 @@ export default function Admin() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Disable Account Dialog */}
+      <Dialog open={disableDialog.open} onOpenChange={(open) => setDisableDialog({ ...disableDialog, open })}>
+        <DialogContent className="bg-card border-border">
+          <DialogHeader>
+            <DialogTitle className="text-foreground">Disable Account – {disableDialog.account?.account_name}</DialogTitle>
+            <DialogDescription>Provide a reason for disabling this account. Users will not be able to add or withdraw funds.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label className="text-foreground">Reason</Label>
+              <Input placeholder="e.g. Policy violation, payment issue..." value={disableReason} onChange={(e) => setDisableReason(e.target.value)} className="bg-secondary border-border text-foreground" />
+            </div>
+            <Button onClick={() => handleToggleDisable(disableDialog.account, disableReason)} disabled={togglingDisable || !disableReason}
+              className="w-full bg-destructive text-destructive-foreground hover:bg-destructive/90 font-bold rounded-full">
+              {togglingDisable ? "Disabling..." : "Disable Account"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

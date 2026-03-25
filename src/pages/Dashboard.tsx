@@ -15,7 +15,7 @@ import { Label } from "@/components/ui/label";
 import {
   Wallet, Monitor, FileText, Receipt, Plus, LogOut, Home,
   DollarSign, Clock, CheckCircle, XCircle, AlertCircle,
-  ArrowUpRight, ArrowDownLeft, Search, LayoutDashboard, RefreshCw, ClipboardList
+  ArrowUpRight, ArrowDownLeft, Search, LayoutDashboard, RefreshCw, ClipboardList, Ban
 } from "lucide-react";
 
 const PAGE_SIZE = 50;
