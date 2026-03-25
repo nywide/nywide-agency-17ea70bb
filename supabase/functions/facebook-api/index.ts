@@ -179,6 +179,13 @@ Deno.serve(async (req) => {
 
     if (action === "wallet_to_account") {
       const targetUserId = user_id || user.id;
+
+      // Check if account is disabled
+      const { data: accCheck } = await adminClient.from("ad_accounts").select("is_disabled, disabled_reason").eq("account_id", ad_account_id).maybeSingle();
+      if (accCheck?.is_disabled) {
+        return jsonResponse({ error: `Account is disabled: ${accCheck.disabled_reason || "No reason provided"}` }, 400);
+      }
+
       const commissionRate = await getCommissionRate(adminClient, targetUserId);
 
       const { data: profile } = await adminClient
@@ -229,6 +236,13 @@ Deno.serve(async (req) => {
 
     if (action === "account_to_wallet") {
       const targetUserId = user_id || user.id;
+
+      // Check if account is disabled
+      const { data: accCheck2 } = await adminClient.from("ad_accounts").select("is_disabled, disabled_reason").eq("account_id", ad_account_id).maybeSingle();
+      if (accCheck2?.is_disabled) {
+        return jsonResponse({ error: `Account is disabled: ${accCheck2.disabled_reason || "No reason provided"}` }, 400);
+      }
+
       const commissionRate = await getCommissionRate(adminClient, targetUserId);
 
       const synced = await syncAdAccountFromFacebook(adminClient, ad_account_id, FB_ACCESS_TOKEN);
