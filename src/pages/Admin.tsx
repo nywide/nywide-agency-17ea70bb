@@ -811,6 +811,11 @@ export default function Admin() {
                 <p className="text-muted-foreground text-sm">Total Ad Accounts</p>
                 <p className="text-3xl font-bold text-foreground">{overviewStats.totalAccounts}</p>
               </div>
+              <div className="bg-card border border-border rounded-xl p-5">
+                <p className="text-muted-foreground text-sm">All-Time Ad Spend</p>
+                <p className="text-3xl font-bold text-foreground"><span className="text-primary">$</span>{overviewStats.allTimeAdSpend.toFixed(2)}</p>
+                <p className="text-xs text-muted-foreground mt-1">From historical spend tracking</p>
+              </div>
             </div>
 
             {/* Recent Profiles */}
