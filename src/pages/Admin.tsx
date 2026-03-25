@@ -28,7 +28,7 @@ export default function Admin() {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("overview");
 
-  const [overviewStats, setOverviewStats] = useState({ totalBalance: 0, totalRevenue: 0, totalUsers: 0, totalAccounts: 0, totalAdSpend: 0, totalAdRemaining: 0, avgCommissionRate: 0 });
+  const [overviewStats, setOverviewStats] = useState({ totalBalance: 0, totalRevenue: 0, totalUsers: 0, totalAccounts: 0, totalAdSpend: 0, totalAdRemaining: 0, avgCommissionRate: 0, allTimeAdSpend: 0 });
 
   // Date filter for overview
   const [dateFrom, setDateFrom] = useState("");
@@ -67,7 +67,7 @@ export default function Admin() {
   const [topUpAmount, setTopUpAmount] = useState("");
   const [addAccountDialog, setAddAccountDialog] = useState(false);
   const [newAccount, setNewAccount] = useState({
-    account_id: "", account_name: "", currency: "USD", timezone: "America/New_York", spend_limit: "", user_id: "", platform: "facebook",
+    account_id: "", account_name: "", currency: "USD", timezone: "", spend_limit: "0.01", user_id: "", platform: "facebook",
   });
   const [editAccountDialog, setEditAccountDialog] = useState<{ open: boolean; account?: any }>({ open: false });
   const [overrideDialog, setOverrideDialog] = useState<{ open: boolean; userId?: string; userName?: string; rate?: string }>({ open: false });
@@ -88,6 +88,7 @@ export default function Admin() {
 
   const [allUsersForDropdown, setAllUsersForDropdown] = useState<any[]>([]);
   const [userTotalSpent, setUserTotalSpent] = useState<Record<string, number>>({});
+  const [userAccountStats, setUserAccountStats] = useState<Record<string, { totalSpendLimit: number; totalAmountSpent: number }>>({});
 
   useEffect(() => {
     if (!user) return;
@@ -146,13 +147,14 @@ export default function Admin() {
     if (dateFrom) txnQuery = txnQuery.gte("created_at", dateFrom);
     if (dateTo) txnQuery = txnQuery.lte("created_at", dateTo + "T23:59:59");
 
-    const [balRes, revRes, userCountRes, accCountRes, adAccRes, overridesRes] = await Promise.all([
+    const [balRes, revRes, userCountRes, accCountRes, adAccRes, overridesRes, spendTxnRes] = await Promise.all([
       supabase.from("profiles").select("wallet_balance"),
       txnQuery,
       supabase.from("profiles").select("id", { count: "exact", head: true }),
       supabase.from("ad_accounts").select("id", { count: "exact", head: true }),
       supabase.from("ad_accounts").select("spend_limit, amount_spent, current_spend"),
       supabase.from("user_commission_overrides").select("rate"),
+      supabase.from("ad_account_transactions").select("old_amount_spent, new_amount_spent").eq("type", "spend"),
     ]);
 
     const totalAdSpend = (adAccRes.data || []).reduce((s, a) => s + Number(a.amount_spent || a.current_spend || 0), 0);
@@ -168,6 +170,13 @@ export default function Admin() {
     const totalCommission = (revRes.data || []).filter(t => t.type === "wallet_to_account").reduce((s, t) => s + Number(t.commission || 0), 0);
     const avgCommissionRate = totalSpentForComm > 0 ? (totalCommission / totalSpentForComm) * 100 : commissionRate;
 
+    // All-time ad spend from transaction logs
+    let allTimeAdSpend = 0;
+    (spendTxnRes.data || []).forEach((txn: any) => {
+      const inc = (Number(txn.new_amount_spent) || 0) - (Number(txn.old_amount_spent) || 0);
+      if (inc > 0) allTimeAdSpend += inc;
+    });
+
     setOverviewStats({
       totalBalance: (balRes.data || []).reduce((s, u) => s + Number(u.wallet_balance || 0), 0),
       totalRevenue,
@@ -176,6 +185,7 @@ export default function Admin() {
       totalAdSpend,
       totalAdRemaining,
       avgCommissionRate,
+      allTimeAdSpend,
     });
   };
 
@@ -237,10 +247,22 @@ export default function Admin() {
         setUserCount(count || data.length);
         const userIds = data.map((u: any) => u.id);
         if (userIds.length > 0) {
-          const { data: spentData } = await supabase.from("transactions").select("user_id, amount").eq("type", "wallet_to_account").eq("status", "completed").in("user_id", userIds);
+          const [spentResult, accountsResult] = await Promise.all([
+            supabase.from("transactions").select("user_id, amount").eq("type", "wallet_to_account").eq("status", "completed").in("user_id", userIds),
+            supabase.from("ad_accounts").select("user_id, spend_limit, amount_spent").in("user_id", userIds),
+          ]);
           const spentMap: Record<string, number> = {};
-          (spentData || []).forEach((t: any) => { spentMap[t.user_id] = (spentMap[t.user_id] || 0) + Number(t.amount); });
+          (spentResult.data || []).forEach((t: any) => { spentMap[t.user_id] = (spentMap[t.user_id] || 0) + Number(t.amount); });
           setUserTotalSpent(spentMap);
+
+          const statsMap: Record<string, { totalSpendLimit: number; totalAmountSpent: number }> = {};
+          (accountsResult.data || []).forEach((acc: any) => {
+            if (!acc.user_id) return;
+            if (!statsMap[acc.user_id]) statsMap[acc.user_id] = { totalSpendLimit: 0, totalAmountSpent: 0 };
+            statsMap[acc.user_id].totalSpendLimit += Number(acc.spend_limit);
+            statsMap[acc.user_id].totalAmountSpent += Number(acc.amount_spent);
+          });
+          setUserAccountStats(statsMap);
         }
       } else {
         setUsers([]);
@@ -452,7 +474,7 @@ export default function Admin() {
     }
     setAddingAccount(true);
     try {
-      const spendLimit = Number(newAccount.spend_limit) || 0;
+      const spendLimit = Number(newAccount.spend_limit) || 0.01;
       const insertData = {
         account_id: newAccount.account_id.trim(),
         account_name: newAccount.account_name.trim(),
@@ -482,7 +504,7 @@ export default function Admin() {
       }
       toast({ title: "Account created successfully" });
       setAddAccountDialog(false);
-      setNewAccount({ account_id: "", account_name: "", currency: "USD", timezone: "America/New_York", spend_limit: "", user_id: "", platform: "facebook" });
+      setNewAccount({ account_id: "", account_name: "", currency: "USD", timezone: "", spend_limit: "0.01", user_id: "", platform: "facebook" });
       fetchAccounts();
       fetchOverviewStats();
     } catch (err: any) {
@@ -603,9 +625,28 @@ export default function Admin() {
         assigned_at: new Date().toISOString(),
         display_name: req.account_name || null,
       } as any).eq("id", selectedAccountId);
+
+      // Auto top-up if preferred_limit > 0
+      const preferredLimit = Number(req.preferred_limit || 0);
+      if (preferredLimit > 0) {
+        const { data: assignedAcc } = await supabase.from("ad_accounts").select("account_id").eq("id", selectedAccountId).single();
+        if (assignedAcc) {
+          try {
+            const { data: topupResult, error: topupError } = await supabase.functions.invoke("facebook-api", {
+              body: { action: "wallet_to_account", ad_account_id: assignedAcc.account_id, amount: preferredLimit, user_id: req.user_id },
+            });
+            if (topupError || topupResult?.error) {
+              toast({ title: "Account assigned but auto top-up failed", description: topupResult?.error || topupError?.message, variant: "destructive" });
+            } else {
+              toast({ title: "Auto top-up successful", description: `$${topupResult.amount_sent?.toFixed(2)} sent to account.` });
+            }
+          } catch (err: any) {
+            toast({ title: "Auto top-up error", description: err.message, variant: "destructive" });
+          }
+        }
+      }
     }
     await supabase.from("account_requests").update({ status: "approved" }).eq("id", req.id);
-    // Notify user
     await supabase.from("notifications").insert({
       user_id: req.user_id,
       title: "Account request approved",
@@ -789,6 +830,11 @@ export default function Admin() {
                 <p className="text-muted-foreground text-sm">Total Ad Accounts</p>
                 <p className="text-3xl font-bold text-foreground">{overviewStats.totalAccounts}</p>
               </div>
+              <div className="bg-card border border-border rounded-xl p-5">
+                <p className="text-muted-foreground text-sm">All-Time Ad Spend</p>
+                <p className="text-3xl font-bold text-foreground"><span className="text-primary">$</span>{overviewStats.allTimeAdSpend.toFixed(2)}</p>
+                <p className="text-xs text-muted-foreground mt-1">From historical spend tracking</p>
+              </div>
             </div>
 
             {/* Recent Profiles */}
@@ -881,7 +927,9 @@ export default function Admin() {
                     <th className="text-left p-4 text-muted-foreground font-medium">Role</th>
                     <th className="text-left p-4 text-muted-foreground font-medium">Commission (%)</th>
                     <th className="text-left p-4 text-muted-foreground font-medium">Wallet Balance</th>
-                    <th className="text-left p-4 text-muted-foreground font-medium">Total Spent</th>
+                    <th className="text-left p-4 text-muted-foreground font-medium">Total Spending Limit</th>
+                    <th className="text-left p-4 text-muted-foreground font-medium">Total Amount Spent</th>
+                    <th className="text-left p-4 text-muted-foreground font-medium">Total Remaining</th>
                     <th className="text-left p-4 text-muted-foreground font-medium">Date Joined</th>
                     <th className="text-left p-4 text-muted-foreground font-medium">Actions</th>
                   </tr></thead>
@@ -912,7 +960,9 @@ export default function Admin() {
                           </button>
                         </td>
                         <td className="p-4 text-foreground">${Number(u.wallet_balance).toFixed(2)}</td>
-                        <td className="p-4 text-foreground">${(userTotalSpent[u.id] || 0).toFixed(2)}</td>
+                        <td className="p-4 text-foreground">${(userAccountStats[u.id]?.totalSpendLimit || 0).toFixed(2)}</td>
+                        <td className="p-4 text-foreground">${(userAccountStats[u.id]?.totalAmountSpent || 0).toFixed(2)}</td>
+                        <td className="p-4 text-primary font-medium">${((userAccountStats[u.id]?.totalSpendLimit || 0) - (userAccountStats[u.id]?.totalAmountSpent || 0)).toFixed(2)}</td>
                         <td className="p-4 text-muted-foreground">{new Date(u.created_at).toLocaleDateString()}</td>
                         <td className="p-4 flex gap-2 flex-wrap">
                           <Button size="sm" variant="outline" className="rounded-full border-primary text-primary" onClick={() => setTopUpDialog({ open: true, userId: u.id, userName: u.full_name })}>
@@ -1373,10 +1423,6 @@ export default function Admin() {
                 <Label className="text-foreground">Timezone</Label>
                 <Input placeholder="America/New_York" value={newAccount.timezone} onChange={(e) => setNewAccount({ ...newAccount, timezone: e.target.value })} className="bg-secondary border-border text-foreground" />
               </div>
-            </div>
-            <div className="space-y-2">
-              <Label className="text-foreground">Balance (USD)</Label>
-              <Input type="number" placeholder="10" value={newAccount.spend_limit} onChange={(e) => setNewAccount({ ...newAccount, spend_limit: e.target.value })} className="bg-secondary border-border text-foreground" />
             </div>
             <div className="space-y-2">
               <Label className="text-foreground">Assign to User (optional)</Label>

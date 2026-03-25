@@ -15,3 +15,5 @@ project_id = "cipcxfpnaybfclohrrct"
     verify_jwt = false
   [functions.facebook-api]
     verify_jwt = false
+  [functions.send-telegram-notification]
+    verify_jwt = false
