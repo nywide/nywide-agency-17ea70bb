@@ -67,7 +67,7 @@ export default function Admin() {
   const [topUpAmount, setTopUpAmount] = useState("");
   const [addAccountDialog, setAddAccountDialog] = useState(false);
   const [newAccount, setNewAccount] = useState({
-    account_id: "", account_name: "", currency: "USD", timezone: "America/New_York", spend_limit: "", user_id: "", platform: "facebook",
+    account_id: "", account_name: "", currency: "USD", timezone: "", spend_limit: "0.01", user_id: "", platform: "facebook",
   });
   const [editAccountDialog, setEditAccountDialog] = useState<{ open: boolean; account?: any }>({ open: false });
   const [overrideDialog, setOverrideDialog] = useState<{ open: boolean; userId?: string; userName?: string; rate?: string }>({ open: false });
@@ -474,7 +474,7 @@ export default function Admin() {
     }
     setAddingAccount(true);
     try {
-      const spendLimit = Number(newAccount.spend_limit) || 0;
+      const spendLimit = Number(newAccount.spend_limit) || 0.01;
       const insertData = {
         account_id: newAccount.account_id.trim(),
         account_name: newAccount.account_name.trim(),
@@ -504,7 +504,7 @@ export default function Admin() {
       }
       toast({ title: "Account created successfully" });
       setAddAccountDialog(false);
-      setNewAccount({ account_id: "", account_name: "", currency: "USD", timezone: "America/New_York", spend_limit: "", user_id: "", platform: "facebook" });
+      setNewAccount({ account_id: "", account_name: "", currency: "USD", timezone: "", spend_limit: "0.01", user_id: "", platform: "facebook" });
       fetchAccounts();
       fetchOverviewStats();
     } catch (err: any) {
