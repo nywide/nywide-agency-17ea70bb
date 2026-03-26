@@ -582,6 +582,17 @@ export default function Admin() {
         toast({ title: "Error", description: error.message, variant: "destructive" });
       } else {
         toast({ title: newDisabled ? "Account disabled" : "Account enabled" });
+        // Send notification to user when disabling
+        if (newDisabled && account.user_id) {
+          await supabase.from("notifications").insert({
+            user_id: account.user_id,
+            title: "Ad account disabled",
+            message: `Your ad account "${account.account_name}" (${account.account_id}) has been disabled.${reason ? ` Reason: ${reason}` : ""}`,
+            type: "account_disabled",
+            recipient_type: "user",
+          } as any);
+          console.log("[Admin] Notification sent for disabled account:", account.account_id);
+        }
         fetchAccounts();
       }
     } catch (err: any) {
