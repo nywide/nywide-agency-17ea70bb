@@ -1044,6 +1044,7 @@ export default function Dashboard() {
                 <option value="google">Google</option>
                 <option value="snapchat">Snapchat</option>
               </select>
+              <p className="text-xs text-muted-foreground mt-1">Commission rate: <span className="text-primary font-medium">{commissionRate}%</span></p>
             </div>
             {requestPlatform !== "facebook" && (
               <div className="bg-destructive/10 border border-destructive/30 rounded-xl p-4 text-sm text-destructive">
