@@ -17,6 +17,7 @@ export type Database = {
       account_requests: {
         Row: {
           account_name: string | null
+          balance_deducted: boolean | null
           created_at: string
           currency: string | null
           id: string
@@ -28,6 +29,7 @@ export type Database = {
         }
         Insert: {
           account_name?: string | null
+          balance_deducted?: boolean | null
           created_at?: string
           currency?: string | null
           id?: string
@@ -39,6 +41,7 @@ export type Database = {
         }
         Update: {
           account_name?: string | null
+          balance_deducted?: boolean | null
           created_at?: string
           currency?: string | null
           id?: string
