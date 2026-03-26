@@ -1691,6 +1691,24 @@ export default function Admin() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Reset Stats Confirmation */}
+      <AlertDialog open={resetConfirmOpen} onOpenChange={setResetConfirmOpen}>
+        <AlertDialogContent className="bg-card border-border">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-foreground">Reset All Data</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete all transactions, notifications, top-up requests, account requests, invoices, and spend history. All wallet balances will be set to $0 and ad accounts will be unassigned. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="rounded-full">Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleResetStats} className="bg-destructive text-destructive-foreground rounded-full">
+              {resetLoading ? "Resetting..." : "Yes, Reset Everything"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
