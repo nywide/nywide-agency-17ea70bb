@@ -278,6 +278,13 @@ export default function Dashboard() {
         setRequestAccountName("");
         fetchAccountRequests();
         if (balanceDeducted) await refreshProfile();
+        // Notify admin about new account request
+        await createNotification({
+          recipientType: "admin",
+          title: "New account request",
+          message: `User ${profile?.full_name || user!.email} requested a ${requestPlatform} account "${requestAccountName}".`,
+          type: "new_account_request",
+        });
       }
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
@@ -597,7 +604,7 @@ export default function Dashboard() {
             <div className="flex justify-between items-center">
               <div>
                 <h2 className="text-xl font-bold text-foreground">Your Ad Accounts</h2>
-                <p className="text-xs text-muted-foreground mt-1">Auto-refresh every 5 minutes</p>
+                <p className="text-xs text-muted-foreground mt-1">Auto-refresh: one account every 60s</p>
               </div>
               <Button onClick={() => setRequestOpen(true)} className="bg-primary text-primary-foreground font-bold rounded-full px-5">
                 <Plus className="w-4 h-4 mr-2" />Request Account
