@@ -637,9 +637,29 @@ export default function Admin() {
         display_name: req.account_name || null,
       } as any).eq("id", selectedAccountId);
 
-      // Auto top-up if preferred_limit > 0
       const preferredLimit = Number(req.preferred_limit || 0);
-      if (preferredLimit > 0) {
+      
+      if (req.balance_deducted && preferredLimit > 0) {
+        // Balance already deducted by user at request time
+        // Directly update the ad account spend_limit via Facebook API
+        const { data: assignedAcc } = await supabase.from("ad_accounts").select("account_id").eq("id", selectedAccountId).single();
+        if (assignedAcc) {
+          try {
+            const { data: fbData, error: fbError } = await supabase.functions.invoke("facebook-api", {
+              body: { action: "wallet_to_account", ad_account_id: assignedAcc.account_id, amount: preferredLimit, user_id: req.user_id },
+            });
+            if (fbError || fbData?.error) {
+              console.log("[Admin] Auto top-up failed (balance already deducted):", fbData?.error || fbError?.message);
+              toast({ title: "Account assigned but auto top-up failed", description: fbData?.error || fbError?.message, variant: "destructive" });
+            } else {
+              toast({ title: "Auto top-up successful", description: `$${fbData.amount_sent?.toFixed(2)} sent to account.` });
+            }
+          } catch (err: any) {
+            toast({ title: "Auto top-up error", description: err.message, variant: "destructive" });
+          }
+        }
+      } else if (!req.balance_deducted && preferredLimit > 0) {
+        // Balance NOT deducted yet – use wallet_to_account edge function
         const { data: assignedAcc } = await supabase.from("ad_accounts").select("account_id").eq("id", selectedAccountId).single();
         if (assignedAcc) {
           try {
