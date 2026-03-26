@@ -872,6 +872,9 @@ export default function Admin() {
               <Button size="sm" variant="outline" onClick={() => fetchOverviewStats()} className="rounded-full border-border ml-auto">
                 <RefreshCw className="w-3.5 h-3.5 mr-1" />Refresh Stats
               </Button>
+              <Button size="sm" variant="destructive" onClick={() => setResetConfirmOpen(true)} disabled={resetLoading} className="rounded-full">
+                {resetLoading ? "Resetting..." : "Reset All Data"}
+              </Button>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
