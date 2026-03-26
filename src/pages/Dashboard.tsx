@@ -76,6 +76,16 @@ export default function Dashboard() {
     }
   }, [user]);
 
+  // Auto-refresh ad accounts every 5 minutes
+  useEffect(() => {
+    if (!user) return;
+    const interval = setInterval(() => {
+      console.log("[Dashboard] Auto-refreshing ad accounts...");
+      fetchAccounts();
+    }, 300000); // 5 minutes
+    return () => clearInterval(interval);
+  }, [user]);
+
   useEffect(() => {
     if (user && activeTab === "transactions") fetchTransactions();
   }, [user, activeTab, txnPage, txnSearch, txnTypeFilter]);
@@ -572,7 +582,10 @@ export default function Dashboard() {
         {activeTab === "accounts" && (
           <div className="space-y-4">
             <div className="flex justify-between items-center">
-              <h2 className="text-xl font-bold text-foreground">Your Ad Accounts</h2>
+              <div>
+                <h2 className="text-xl font-bold text-foreground">Your Ad Accounts</h2>
+                <p className="text-xs text-muted-foreground mt-1">Auto-refresh every 5 minutes</p>
+              </div>
               <Button onClick={() => setRequestOpen(true)} className="bg-primary text-primary-foreground font-bold rounded-full px-5">
                 <Plus className="w-4 h-4 mr-2" />Request Account
               </Button>
@@ -1039,12 +1052,14 @@ export default function Dashboard() {
             <div className="space-y-2">
               <Label className="text-foreground">Platform *</Label>
               <select value={requestPlatform} onChange={(e) => setRequestPlatform(e.target.value)} className="w-full h-10 rounded-md bg-secondary border border-border px-3 text-foreground text-sm">
-                <option value="facebook">Facebook</option>
-                <option value="tiktok">TikTok</option>
-                <option value="google">Google</option>
-                <option value="snapchat">Snapchat</option>
+                <option value="facebook">Facebook ({commissionRate}% commission)</option>
+                <option value="tiktok">TikTok (Not available)</option>
+                <option value="google">Google (Not available)</option>
+                <option value="snapchat">Snapchat (Not available)</option>
               </select>
-              <p className="text-xs text-muted-foreground mt-1">Commission rate: <span className="text-primary font-medium">{commissionRate}%</span></p>
+              {requestPlatform === "facebook" && (
+                <p className="text-xs text-muted-foreground mt-1">Commission rate: <span className="text-primary font-medium">{commissionRate}%</span></p>
+              )}
             </div>
             {requestPlatform !== "facebook" && (
               <div className="bg-destructive/10 border border-destructive/30 rounded-xl p-4 text-sm text-destructive">

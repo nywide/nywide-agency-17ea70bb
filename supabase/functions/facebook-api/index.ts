@@ -117,6 +117,57 @@ async function syncAdAccountFromFacebook(adminClient: any, accountId: string, to
   // Log spend change if any
   await logSpendChangeIfNeeded(adminClient, accountId, oldSpent, amountSpentDollars, currentAccount?.user_id);
 
+  // Check low balance and notify user if below threshold
+  if (currentAccount?.user_id) {
+    const remaining = Math.max(0, spendLimitDollars - amountSpentDollars);
+    try {
+      const { data: profile } = await adminClient
+        .from("profiles")
+        .select("notification_settings")
+        .eq("id", currentAccount.user_id)
+        .single();
+      const settings = profile?.notification_settings as any;
+      const threshold = settings?.low_balance_threshold ?? 10;
+      const alertEnabled = settings?.notify_low_balance !== false;
+      if (alertEnabled && remaining > 0 && remaining < threshold && spendLimitDollars > 0) {
+        // Check if we already notified recently (last 6 hours) to avoid spam
+        const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString();
+        const { data: recentNotif } = await adminClient
+          .from("notifications")
+          .select("id")
+          .eq("user_id", currentAccount.user_id)
+          .eq("type", "low_balance")
+          .gte("created_at", sixHoursAgo)
+          .limit(1);
+        if (!recentNotif || recentNotif.length === 0) {
+          await adminClient.from("notifications").insert({
+            user_id: currentAccount.user_id,
+            title: "Low ad account balance",
+            message: `Account ${accountId} has $${remaining.toFixed(2)} remaining (threshold: $${threshold}).`,
+            type: "low_balance",
+            recipient_type: "user",
+          });
+          console.log(`[FB API] Low balance notification for user ${currentAccount.user_id}, remaining: $${remaining.toFixed(2)}`);
+          // Send Telegram if enabled
+          if (settings?.telegram && settings?.telegram_chat_id) {
+            const telegramUrl = Deno.env.get("SUPABASE_URL") + "/functions/v1/send-telegram-notification";
+            const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+            await fetch(telegramUrl, {
+              method: "POST",
+              headers: { "Content-Type": "application/json", "Authorization": `Bearer ${serviceKey}` },
+              body: JSON.stringify({
+                chat_id: settings.telegram_chat_id,
+                message: `⚠️ <b>Low Balance Alert</b>\nAccount ${accountId} has <b>$${remaining.toFixed(2)}</b> remaining (threshold: $${threshold}).`,
+              }),
+            });
+          }
+        }
+      }
+    } catch (err) {
+      console.warn("[FB API] Low balance check error:", err);
+    }
+  }
+
   return { spend_limit: spendLimitDollars, amount_spent: amountSpentDollars };
 }
 

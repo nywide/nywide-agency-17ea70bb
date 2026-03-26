@@ -18,9 +18,10 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   Users, Monitor, FileText, Settings, LogOut, Home, Plus,
-  DollarSign, CheckCircle, XCircle, Clock, Search, BarChart3, Receipt, CreditCard, Trash2, CalendarDays, History, Ban, ShieldCheck
+  DollarSign, CheckCircle, XCircle, Clock, Search, BarChart3, Receipt, CreditCard, Trash2, CalendarDays, History, Ban, ShieldCheck, RefreshCw
 } from "lucide-react";
 import { AdminNotificationSettings } from "@/components/AdminNotificationSettings";
+import { createNotification } from "@/lib/notifications";
 
 const PAGE_SIZE = 50;
 
@@ -395,13 +396,13 @@ export default function Admin() {
         return;
       }
       // Create notification for user
-      await supabase.from("notifications").insert({
-        user_id: topUpDialog.userId,
+      await createNotification({
+        userId: topUpDialog.userId,
+        recipientType: "user",
         title: "Top-up approved",
         message: `$${Number(topUpAmount).toFixed(2)} has been added to your wallet.`,
-        type: "topup",
-        recipient_type: "user",
-      } as any);
+        type: "topup_approved",
+      });
       toast({ title: "Top-up added", description: `$${topUpAmount} added to ${topUpDialog.userName}'s wallet.` });
       setTopUpDialog({ open: false });
       setTopUpAmount("");
@@ -428,13 +429,13 @@ export default function Admin() {
     });
     await supabase.from("topup_requests").update({ status: "approved" } as any).eq("id", req.id);
     // Notify user
-    await supabase.from("notifications").insert({
-      user_id: req.user_id,
+    await createNotification({
+      userId: req.user_id,
+      recipientType: "user",
       title: "Top-up approved",
       message: `Your top-up request for $${Number(req.amount).toFixed(2)} has been approved.`,
-      type: "topup",
-      recipient_type: "user",
-    } as any);
+      type: "topup_approved",
+    });
     setApprovingId(null);
     toast({ title: "Top-up approved", description: `$${Number(req.amount).toFixed(2)} added to ${req.profiles?.full_name || "user"}'s wallet.` });
     fetchTopupRequests();
@@ -445,13 +446,13 @@ export default function Admin() {
     setApprovingId(req.id);
     await supabase.from("topup_requests").update({ status: "rejected" } as any).eq("id", req.id);
     // Notify user
-    await supabase.from("notifications").insert({
-      user_id: req.user_id,
+    await createNotification({
+      userId: req.user_id,
+      recipientType: "user",
       title: "Top-up rejected",
       message: `Your top-up request for $${Number(req.amount).toFixed(2)} has been rejected.`,
-      type: "topup",
-      recipient_type: "user",
-    } as any);
+      type: "topup_approved",
+    });
     setApprovingId(null);
     toast({ title: "Top-up rejected" });
     fetchTopupRequests();
@@ -589,13 +590,20 @@ export default function Admin() {
         toast({ title: newDisabled ? "Account disabled" : "Account enabled" });
         // Send notification to user when disabling
         if (newDisabled && account.user_id) {
-          await supabase.from("notifications").insert({
-            user_id: account.user_id,
+          await createNotification({
+            userId: account.user_id,
+            recipientType: "user",
             title: "Ad account disabled",
             message: `Your ad account "${account.account_name}" (${account.account_id}) has been disabled.${reason ? ` Reason: ${reason}` : ""}`,
             type: "account_disabled",
-            recipient_type: "user",
-          } as any);
+          });
+          // Also notify admin
+          await createNotification({
+            recipientType: "admin",
+            title: "Ad account disabled",
+            message: `Account "${account.account_name}" (${account.account_id}) has been disabled.${reason ? ` Reason: ${reason}` : ""}`,
+            type: "account_disabled",
+          });
           console.log("[Admin] Notification sent for disabled account:", account.account_id);
         }
         fetchAccounts();
@@ -683,13 +691,13 @@ export default function Admin() {
       }
     }
     await supabase.from("account_requests").update({ status: "approved" }).eq("id", req.id);
-    await supabase.from("notifications").insert({
-      user_id: req.user_id,
+    await createNotification({
+      userId: req.user_id,
+      recipientType: "user",
       title: "Account request approved",
       message: `Your ad account request "${req.account_name || "Account"}" has been approved.`,
-      type: "account_request",
-      recipient_type: "user",
-    } as any);
+      type: "account_request_approved",
+    });
     setApprovingId(null);
     toast({ title: "Request approved", description: selectedAccountId ? "Account assigned." : "Request approved." });
     fetchRequests();
@@ -700,13 +708,13 @@ export default function Admin() {
   const handleRejectRequest = async (req: any) => {
     await supabase.from("account_requests").update({ status: "rejected" }).eq("id", req.id);
     // Notify user
-    await supabase.from("notifications").insert({
-      user_id: req.user_id,
+    await createNotification({
+      userId: req.user_id,
+      recipientType: "user",
       title: "Account request rejected",
       message: `Your ad account request "${req.account_name || "Account"}" has been rejected.`,
-      type: "account_request",
-      recipient_type: "user",
-    } as any);
+      type: "account_request_approved",
+    });
     toast({ title: "Request rejected" });
     fetchRequests();
   };
@@ -828,7 +836,7 @@ export default function Admin() {
         {/* Overview Tab */}
         {activeTab === "overview" && (
           <div className="space-y-6">
-            {/* Date Filter */}
+            {/* Date Filter + Refresh */}
             <div className="flex flex-wrap items-center gap-3 bg-card border border-border rounded-xl p-4">
               <CalendarDays className="w-4 h-4 text-muted-foreground" />
               <span className="text-sm text-muted-foreground">Filter by date:</span>
@@ -838,6 +846,9 @@ export default function Admin() {
               {(dateFrom || dateTo) && (
                 <Button size="sm" variant="ghost" onClick={() => { setDateFrom(""); setDateTo(""); }} className="text-xs text-muted-foreground">Clear</Button>
               )}
+              <Button size="sm" variant="outline" onClick={() => fetchOverviewStats()} className="rounded-full border-border ml-auto">
+                <RefreshCw className="w-3.5 h-3.5 mr-1" />Refresh Stats
+              </Button>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -1048,6 +1059,7 @@ export default function Admin() {
                     <th className="text-left p-4 text-muted-foreground font-medium">Spending Limit</th>
                     <th className="text-left p-4 text-muted-foreground font-medium">Amount Spent</th>
                     <th className="text-left p-4 text-muted-foreground font-medium">Remaining</th>
+                    <th className="text-left p-4 text-muted-foreground font-medium">Timezone</th>
                     <th className="text-left p-4 text-muted-foreground font-medium">Status</th>
                     <th className="text-left p-4 text-muted-foreground font-medium">Assigned To</th>
                     <th className="text-left p-4 text-muted-foreground font-medium">Actions</th>
@@ -1071,6 +1083,7 @@ export default function Admin() {
                             <Progress value={spendLimit > 0 ? (amountSpent / spendLimit) * 100 : 0} className="h-1.5" />
                           </div>
                         </td>
+                        <td className="p-4 text-muted-foreground text-xs">{acc.timezone || "—"}</td>
                         <td className="p-4">
                           {acc.is_disabled ? (
                             <span className="px-2 py-1 rounded-full text-xs font-medium bg-destructive/20 text-destructive" title={acc.disabled_reason || ""}>Disabled</span>
