@@ -777,6 +777,7 @@ export default function Admin() {
   };
 
 
+  const getUserCommissionRate = (userId: string) => {
     const override = commissionOverrides.find(o => o.user_id === userId);
     return override ? override.rate : commissionRate;
   };
