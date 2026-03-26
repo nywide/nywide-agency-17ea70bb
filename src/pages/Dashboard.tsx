@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,7 @@ import {
   DollarSign, Clock, CheckCircle, XCircle, AlertCircle,
   ArrowUpRight, ArrowDownLeft, Search, LayoutDashboard, RefreshCw, ClipboardList, Ban, Settings, Pencil
 } from "lucide-react";
+import { createNotification } from "@/lib/notifications";
 
 const PAGE_SIZE = 50;
 
@@ -76,15 +77,20 @@ export default function Dashboard() {
     }
   }, [user]);
 
-  // Auto-refresh ad accounts every 5 minutes
+  // Auto-refresh ad accounts: staggered, one account every 60s, cycling through all
+  const autoRefreshIndexRef = useRef(0);
   useEffect(() => {
     if (!user) return;
     const interval = setInterval(() => {
-      console.log("[Dashboard] Auto-refreshing ad accounts...");
-      fetchAccounts();
-    }, 300000); // 5 minutes
+      if (adAccounts.length === 0) return;
+      const idx = autoRefreshIndexRef.current % adAccounts.length;
+      const acc = adAccounts[idx];
+      console.log(`[Dashboard] Auto-refresh account ${idx + 1}/${adAccounts.length}: ${acc.account_id}`);
+      refreshAccountBalance(acc.account_id);
+      autoRefreshIndexRef.current = idx + 1;
+    }, 60000); // every 60 seconds, one account at a time
     return () => clearInterval(interval);
-  }, [user]);
+  }, [user, adAccounts.length]);
 
   useEffect(() => {
     if (user && activeTab === "transactions") fetchTransactions();
@@ -193,6 +199,13 @@ export default function Dashboard() {
           setTopUpOpen(false);
           setTopUpAmount("");
           fetchPendingTopups();
+          // Notify admin about new top-up request
+          await createNotification({
+            recipientType: "admin",
+            title: "New top-up request",
+            message: `User ${profile?.full_name || user!.email} requested $${Number(topUpAmount).toFixed(2)} top-up via ${topUpMethod}.`,
+            type: "new_topup_request",
+          });
         }
       } else {
         toast({ title: "Coming Soon", description: "Stripe payments will be available soon.", variant: "default" });
@@ -265,6 +278,13 @@ export default function Dashboard() {
         setRequestAccountName("");
         fetchAccountRequests();
         if (balanceDeducted) await refreshProfile();
+        // Notify admin about new account request
+        await createNotification({
+          recipientType: "admin",
+          title: "New account request",
+          message: `User ${profile?.full_name || user!.email} requested a ${requestPlatform} account "${requestAccountName}".`,
+          type: "new_account_request",
+        });
       }
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
@@ -584,7 +604,7 @@ export default function Dashboard() {
             <div className="flex justify-between items-center">
               <div>
                 <h2 className="text-xl font-bold text-foreground">Your Ad Accounts</h2>
-                <p className="text-xs text-muted-foreground mt-1">Auto-refresh every 5 minutes</p>
+                <p className="text-xs text-muted-foreground mt-1">Auto-refresh: one account every 60s</p>
               </div>
               <Button onClick={() => setRequestOpen(true)} className="bg-primary text-primary-foreground font-bold rounded-full px-5">
                 <Plus className="w-4 h-4 mr-2" />Request Account

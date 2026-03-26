@@ -87,6 +87,8 @@ export default function Admin() {
   const [userDisableReason, setUserDisableReason] = useState("");
   const [togglingUserDisable, setTogglingUserDisable] = useState(false);
   const [userEnableConfirm, setUserEnableConfirm] = useState<{ open: boolean; userId?: string; userName?: string }>({ open: false });
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
 
   const [allUsersForDropdown, setAllUsersForDropdown] = useState<any[]>([]);
   const [userTotalSpent, setUserTotalSpent] = useState<Record<string, number>>({});
@@ -754,6 +756,27 @@ export default function Admin() {
     return "user";
   };
 
+  const handleResetStats = async () => {
+    setResetLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("admin-reset-stats");
+      if (error || data?.error) {
+        toast({ title: "Reset failed", description: data?.error || error?.message, variant: "destructive" });
+      } else {
+        toast({ title: "Stats reset", description: "All test data cleared successfully." });
+        fetchOverviewStats();
+        fetchUsers();
+        fetchAccounts();
+      }
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally {
+      setResetLoading(false);
+      setResetConfirmOpen(false);
+    }
+  };
+
+
   const getUserCommissionRate = (userId: string) => {
     const override = commissionOverrides.find(o => o.user_id === userId);
     return override ? override.rate : commissionRate;
@@ -848,6 +871,9 @@ export default function Admin() {
               )}
               <Button size="sm" variant="outline" onClick={() => fetchOverviewStats()} className="rounded-full border-border ml-auto">
                 <RefreshCw className="w-3.5 h-3.5 mr-1" />Refresh Stats
+              </Button>
+              <Button size="sm" variant="destructive" onClick={() => setResetConfirmOpen(true)} disabled={resetLoading} className="rounded-full">
+                {resetLoading ? "Resetting..." : "Reset All Data"}
               </Button>
             </div>
 
@@ -1661,6 +1687,24 @@ export default function Admin() {
             <AlertDialogCancel className="rounded-full">Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={() => handleToggleUserDisable(userEnableConfirm.userId!, false)} className="bg-primary text-primary-foreground rounded-full">
               {togglingUserDisable ? "Enabling..." : "Enable User"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Reset Stats Confirmation */}
+      <AlertDialog open={resetConfirmOpen} onOpenChange={setResetConfirmOpen}>
+        <AlertDialogContent className="bg-card border-border">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-foreground">Reset All Data</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete all transactions, notifications, top-up requests, account requests, invoices, and spend history. All wallet balances will be set to $0 and ad accounts will be unassigned. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="rounded-full">Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleResetStats} className="bg-destructive text-destructive-foreground rounded-full">
+              {resetLoading ? "Resetting..." : "Yes, Reset Everything"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
