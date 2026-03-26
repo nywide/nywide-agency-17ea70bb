@@ -201,28 +201,60 @@ export default function Dashboard() {
       toast({ title: "Account Name is required", variant: "destructive" });
       return;
     }
-    if (hasActiveAccounts && (!requestPreferredLimit || Number(requestPreferredLimit) < 10)) {
+    const preferredLimit = Number(requestPreferredLimit) || 0;
+    if (hasActiveAccounts && preferredLimit < 10) {
       toast({ title: "Initial Balance required (min $10)", description: "Please specify an initial balance of at least $10 for additional accounts.", variant: "destructive" });
       return;
     }
     setRequestLoading(true);
     try {
-      const insertData = {
+      let balanceDeducted = false;
+      if (hasActiveAccounts && preferredLimit >= 10) {
+        // Deduct balance immediately for non-first accounts
+        const commission = preferredLimit * (commissionRate / 100);
+        const totalDeduction = preferredLimit;
+        const walletBalance = Number(profile?.wallet_balance || 0);
+        if (walletBalance < totalDeduction) {
+          toast({ title: "Insufficient wallet balance", description: `You need $${totalDeduction.toFixed(2)} in your wallet (including commission).`, variant: "destructive" });
+          setRequestLoading(false);
+          return;
+        }
+        // Deduct from wallet
+        const { error: walletError } = await supabase.from("profiles").update({
+          wallet_balance: walletBalance - totalDeduction,
+        }).eq("id", user!.id);
+        if (walletError) {
+          toast({ title: "Error deducting balance", description: walletError.message, variant: "destructive" });
+          setRequestLoading(false);
+          return;
+        }
+        // Log pending transaction
+        await supabase.from("transactions").insert({
+          user_id: user!.id, type: "wallet_to_account", amount: totalDeduction,
+          commission, status: "pending", payment_method: "platform",
+        });
+        balanceDeducted = true;
+        console.log("[Dashboard] Balance deducted for account request:", { totalDeduction, commission });
+      }
+
+      const insertData: any = {
         user_id: user!.id,
         platform: requestPlatform,
         preferred_limit: requestPreferredLimit || null,
         account_name: requestAccountName,
+        balance_deducted: balanceDeducted,
       };
-      const { error } = await supabase.from("account_requests").insert(insertData as any).select();
+      const { error } = await supabase.from("account_requests").insert(insertData).select();
       if (error) {
         toast({ title: "Error", description: error.message, variant: "destructive" });
       } else {
-        toast({ title: "Request submitted", description: "Admin will review your request." });
+        toast({ title: "Request submitted", description: balanceDeducted ? `$${preferredLimit.toFixed(2)} deducted from wallet. Admin will review your request.` : "Admin will review your request." });
         setRequestOpen(false);
         setRequestPreferredLimit("");
         setRequestPlatform("facebook");
         setRequestAccountName("");
         fetchAccountRequests();
+        if (balanceDeducted) await refreshProfile();
       }
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
@@ -795,7 +827,7 @@ export default function Dashboard() {
                             <td className="p-4"><span className="flex items-center gap-1.5">{statusIcon(txn.status)}<span className="capitalize">{txn.status}</span></span></td>
                             <td className="p-4 text-muted-foreground font-mono text-xs">{txn.ad_account_id || "—"}</td>
                             <td className="p-4">
-                              {txn.status === "completed" && (
+                              {txn.status === "completed" && (txn.type === "wallet_topup" || txn.type === "top_up") && (
                                 <Button size="sm" variant="ghost" onClick={() => handleGenerateInvoice(txn)} className="text-primary hover:text-primary">
                                   <Receipt className="w-3.5 h-3.5 mr-1" />Invoice
                                 </Button>
@@ -960,8 +992,21 @@ export default function Dashboard() {
                 <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input type="number" min="1" placeholder="30" value={withdrawAmount} onChange={(e) => setWithdrawAmount(e.target.value)} className="pl-10 bg-secondary border-border text-foreground" />
               </div>
-              <p className="text-xs text-muted-foreground">Remaining Balance: ${getAccountRemaining(withdrawOpen.account || {}).toFixed(2)}</p>
-              <p className="text-xs text-primary">Minimum remaining balance $0.01 required. Max withdraw: ${Math.max(0, getAccountRemaining(withdrawOpen.account || {}) - 0.01).toFixed(2)}</p>
+              {(() => {
+                const remaining = getAccountRemaining(withdrawOpen.account || {});
+                const maxWithdraw = Math.max(0, remaining - 0.01);
+                const amount = Number(withdrawAmount);
+                const wouldExceed = amount > 0 && amount > maxWithdraw;
+                return (
+                  <>
+                    <p className="text-xs text-muted-foreground">Remaining Balance: ${remaining.toFixed(2)}</p>
+                    <p className="text-xs text-primary">Minimum remaining balance $0.01 required. Max withdraw: ${maxWithdraw.toFixed(2)}</p>
+                    {wouldExceed && (
+                      <p className="text-xs text-destructive font-medium">Amount exceeds maximum withdrawable balance.</p>
+                    )}
+                  </>
+                );
+              })()}
             </div>
             {Number(withdrawAmount) > 0 && (
               <div className="bg-secondary rounded-xl p-4 space-y-1 text-sm">
@@ -976,7 +1021,7 @@ export default function Dashboard() {
                 </div>
               </div>
             )}
-            <Button onClick={handleWithdrawToWallet} disabled={withdrawLoading || !withdrawAmount || Number(withdrawAmount) <= 0} className="w-full bg-primary text-primary-foreground font-bold rounded-full">
+            <Button onClick={handleWithdrawToWallet} disabled={withdrawLoading || !withdrawAmount || Number(withdrawAmount) <= 0 || Number(withdrawAmount) > Math.max(0, getAccountRemaining(withdrawOpen.account || {}) - 0.01)} className="w-full bg-primary text-primary-foreground font-bold rounded-full">
               {withdrawLoading ? "Processing..." : "Withdraw to Wallet"}
             </Button>
           </div>
