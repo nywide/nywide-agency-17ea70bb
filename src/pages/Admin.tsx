@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   Users, Monitor, FileText, Settings, LogOut, Home, Plus,
-  DollarSign, CheckCircle, XCircle, Clock, Search, BarChart3, Receipt, CreditCard, Trash2, CalendarDays, History, Ban, ShieldCheck
+  DollarSign, CheckCircle, XCircle, Clock, Search, BarChart3, Receipt, CreditCard, Trash2, CalendarDays, History, Ban, ShieldCheck, RefreshCw
 } from "lucide-react";
 import { AdminNotificationSettings } from "@/components/AdminNotificationSettings";
 
