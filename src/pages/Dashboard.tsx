@@ -594,12 +594,8 @@ export default function Dashboard() {
                             <p className="text-sm font-medium text-primary">${remaining.toFixed(2)}</p>
                           </div>
                           <div>
-                            <p className="text-xs text-muted-foreground">Currency</p>
-                            <p className="text-sm text-foreground">{acc.currency}</p>
-                          </div>
-                          <div>
-                            <p className="text-xs text-muted-foreground">Timezone</p>
-                            <p className="text-sm text-foreground text-xs">{acc.timezone}</p>
+                            <p className="text-xs text-muted-foreground">Commission</p>
+                            <p className="text-sm font-medium text-primary">{commissionRate}%</p>
                           </div>
                           <div>
                             <p className="text-xs text-muted-foreground">Status</p>
