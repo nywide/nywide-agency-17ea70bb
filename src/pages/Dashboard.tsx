@@ -199,6 +199,13 @@ export default function Dashboard() {
           setTopUpOpen(false);
           setTopUpAmount("");
           fetchPendingTopups();
+          // Notify admin about new top-up request
+          await createNotification({
+            recipientType: "admin",
+            title: "New top-up request",
+            message: `User ${profile?.full_name || user!.email} requested $${Number(topUpAmount).toFixed(2)} top-up via ${topUpMethod}.`,
+            type: "new_topup_request",
+          });
         }
       } else {
         toast({ title: "Coming Soon", description: "Stripe payments will be available soon.", variant: "default" });
