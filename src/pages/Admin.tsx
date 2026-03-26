@@ -828,7 +828,7 @@ export default function Admin() {
         {/* Overview Tab */}
         {activeTab === "overview" && (
           <div className="space-y-6">
-            {/* Date Filter */}
+            {/* Date Filter + Refresh */}
             <div className="flex flex-wrap items-center gap-3 bg-card border border-border rounded-xl p-4">
               <CalendarDays className="w-4 h-4 text-muted-foreground" />
               <span className="text-sm text-muted-foreground">Filter by date:</span>
@@ -838,6 +838,9 @@ export default function Admin() {
               {(dateFrom || dateTo) && (
                 <Button size="sm" variant="ghost" onClick={() => { setDateFrom(""); setDateTo(""); }} className="text-xs text-muted-foreground">Clear</Button>
               )}
+              <Button size="sm" variant="outline" onClick={() => fetchOverviewStats()} className="rounded-full border-border ml-auto">
+                <RefreshCw className="w-3.5 h-3.5 mr-1" />Refresh Stats
+              </Button>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -1048,6 +1051,7 @@ export default function Admin() {
                     <th className="text-left p-4 text-muted-foreground font-medium">Spending Limit</th>
                     <th className="text-left p-4 text-muted-foreground font-medium">Amount Spent</th>
                     <th className="text-left p-4 text-muted-foreground font-medium">Remaining</th>
+                    <th className="text-left p-4 text-muted-foreground font-medium">Timezone</th>
                     <th className="text-left p-4 text-muted-foreground font-medium">Status</th>
                     <th className="text-left p-4 text-muted-foreground font-medium">Assigned To</th>
                     <th className="text-left p-4 text-muted-foreground font-medium">Actions</th>
@@ -1071,6 +1075,7 @@ export default function Admin() {
                             <Progress value={spendLimit > 0 ? (amountSpent / spendLimit) * 100 : 0} className="h-1.5" />
                           </div>
                         </td>
+                        <td className="p-4 text-muted-foreground text-xs">{acc.timezone || "—"}</td>
                         <td className="p-4">
                           {acc.is_disabled ? (
                             <span className="px-2 py-1 rounded-full text-xs font-medium bg-destructive/20 text-destructive" title={acc.disabled_reason || ""}>Disabled</span>
