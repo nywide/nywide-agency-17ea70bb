@@ -756,7 +756,27 @@ export default function Admin() {
     return "user";
   };
 
-  const getUserCommissionRate = (userId: string) => {
+  const handleResetStats = async () => {
+    setResetLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("admin-reset-stats");
+      if (error || data?.error) {
+        toast({ title: "Reset failed", description: data?.error || error?.message, variant: "destructive" });
+      } else {
+        toast({ title: "Stats reset", description: "All test data cleared successfully." });
+        fetchOverviewStats();
+        fetchUsers();
+        fetchAccounts();
+      }
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally {
+      setResetLoading(false);
+      setResetConfirmOpen(false);
+    }
+  };
+
+
     const override = commissionOverrides.find(o => o.user_id === userId);
     return override ? override.rate : commissionRate;
   };
