@@ -1461,8 +1461,8 @@ export default function Admin() {
                 <Input placeholder="USD, EUR, GBP..." value={newAccount.currency} onChange={(e) => setNewAccount({ ...newAccount, currency: e.target.value })} className="bg-secondary border-border text-foreground" />
               </div>
               <div className="space-y-2">
-                <Label className="text-foreground">Timezone</Label>
-                <Input placeholder="America/New_York" value={newAccount.timezone} onChange={(e) => setNewAccount({ ...newAccount, timezone: e.target.value })} className="bg-secondary border-border text-foreground" />
+                <Label className="text-foreground">Timezone *</Label>
+                <Input required placeholder="America/New_York" value={newAccount.timezone} onChange={(e) => setNewAccount({ ...newAccount, timezone: e.target.value })} className="bg-secondary border-border text-foreground" />
               </div>
             </div>
             <div className="space-y-2">
