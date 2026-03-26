@@ -18,6 +18,7 @@ import {
   DollarSign, Clock, CheckCircle, XCircle, AlertCircle,
   ArrowUpRight, ArrowDownLeft, Search, LayoutDashboard, RefreshCw, ClipboardList, Ban, Settings, Pencil
 } from "lucide-react";
+import { createNotification } from "@/lib/notifications";
 
 const PAGE_SIZE = 50;
 
