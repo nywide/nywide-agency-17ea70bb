@@ -11,17 +11,25 @@ import { Link } from "react-router-dom";
 import { Home, LogOut, ArrowLeft } from "lucide-react";
 
 interface NotificationSettings {
-  email: boolean;
   telegram: boolean;
   telegram_chat_id: string | null;
   low_balance_threshold: number;
+  notify_low_balance: boolean;
+  notify_account_disabled: boolean;
+  notify_topup_approved: boolean;
+  notify_account_request_approved: boolean;
+  notify_withdrawal: boolean;
 }
 
 const defaultSettings: NotificationSettings = {
-  email: true,
   telegram: false,
   telegram_chat_id: null,
   low_balance_threshold: 10,
+  notify_low_balance: true,
+  notify_account_disabled: true,
+  notify_topup_approved: true,
+  notify_account_request_approved: true,
+  notify_withdrawal: true,
 };
 
 export default function Settings() {
@@ -59,6 +67,14 @@ export default function Settings() {
     setSaving(false);
   };
 
+  const toggleItems = [
+    { key: "notify_low_balance" as const, label: "Low Balance Alerts", desc: "Get notified when your ad account balance drops below threshold" },
+    { key: "notify_account_disabled" as const, label: "Account Disabled", desc: "Get notified when an ad account is disabled" },
+    { key: "notify_topup_approved" as const, label: "Top-Up Approved", desc: "Get notified when your top-up request is approved" },
+    { key: "notify_account_request_approved" as const, label: "Account Request Approved", desc: "Get notified when your account request is approved" },
+    { key: "notify_withdrawal" as const, label: "Withdrawal Notifications", desc: "Get notified about withdrawal activity" },
+  ];
+
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b border-border bg-card/80 backdrop-blur-sm sticky top-0 z-50">
@@ -81,15 +97,8 @@ export default function Settings() {
         <h1 className="text-3xl font-bold text-foreground mb-8">Notification Settings</h1>
 
         <div className="bg-card border border-border rounded-xl p-6 space-y-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="font-medium text-foreground">Email Notifications</p>
-              <p className="text-sm text-muted-foreground">Receive notifications via email</p>
-            </div>
-            <Switch checked={settings.email} onCheckedChange={(v) => setSettings({ ...settings, email: v })} />
-          </div>
-
-          <div className="border-t border-border pt-6">
+          {/* Telegram Section */}
+          <div>
             <div className="flex items-center justify-between mb-4">
               <div>
                 <p className="font-medium text-foreground">Telegram Notifications</p>
@@ -113,6 +122,21 @@ export default function Settings() {
             )}
           </div>
 
+          {/* Notification Type Toggles */}
+          <div className="border-t border-border pt-6 space-y-4">
+            <p className="font-medium text-foreground text-sm">Notification Types</p>
+            {toggleItems.map((item) => (
+              <div key={item.key} className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-foreground">{item.label}</p>
+                  <p className="text-xs text-muted-foreground">{item.desc}</p>
+                </div>
+                <Switch checked={settings[item.key]} onCheckedChange={(v) => setSettings({ ...settings, [item.key]: v })} />
+              </div>
+            ))}
+          </div>
+
+          {/* Low Balance Threshold */}
           <div className="border-t border-border pt-6">
             <div className="space-y-2">
               <Label className="text-foreground">Low Balance Threshold ($)</Label>
