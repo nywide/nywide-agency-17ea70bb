@@ -76,15 +76,20 @@ export default function Dashboard() {
     }
   }, [user]);
 
-  // Auto-refresh ad accounts every 5 minutes
+  // Auto-refresh ad accounts: staggered, one account every 60s, cycling through all
+  const autoRefreshIndexRef = { current: 0 };
   useEffect(() => {
     if (!user) return;
     const interval = setInterval(() => {
-      console.log("[Dashboard] Auto-refreshing ad accounts...");
-      fetchAccounts();
-    }, 300000); // 5 minutes
+      if (adAccounts.length === 0) return;
+      const idx = autoRefreshIndexRef.current % adAccounts.length;
+      const acc = adAccounts[idx];
+      console.log(`[Dashboard] Auto-refresh account ${idx + 1}/${adAccounts.length}: ${acc.account_id}`);
+      refreshAccountBalance(acc.account_id);
+      autoRefreshIndexRef.current = idx + 1;
+    }, 60000); // every 60 seconds, one account at a time
     return () => clearInterval(interval);
-  }, [user]);
+  }, [user, adAccounts.length]);
 
   useEffect(() => {
     if (user && activeTab === "transactions") fetchTransactions();
