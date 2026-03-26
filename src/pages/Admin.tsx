@@ -472,6 +472,10 @@ export default function Admin() {
       toast({ title: "Account ID and Name are required", variant: "destructive" });
       return;
     }
+    if (!newAccount.timezone) {
+      toast({ title: "Timezone is required", variant: "destructive" });
+      return;
+    }
     setAddingAccount(true);
     try {
       const spendLimit = Number(newAccount.spend_limit) || 0.01;
@@ -1393,6 +1397,9 @@ export default function Admin() {
                 </table>
               </div>
             )}
+
+            {/* Admin Notification Settings */}
+            <AdminNotificationSettings />
           </div>
         )}
       </div>
