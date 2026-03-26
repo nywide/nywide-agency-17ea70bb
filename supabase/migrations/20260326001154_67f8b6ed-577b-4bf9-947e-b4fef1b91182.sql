@@ -1,0 +1,1 @@
+ALTER TABLE account_requests ADD COLUMN IF NOT EXISTS balance_deducted BOOLEAN DEFAULT FALSE;

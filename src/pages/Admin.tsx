@@ -20,6 +20,7 @@ import {
   Users, Monitor, FileText, Settings, LogOut, Home, Plus,
   DollarSign, CheckCircle, XCircle, Clock, Search, BarChart3, Receipt, CreditCard, Trash2, CalendarDays, History, Ban, ShieldCheck
 } from "lucide-react";
+import { AdminNotificationSettings } from "@/components/AdminNotificationSettings";
 
 const PAGE_SIZE = 50;
 
@@ -472,6 +473,10 @@ export default function Admin() {
       toast({ title: "Account ID and Name are required", variant: "destructive" });
       return;
     }
+    if (!newAccount.timezone) {
+      toast({ title: "Timezone is required", variant: "destructive" });
+      return;
+    }
     setAddingAccount(true);
     try {
       const spendLimit = Number(newAccount.spend_limit) || 0.01;
@@ -582,6 +587,17 @@ export default function Admin() {
         toast({ title: "Error", description: error.message, variant: "destructive" });
       } else {
         toast({ title: newDisabled ? "Account disabled" : "Account enabled" });
+        // Send notification to user when disabling
+        if (newDisabled && account.user_id) {
+          await supabase.from("notifications").insert({
+            user_id: account.user_id,
+            title: "Ad account disabled",
+            message: `Your ad account "${account.account_name}" (${account.account_id}) has been disabled.${reason ? ` Reason: ${reason}` : ""}`,
+            type: "account_disabled",
+            recipient_type: "user",
+          } as any);
+          console.log("[Admin] Notification sent for disabled account:", account.account_id);
+        }
         fetchAccounts();
       }
     } catch (err: any) {
@@ -626,9 +642,29 @@ export default function Admin() {
         display_name: req.account_name || null,
       } as any).eq("id", selectedAccountId);
 
-      // Auto top-up if preferred_limit > 0
       const preferredLimit = Number(req.preferred_limit || 0);
-      if (preferredLimit > 0) {
+      
+      if (req.balance_deducted && preferredLimit > 0) {
+        // Balance already deducted by user at request time
+        // Directly update the ad account spend_limit via Facebook API
+        const { data: assignedAcc } = await supabase.from("ad_accounts").select("account_id").eq("id", selectedAccountId).single();
+        if (assignedAcc) {
+          try {
+            const { data: fbData, error: fbError } = await supabase.functions.invoke("facebook-api", {
+              body: { action: "wallet_to_account", ad_account_id: assignedAcc.account_id, amount: preferredLimit, user_id: req.user_id },
+            });
+            if (fbError || fbData?.error) {
+              console.log("[Admin] Auto top-up failed (balance already deducted):", fbData?.error || fbError?.message);
+              toast({ title: "Account assigned but auto top-up failed", description: fbData?.error || fbError?.message, variant: "destructive" });
+            } else {
+              toast({ title: "Auto top-up successful", description: `$${fbData.amount_sent?.toFixed(2)} sent to account.` });
+            }
+          } catch (err: any) {
+            toast({ title: "Auto top-up error", description: err.message, variant: "destructive" });
+          }
+        }
+      } else if (!req.balance_deducted && preferredLimit > 0) {
+        // Balance NOT deducted yet – use wallet_to_account edge function
         const { data: assignedAcc } = await supabase.from("ad_accounts").select("account_id").eq("id", selectedAccountId).single();
         if (assignedAcc) {
           try {
@@ -930,6 +966,7 @@ export default function Admin() {
                     <th className="text-left p-4 text-muted-foreground font-medium">Total Spending Limit</th>
                     <th className="text-left p-4 text-muted-foreground font-medium">Total Amount Spent</th>
                     <th className="text-left p-4 text-muted-foreground font-medium">Total Remaining</th>
+                    <th className="text-left p-4 text-muted-foreground font-medium">Disable Reason</th>
                     <th className="text-left p-4 text-muted-foreground font-medium">Date Joined</th>
                     <th className="text-left p-4 text-muted-foreground font-medium">Actions</th>
                   </tr></thead>
@@ -963,6 +1000,7 @@ export default function Admin() {
                         <td className="p-4 text-foreground">${(userAccountStats[u.id]?.totalSpendLimit || 0).toFixed(2)}</td>
                         <td className="p-4 text-foreground">${(userAccountStats[u.id]?.totalAmountSpent || 0).toFixed(2)}</td>
                         <td className="p-4 text-primary font-medium">${((userAccountStats[u.id]?.totalSpendLimit || 0) - (userAccountStats[u.id]?.totalAmountSpent || 0)).toFixed(2)}</td>
+                        <td className="p-4 text-muted-foreground text-xs">{u.is_disabled ? (u.disabled_reason || "No reason") : "—"}</td>
                         <td className="p-4 text-muted-foreground">{new Date(u.created_at).toLocaleDateString()}</td>
                         <td className="p-4 flex gap-2 flex-wrap">
                           <Button size="sm" variant="outline" className="rounded-full border-primary text-primary" onClick={() => setTopUpDialog({ open: true, userId: u.id, userName: u.full_name })}>
@@ -1360,6 +1398,9 @@ export default function Admin() {
                 </table>
               </div>
             )}
+
+            {/* Admin Notification Settings */}
+            <AdminNotificationSettings />
           </div>
         )}
       </div>
@@ -1420,8 +1461,8 @@ export default function Admin() {
                 <Input placeholder="USD, EUR, GBP..." value={newAccount.currency} onChange={(e) => setNewAccount({ ...newAccount, currency: e.target.value })} className="bg-secondary border-border text-foreground" />
               </div>
               <div className="space-y-2">
-                <Label className="text-foreground">Timezone</Label>
-                <Input placeholder="America/New_York" value={newAccount.timezone} onChange={(e) => setNewAccount({ ...newAccount, timezone: e.target.value })} className="bg-secondary border-border text-foreground" />
+                <Label className="text-foreground">Timezone *</Label>
+                <Input required placeholder="America/New_York" value={newAccount.timezone} onChange={(e) => setNewAccount({ ...newAccount, timezone: e.target.value })} className="bg-secondary border-border text-foreground" />
               </div>
             </div>
             <div className="space-y-2">
