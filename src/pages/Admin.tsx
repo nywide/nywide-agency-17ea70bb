@@ -941,6 +941,7 @@ export default function Admin() {
                     <th className="text-left p-4 text-muted-foreground font-medium">Total Spending Limit</th>
                     <th className="text-left p-4 text-muted-foreground font-medium">Total Amount Spent</th>
                     <th className="text-left p-4 text-muted-foreground font-medium">Total Remaining</th>
+                    <th className="text-left p-4 text-muted-foreground font-medium">Disable Reason</th>
                     <th className="text-left p-4 text-muted-foreground font-medium">Date Joined</th>
                     <th className="text-left p-4 text-muted-foreground font-medium">Actions</th>
                   </tr></thead>
@@ -974,6 +975,7 @@ export default function Admin() {
                         <td className="p-4 text-foreground">${(userAccountStats[u.id]?.totalSpendLimit || 0).toFixed(2)}</td>
                         <td className="p-4 text-foreground">${(userAccountStats[u.id]?.totalAmountSpent || 0).toFixed(2)}</td>
                         <td className="p-4 text-primary font-medium">${((userAccountStats[u.id]?.totalSpendLimit || 0) - (userAccountStats[u.id]?.totalAmountSpent || 0)).toFixed(2)}</td>
+                        <td className="p-4 text-muted-foreground text-xs">{u.is_disabled ? (u.disabled_reason || "No reason") : "—"}</td>
                         <td className="p-4 text-muted-foreground">{new Date(u.created_at).toLocaleDateString()}</td>
                         <td className="p-4 flex gap-2 flex-wrap">
                           <Button size="sm" variant="outline" className="rounded-full border-primary text-primary" onClick={() => setTopUpDialog({ open: true, userId: u.id, userName: u.full_name })}>
