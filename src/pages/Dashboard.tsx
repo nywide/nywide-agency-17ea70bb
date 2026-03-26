@@ -77,7 +77,7 @@ export default function Dashboard() {
   }, [user]);
 
   // Auto-refresh ad accounts: staggered, one account every 60s, cycling through all
-  const autoRefreshIndexRef = { current: 0 };
+  const autoRefreshIndexRef = useRef(0);
   useEffect(() => {
     if (!user) return;
     const interval = setInterval(() => {
