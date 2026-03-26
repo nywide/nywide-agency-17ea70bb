@@ -21,6 +21,7 @@ import {
   DollarSign, CheckCircle, XCircle, Clock, Search, BarChart3, Receipt, CreditCard, Trash2, CalendarDays, History, Ban, ShieldCheck, RefreshCw
 } from "lucide-react";
 import { AdminNotificationSettings } from "@/components/AdminNotificationSettings";
+import { createNotification } from "@/lib/notifications";
 
 const PAGE_SIZE = 50;
 
@@ -395,13 +396,13 @@ export default function Admin() {
         return;
       }
       // Create notification for user
-      await supabase.from("notifications").insert({
-        user_id: topUpDialog.userId,
+      await createNotification({
+        userId: topUpDialog.userId,
+        recipientType: "user",
         title: "Top-up approved",
         message: `$${Number(topUpAmount).toFixed(2)} has been added to your wallet.`,
-        type: "topup",
-        recipient_type: "user",
-      } as any);
+        type: "topup_approved",
+      });
       toast({ title: "Top-up added", description: `$${topUpAmount} added to ${topUpDialog.userName}'s wallet.` });
       setTopUpDialog({ open: false });
       setTopUpAmount("");
@@ -428,13 +429,13 @@ export default function Admin() {
     });
     await supabase.from("topup_requests").update({ status: "approved" } as any).eq("id", req.id);
     // Notify user
-    await supabase.from("notifications").insert({
-      user_id: req.user_id,
+    await createNotification({
+      userId: req.user_id,
+      recipientType: "user",
       title: "Top-up approved",
       message: `Your top-up request for $${Number(req.amount).toFixed(2)} has been approved.`,
-      type: "topup",
-      recipient_type: "user",
-    } as any);
+      type: "topup_approved",
+    });
     setApprovingId(null);
     toast({ title: "Top-up approved", description: `$${Number(req.amount).toFixed(2)} added to ${req.profiles?.full_name || "user"}'s wallet.` });
     fetchTopupRequests();
@@ -445,13 +446,13 @@ export default function Admin() {
     setApprovingId(req.id);
     await supabase.from("topup_requests").update({ status: "rejected" } as any).eq("id", req.id);
     // Notify user
-    await supabase.from("notifications").insert({
-      user_id: req.user_id,
+    await createNotification({
+      userId: req.user_id,
+      recipientType: "user",
       title: "Top-up rejected",
       message: `Your top-up request for $${Number(req.amount).toFixed(2)} has been rejected.`,
-      type: "topup",
-      recipient_type: "user",
-    } as any);
+      type: "topup_approved",
+    });
     setApprovingId(null);
     toast({ title: "Top-up rejected" });
     fetchTopupRequests();
@@ -589,13 +590,20 @@ export default function Admin() {
         toast({ title: newDisabled ? "Account disabled" : "Account enabled" });
         // Send notification to user when disabling
         if (newDisabled && account.user_id) {
-          await supabase.from("notifications").insert({
-            user_id: account.user_id,
+          await createNotification({
+            userId: account.user_id,
+            recipientType: "user",
             title: "Ad account disabled",
             message: `Your ad account "${account.account_name}" (${account.account_id}) has been disabled.${reason ? ` Reason: ${reason}` : ""}`,
             type: "account_disabled",
-            recipient_type: "user",
-          } as any);
+          });
+          // Also notify admin
+          await createNotification({
+            recipientType: "admin",
+            title: "Ad account disabled",
+            message: `Account "${account.account_name}" (${account.account_id}) has been disabled.${reason ? ` Reason: ${reason}` : ""}`,
+            type: "account_disabled",
+          });
           console.log("[Admin] Notification sent for disabled account:", account.account_id);
         }
         fetchAccounts();
@@ -683,13 +691,13 @@ export default function Admin() {
       }
     }
     await supabase.from("account_requests").update({ status: "approved" }).eq("id", req.id);
-    await supabase.from("notifications").insert({
-      user_id: req.user_id,
+    await createNotification({
+      userId: req.user_id,
+      recipientType: "user",
       title: "Account request approved",
       message: `Your ad account request "${req.account_name || "Account"}" has been approved.`,
-      type: "account_request",
-      recipient_type: "user",
-    } as any);
+      type: "account_request_approved",
+    });
     setApprovingId(null);
     toast({ title: "Request approved", description: selectedAccountId ? "Account assigned." : "Request approved." });
     fetchRequests();
@@ -700,13 +708,13 @@ export default function Admin() {
   const handleRejectRequest = async (req: any) => {
     await supabase.from("account_requests").update({ status: "rejected" }).eq("id", req.id);
     // Notify user
-    await supabase.from("notifications").insert({
-      user_id: req.user_id,
+    await createNotification({
+      userId: req.user_id,
+      recipientType: "user",
       title: "Account request rejected",
       message: `Your ad account request "${req.account_name || "Account"}" has been rejected.`,
-      type: "account_request",
-      recipient_type: "user",
-    } as any);
+      type: "account_request_approved",
+    });
     toast({ title: "Request rejected" });
     fetchRequests();
   };
