@@ -907,7 +907,7 @@ export default function Dashboard() {
                   <div key={t.id} className="flex items-center justify-between py-2 border-b border-border/30 last:border-0">
                     <div className="flex items-center gap-2">
                       <Clock className="w-4 h-4 text-primary" />
-                      <span className="text-sm text-foreground">{new Date(t.created_at).toLocaleDateString()}</span>
+                      <span className="text-sm text-foreground">{formatDateTime(t.created_at, userTimezone)}</span>
                       <span className="text-sm text-foreground">Wallet Top-Up</span>
                     </div>
                     <div className="flex items-center gap-3">
