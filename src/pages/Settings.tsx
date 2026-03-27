@@ -9,6 +9,7 @@ import { NLogo } from "@/components/nywide/NLogo";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "react-router-dom";
 import { Home, LogOut, ArrowLeft } from "lucide-react";
+import { TIMEZONES } from "@/lib/timezone";
 
 interface NotificationSettings {
   telegram: boolean;
@@ -37,6 +38,7 @@ export default function Settings() {
   const { toast } = useToast();
   const [settings, setSettings] = useState<NotificationSettings>(defaultSettings);
   const [saving, setSaving] = useState(false);
+  const [userTimezone, setUserTimezone] = useState("UTC");
 
   useEffect(() => {
     if (user) fetchSettings();
@@ -45,11 +47,14 @@ export default function Settings() {
   const fetchSettings = async () => {
     const { data } = await supabase
       .from("profiles")
-      .select("notification_settings")
+      .select("notification_settings, timezone")
       .eq("id", user!.id)
       .single();
     if (data?.notification_settings) {
       setSettings({ ...defaultSettings, ...(data.notification_settings as any) });
+    }
+    if (data?.timezone) {
+      setUserTimezone(data.timezone);
     }
   };
 
@@ -57,7 +62,7 @@ export default function Settings() {
     setSaving(true);
     const { error } = await supabase
       .from("profiles")
-      .update({ notification_settings: settings as any })
+      .update({ notification_settings: settings as any, timezone: userTimezone } as any)
       .eq("id", user!.id);
     if (error) {
       toast({ title: "Error saving settings", description: error.message, variant: "destructive" });
@@ -97,6 +102,21 @@ export default function Settings() {
         <h1 className="text-3xl font-bold text-foreground mb-8">Notification Settings</h1>
 
         <div className="bg-card border border-border rounded-xl p-6 space-y-6">
+          {/* Timezone Section */}
+          <div>
+            <p className="font-medium text-foreground mb-2">Timezone</p>
+            <select
+              value={userTimezone}
+              onChange={(e) => setUserTimezone(e.target.value)}
+              className="w-full h-10 rounded-md bg-secondary border border-border px-3 text-foreground text-sm"
+            >
+              {TIMEZONES.map((tz) => (
+                <option key={tz.value} value={tz.value}>{tz.label}</option>
+              ))}
+            </select>
+            <p className="text-xs text-muted-foreground mt-1">Used for displaying dates and times in the dashboard.</p>
+          </div>
+
           {/* Telegram Section */}
           <div>
             <div className="flex items-center justify-between mb-4">

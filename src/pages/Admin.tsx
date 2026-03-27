@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { AdminNotificationSettings } from "@/components/AdminNotificationSettings";
 import { createNotification } from "@/lib/notifications";
+import { formatDateTime, getCurrentTime } from "@/lib/timezone";
 
 const PAGE_SIZE = 50;
 
@@ -30,11 +31,12 @@ export default function Admin() {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("overview");
 
-  const [overviewStats, setOverviewStats] = useState({ totalBalance: 0, totalRevenue: 0, totalUsers: 0, totalAccounts: 0, totalAdSpend: 0, totalAdRemaining: 0, avgCommissionRate: 0, allTimeAdSpend: 0 });
+  const [overviewStats, setOverviewStats] = useState({ totalBalance: 0, totalRevenue: 0, totalUsers: 0, totalAccounts: 0, totalAdSpend: 0, totalAdRemaining: 0, avgCommissionRate: 0, allTimeAdSpend: 0, totalSpendingLimit: 0, totalAmountSpent: 0 });
 
   // Date filter for overview
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [adminTimezone, setAdminTimezone] = useState("UTC");
 
   const [users, setUsers] = useState<any[]>([]);
   const [userCount, setUserCount] = useState(0);
@@ -101,6 +103,7 @@ export default function Admin() {
     fetchAllUsersForDropdown();
     fetchTopupRequests();
     fetchUsers();
+    fetchAdminTimezone();
 
     const channel = supabase
       .channel('admin-profiles')
@@ -151,6 +154,11 @@ export default function Admin() {
     if (dateFrom) txnQuery = txnQuery.gte("created_at", dateFrom);
     if (dateTo) txnQuery = txnQuery.lte("created_at", dateTo + "T23:59:59");
 
+    // Apply date filter to allTimeAdSpend query
+    let spendTxnQuery = supabase.from("ad_account_transactions").select("old_amount_spent, new_amount_spent").eq("type", "spend");
+    if (dateFrom) spendTxnQuery = spendTxnQuery.gte("created_at", dateFrom);
+    if (dateTo) spendTxnQuery = spendTxnQuery.lte("created_at", dateTo + "T23:59:59");
+
     const [balRes, revRes, userCountRes, accCountRes, adAccRes, overridesRes, spendTxnRes] = await Promise.all([
       supabase.from("profiles").select("wallet_balance"),
       txnQuery,
@@ -158,11 +166,13 @@ export default function Admin() {
       supabase.from("ad_accounts").select("id", { count: "exact", head: true }),
       supabase.from("ad_accounts").select("spend_limit, amount_spent, current_spend"),
       supabase.from("user_commission_overrides").select("rate"),
-      supabase.from("ad_account_transactions").select("old_amount_spent, new_amount_spent").eq("type", "spend"),
+      spendTxnQuery,
     ]);
 
     const totalAdSpend = (adAccRes.data || []).reduce((s, a) => s + Number(a.amount_spent || a.current_spend || 0), 0);
     const totalAdRemaining = (adAccRes.data || []).reduce((s, a) => s + Math.max(0, Number(a.spend_limit) - Number(a.amount_spent || a.current_spend || 0)), 0);
+    const totalSpendingLimit = (adAccRes.data || []).reduce((s, a) => s + Number(a.spend_limit || 0), 0);
+    const totalAmountSpent = (adAccRes.data || []).reduce((s, a) => s + Number(a.amount_spent || a.current_spend || 0), 0);
 
     const totalRevenue = (revRes.data || []).reduce((s, t) => {
       const comm = Number(t.commission || 0);
@@ -174,7 +184,7 @@ export default function Admin() {
     const totalCommission = (revRes.data || []).filter(t => t.type === "wallet_to_account").reduce((s, t) => s + Number(t.commission || 0), 0);
     const avgCommissionRate = totalSpentForComm > 0 ? (totalCommission / totalSpentForComm) * 100 : commissionRate;
 
-    // All-time ad spend from transaction logs
+    // All-time ad spend from transaction logs (positive increments only)
     let allTimeAdSpend = 0;
     (spendTxnRes.data || []).forEach((txn: any) => {
       const inc = (Number(txn.new_amount_spent) || 0) - (Number(txn.old_amount_spent) || 0);
@@ -190,7 +200,14 @@ export default function Admin() {
       totalAdRemaining,
       avgCommissionRate,
       allTimeAdSpend,
+      totalSpendingLimit,
+      totalAmountSpent,
     });
+  };
+
+  const fetchAdminTimezone = async () => {
+    const { data } = await supabase.from("admin_settings").select("timezone").limit(1).single();
+    if (data?.timezone) setAdminTimezone(data.timezone);
   };
 
   const [overviewUsers, setOverviewUsers] = useState<any[]>([]);
@@ -831,6 +848,7 @@ export default function Admin() {
             <NLogo size={32} />
             <span className="font-bold text-lg"><span className="text-primary">NY</span><span className="text-foreground">WIDE</span></span>
             <span className="ml-2 px-2 py-0.5 bg-primary/20 text-primary text-xs font-bold rounded-full">ADMIN</span>
+            <span className="text-xs text-muted-foreground ml-2 hidden sm:inline">{getCurrentTime(adminTimezone)}</span>
           </Link>
           <div className="flex items-center gap-3">
             <NotificationBell recipientType="admin" />
@@ -906,7 +924,17 @@ export default function Admin() {
               <div className="bg-card border border-border rounded-xl p-5">
                 <p className="text-muted-foreground text-sm">All-Time Ad Spend</p>
                 <p className="text-3xl font-bold text-foreground"><span className="text-primary">$</span>{overviewStats.allTimeAdSpend.toFixed(2)}</p>
-                <p className="text-xs text-muted-foreground mt-1">From historical spend tracking</p>
+                <p className="text-xs text-muted-foreground mt-1">{dateFrom || dateTo ? "Filtered by date range" : "From historical spend tracking"}</p>
+              </div>
+              <div className="bg-card border border-border rounded-xl p-5">
+                <p className="text-muted-foreground text-sm">Total Spending Limit</p>
+                <p className="text-3xl font-bold text-foreground"><span className="text-primary">$</span>{overviewStats.totalSpendingLimit.toFixed(2)}</p>
+                <p className="text-xs text-muted-foreground mt-1">Current snapshot</p>
+              </div>
+              <div className="bg-card border border-border rounded-xl p-5">
+                <p className="text-muted-foreground text-sm">Total Amount Spent</p>
+                <p className="text-3xl font-bold text-foreground"><span className="text-primary">$</span>{overviewStats.totalAmountSpent.toFixed(2)}</p>
+                <p className="text-xs text-muted-foreground mt-1">Current snapshot</p>
               </div>
             </div>
 
@@ -936,7 +964,7 @@ export default function Admin() {
                               ? <span className="text-primary font-medium">{getUserCommissionRate(u.id)}% (custom)</span>
                               : <span>{commissionRate}%</span>}
                           </td>
-                          <td className="p-4 text-muted-foreground">{new Date(u.created_at).toLocaleDateString()}</td>
+                          <td className="p-4 text-muted-foreground">{formatDateTime(u.created_at, adminTimezone)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -1038,7 +1066,7 @@ export default function Admin() {
                         <td className="p-4 text-foreground">${(userAccountStats[u.id]?.totalAmountSpent || 0).toFixed(2)}</td>
                         <td className="p-4 text-primary font-medium">${((userAccountStats[u.id]?.totalSpendLimit || 0) - (userAccountStats[u.id]?.totalAmountSpent || 0)).toFixed(2)}</td>
                         <td className="p-4 text-muted-foreground text-xs">{u.is_disabled ? (u.disabled_reason || "No reason") : "—"}</td>
-                        <td className="p-4 text-muted-foreground">{new Date(u.created_at).toLocaleDateString()}</td>
+                        <td className="p-4 text-muted-foreground">{formatDateTime(u.created_at, adminTimezone)}</td>
                         <td className="p-4 flex gap-2 flex-wrap">
                           <Button size="sm" variant="outline" className="rounded-full border-primary text-primary" onClick={() => setTopUpDialog({ open: true, userId: u.id, userName: u.full_name })}>
                             <Plus className="w-3.5 h-3.5 mr-1" />Top Up
@@ -1183,7 +1211,7 @@ export default function Admin() {
                         {req.timezone && ` · TZ: ${req.timezone}`}
                       </p>
                       <p className="text-sm text-muted-foreground">Initial Balance: {req.preferred_limit || "Not specified"}</p>
-                      <p className="text-xs text-muted-foreground">{new Date(req.created_at).toLocaleDateString()}</p>
+                      <p className="text-xs text-muted-foreground">{formatDateTime(req.created_at, adminTimezone)}</p>
                     </div>
                     <div className="flex items-center gap-2">
                       {req.status === "pending" ? (
@@ -1260,7 +1288,7 @@ export default function Admin() {
                           <td className="p-4 text-foreground font-medium">${Number(req.amount).toFixed(2)}</td>
                           <td className="p-4 text-foreground">{req.currency}</td>
                           <td className="p-4 text-foreground capitalize">{req.payment_method || "—"}</td>
-                          <td className="p-4 text-muted-foreground">{new Date(req.created_at).toLocaleDateString()}</td>
+                          <td className="p-4 text-muted-foreground">{formatDateTime(req.created_at, adminTimezone)}</td>
                           <td className="p-4">
                             <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                               req.status === "pending" ? "bg-primary/20 text-primary" :
@@ -1323,7 +1351,7 @@ export default function Admin() {
                   <tbody>
                     {allTransactions.map((txn) => (
                       <tr key={txn.id} className="border-b border-border/50 hover:bg-secondary/50">
-                        <td className="p-4 text-foreground">{new Date(txn.created_at).toLocaleDateString()}</td>
+                        <td className="p-4 text-foreground">{formatDateTime(txn.created_at, adminTimezone)}</td>
                         <td className="p-4 text-foreground">{txn.profiles?.full_name || txn.profiles?.email || "—"}</td>
                         <td className="p-4 text-foreground">{txnTypeLabel(txn.type)}</td>
                         <td className="p-4 font-medium text-foreground">${Number(txn.amount).toFixed(2)}</td>
@@ -1373,7 +1401,7 @@ export default function Admin() {
                         <td className="p-4 text-foreground font-medium">{inv.invoice_number}</td>
                         <td className="p-4 text-foreground">{inv.profiles?.full_name || inv.profiles?.email || "—"}</td>
                         <td className="p-4 text-foreground">${Number(inv.amount).toFixed(2)} {inv.currency}</td>
-                        <td className="p-4 text-muted-foreground">{new Date(inv.created_at).toLocaleDateString()}</td>
+                        <td className="p-4 text-muted-foreground">{formatDateTime(inv.created_at, adminTimezone)}</td>
                         <td className="p-4">
                           <span className={`px-2 py-1 rounded-full text-xs font-medium ${inv.pdf_url ? "bg-green-500/20 text-green-500" : "bg-primary/20 text-primary"}`}>
                             {inv.pdf_url ? "Generated" : "Pending"}
@@ -1603,7 +1631,7 @@ export default function Admin() {
                 <tbody>
                   {accountLogs.map((log: any) => (
                     <tr key={log.id} className="border-b border-border/50">
-                      <td className="p-3 text-foreground">{new Date(log.created_at).toLocaleString()}</td>
+                      <td className="p-3 text-foreground">{formatDateTime(log.created_at, adminTimezone)}</td>
                       <td className="p-3 text-foreground capitalize">{log.type}</td>
                       <td className="p-3 text-foreground">${Number(log.amount || 0).toFixed(2)}</td>
                       <td className="p-3 text-foreground">${Number(log.new_spend_limit || 0).toFixed(2)}</td>

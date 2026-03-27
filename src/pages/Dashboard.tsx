@@ -16,9 +16,10 @@ import { Label } from "@/components/ui/label";
 import {
   Wallet, Monitor, FileText, Receipt, Plus, LogOut, Home,
   DollarSign, Clock, CheckCircle, XCircle, AlertCircle,
-  ArrowUpRight, ArrowDownLeft, Search, LayoutDashboard, RefreshCw, ClipboardList, Ban, Settings, Pencil
+  ArrowUpRight, ArrowDownLeft, Search, LayoutDashboard, RefreshCw, ClipboardList, Ban, Settings, Pencil, CalendarDays
 } from "lucide-react";
 import { createNotification } from "@/lib/notifications";
+import { formatDateTime, getCurrentTime } from "@/lib/timezone";
 
 const PAGE_SIZE = 50;
 
@@ -53,6 +54,12 @@ export default function Dashboard() {
   const [refreshingAccount, setRefreshingAccount] = useState<string | null>(null);
   const [dashStats, setDashStats] = useState({ totalSpent: 0, txnCount: 0, invCount: 0 });
 
+  // Date filter for historical cards
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [userTimezone, setUserTimezone] = useState("UTC");
+  const [historicalStats, setHistoricalStats] = useState({ allTimeAdSpend: 0, totalDeposits: 0 });
+
   // Account request form fields
   const [requestPlatform, setRequestPlatform] = useState("facebook");
   const [requestAccountName, setRequestAccountName] = useState("");
@@ -74,8 +81,14 @@ export default function Dashboard() {
       fetchDashStats();
       fetchAccountRequests();
       fetchPendingTopups();
+      fetchUserTimezone();
     }
   }, [user]);
+
+  // Fetch historical stats when date filter changes
+  useEffect(() => {
+    if (user) fetchHistoricalStats();
+  }, [user, dateFrom, dateTo, adAccounts.length]);
 
   // Auto-refresh ad accounts: staggered, one account every 60s, cycling through all
   const autoRefreshIndexRef = useRef(0);
@@ -136,6 +149,54 @@ export default function Dashboard() {
       invCount: invRes.count || 0,
       totalSpent: (spentRes.data || []).reduce((s: number, t: any) => s + Number(t.amount), 0),
     });
+  };
+
+  const fetchUserTimezone = async () => {
+    const { data } = await supabase.from("profiles").select("timezone").eq("id", user!.id).single();
+    if (data?.timezone) setUserTimezone(data.timezone);
+  };
+
+  const fetchHistoricalStats = async () => {
+    const userAccountIds = adAccounts.map(a => a.account_id);
+
+    // All-Time Ad Spend (User) - positive increments in ad_account_transactions
+    let spendQuery = supabase
+      .from("ad_account_transactions")
+      .select("old_amount_spent, new_amount_spent")
+      .eq("type", "spend");
+    if (userAccountIds.length > 0) {
+      spendQuery = spendQuery.in("ad_account_id", userAccountIds);
+    } else {
+      // No accounts, zero spend
+      setHistoricalStats(prev => ({ ...prev, allTimeAdSpend: 0 }));
+    }
+    if (dateFrom) spendQuery = spendQuery.gte("created_at", dateFrom);
+    if (dateTo) spendQuery = spendQuery.lte("created_at", dateTo + "T23:59:59");
+
+    // Total Deposits (Wallet) - completed wallet_topup transactions
+    let depositQuery = supabase
+      .from("transactions")
+      .select("amount")
+      .eq("user_id", user!.id)
+      .eq("type", "wallet_topup")
+      .eq("status", "completed");
+    if (dateFrom) depositQuery = depositQuery.gte("created_at", dateFrom);
+    if (dateTo) depositQuery = depositQuery.lte("created_at", dateTo + "T23:59:59");
+
+    const [spendRes, depositRes] = await Promise.all([
+      userAccountIds.length > 0 ? spendQuery : Promise.resolve({ data: [] as any[] }),
+      depositQuery,
+    ]);
+
+    let allTimeAdSpend = 0;
+    ((spendRes as any).data || []).forEach((txn: any) => {
+      const inc = (Number(txn.new_amount_spent) || 0) - (Number(txn.old_amount_spent) || 0);
+      if (inc > 0) allTimeAdSpend += inc;
+    });
+
+    const totalDeposits = (depositRes.data || []).reduce((s: number, t: any) => s + Number(t.amount || 0), 0);
+
+    setHistoricalStats({ allTimeAdSpend, totalDeposits });
   };
 
   const fetchAccountRequests = async () => {
@@ -499,7 +560,36 @@ export default function Dashboard() {
                   <Plus className="w-4 h-4 mr-2" />Add Funds
                 </Button>
               </div>
+              <p className="text-xs text-muted-foreground mt-2">Current time ({userTimezone}): {getCurrentTime(userTimezone)}</p>
             </div>
+
+            {/* Date Filter */}
+            <div className="flex flex-wrap items-center gap-3 bg-card border border-border rounded-xl p-4">
+              <CalendarDays className="w-4 h-4 text-muted-foreground" />
+              <span className="text-sm text-muted-foreground">Date filter:</span>
+              <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="bg-secondary border-border text-foreground w-40 h-9" />
+              <span className="text-muted-foreground">to</span>
+              <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="bg-secondary border-border text-foreground w-40 h-9" />
+              {(dateFrom || dateTo) && (
+                <Button size="sm" variant="ghost" onClick={() => { setDateFrom(""); setDateTo(""); }} className="text-xs text-muted-foreground">Clear</Button>
+              )}
+            </div>
+
+            {/* Historical Cards (linked to date filter) */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="bg-card border border-border rounded-xl p-5">
+                <p className="text-muted-foreground text-sm">All-Time Ad Spend (User)</p>
+                <p className="text-2xl font-bold text-foreground"><span className="text-primary">$</span>{historicalStats.allTimeAdSpend.toFixed(2)}</p>
+                <p className="text-xs text-muted-foreground mt-1">{dateFrom || dateTo ? "Filtered by date range" : "All time"}</p>
+              </div>
+              <div className="bg-card border border-border rounded-xl p-5">
+                <p className="text-muted-foreground text-sm">Total Deposits (Wallet)</p>
+                <p className="text-2xl font-bold text-foreground"><span className="text-primary">$</span>{historicalStats.totalDeposits.toFixed(2)}</p>
+                <p className="text-xs text-muted-foreground mt-1">{dateFrom || dateTo ? "Filtered by date range" : "All time"}</p>
+              </div>
+            </div>
+
+            {/* Snapshot Cards (unaffected by date filter) */}
             <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
               <div className="bg-card border border-border rounded-xl p-5">
                 <p className="text-muted-foreground text-sm">Active Accounts</p>
@@ -817,7 +907,7 @@ export default function Dashboard() {
                   <div key={t.id} className="flex items-center justify-between py-2 border-b border-border/30 last:border-0">
                     <div className="flex items-center gap-2">
                       <Clock className="w-4 h-4 text-primary" />
-                      <span className="text-sm text-foreground">{new Date(t.created_at).toLocaleDateString()}</span>
+                      <span className="text-sm text-foreground">{formatDateTime(t.created_at, userTimezone)}</span>
                       <span className="text-sm text-foreground">Wallet Top-Up</span>
                     </div>
                     <div className="flex items-center gap-3">
@@ -851,7 +941,7 @@ export default function Dashboard() {
                       <tbody>
                         {transactions.map((txn) => (
                           <tr key={txn.id} className="border-b border-border/50 hover:bg-secondary/50">
-                            <td className="p-4 text-foreground">{new Date(txn.created_at).toLocaleDateString()}</td>
+                            <td className="p-4 text-foreground text-xs">{formatDateTime(txn.created_at, userTimezone)}</td>
                             <td className="p-4 text-foreground">{txnTypeLabel(txn.type)}</td>
                             <td className="p-4 font-medium">
                               <span className={txnAmountColor(txn.type)}>{txnAmountPrefix(txn.type)}${Number(txn.amount).toFixed(2)}</span>

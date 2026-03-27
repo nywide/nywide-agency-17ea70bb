@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
+import { TIMEZONES } from "@/lib/timezone";
 
 interface AdminNotifSettings {
   telegram: boolean;
@@ -33,6 +34,7 @@ export function AdminNotificationSettings() {
   const [settings, setSettings] = useState<AdminNotifSettings>(defaults);
   const [settingsId, setSettingsId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [adminTimezone, setAdminTimezone] = useState("UTC");
 
   useEffect(() => {
     fetchSettings();
@@ -45,6 +47,7 @@ export function AdminNotificationSettings() {
       if (data.notification_settings) {
         setSettings({ ...defaults, ...(data.notification_settings as any) });
       }
+      if (data.timezone) setAdminTimezone(data.timezone);
     }
   };
 
@@ -53,8 +56,9 @@ export function AdminNotificationSettings() {
     if (settingsId) {
       const { error } = await supabase.from("admin_settings").update({
         notification_settings: settings as any,
+        timezone: adminTimezone,
         updated_at: new Date().toISOString(),
-      }).eq("id", settingsId);
+      } as any).eq("id", settingsId);
       if (error) {
         toast({ title: "Error saving", description: error.message, variant: "destructive" });
       } else {
@@ -86,6 +90,21 @@ export function AdminNotificationSettings() {
     <div className="space-y-4">
       <h3 className="text-lg font-bold text-foreground">Admin Notification Settings</h3>
       <div className="bg-card border border-border rounded-xl p-6 max-w-md space-y-5">
+        {/* Timezone */}
+        <div>
+          <p className="font-medium text-foreground text-sm mb-2">Admin Timezone</p>
+          <select
+            value={adminTimezone}
+            onChange={(e) => setAdminTimezone(e.target.value)}
+            className="w-full h-10 rounded-md bg-secondary border border-border px-3 text-foreground text-sm"
+          >
+            {TIMEZONES.map((tz) => (
+              <option key={tz.value} value={tz.value}>{tz.label}</option>
+            ))}
+          </select>
+          <p className="text-xs text-muted-foreground mt-1">Used for displaying dates and times in admin dashboard.</p>
+        </div>
+
         {/* Telegram */}
         <div>
           <div className="flex items-center justify-between mb-3">
