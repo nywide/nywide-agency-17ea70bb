@@ -102,6 +102,21 @@ export default function Settings() {
         <h1 className="text-3xl font-bold text-foreground mb-8">Notification Settings</h1>
 
         <div className="bg-card border border-border rounded-xl p-6 space-y-6">
+          {/* Timezone Section */}
+          <div>
+            <p className="font-medium text-foreground mb-2">Timezone</p>
+            <select
+              value={userTimezone}
+              onChange={(e) => setUserTimezone(e.target.value)}
+              className="w-full h-10 rounded-md bg-secondary border border-border px-3 text-foreground text-sm"
+            >
+              {TIMEZONES.map((tz) => (
+                <option key={tz.value} value={tz.value}>{tz.label}</option>
+              ))}
+            </select>
+            <p className="text-xs text-muted-foreground mt-1">Used for displaying dates and times in the dashboard.</p>
+          </div>
+
           {/* Telegram Section */}
           <div>
             <div className="flex items-center justify-between mb-4">
