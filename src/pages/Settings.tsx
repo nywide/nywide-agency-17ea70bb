@@ -9,6 +9,7 @@ import { NLogo } from "@/components/nywide/NLogo";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "react-router-dom";
 import { Home, LogOut, ArrowLeft } from "lucide-react";
+import { TIMEZONES } from "@/lib/timezone";
 
 interface NotificationSettings {
   telegram: boolean;
