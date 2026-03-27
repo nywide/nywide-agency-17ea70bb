@@ -16,9 +16,10 @@ import { Label } from "@/components/ui/label";
 import {
   Wallet, Monitor, FileText, Receipt, Plus, LogOut, Home,
   DollarSign, Clock, CheckCircle, XCircle, AlertCircle,
-  ArrowUpRight, ArrowDownLeft, Search, LayoutDashboard, RefreshCw, ClipboardList, Ban, Settings, Pencil
+  ArrowUpRight, ArrowDownLeft, Search, LayoutDashboard, RefreshCw, ClipboardList, Ban, Settings, Pencil, CalendarDays
 } from "lucide-react";
 import { createNotification } from "@/lib/notifications";
+import { formatDateTime, getCurrentTime } from "@/lib/timezone";
 
 const PAGE_SIZE = 50;
 
