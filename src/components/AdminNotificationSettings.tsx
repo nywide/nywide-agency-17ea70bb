@@ -34,6 +34,7 @@ export function AdminNotificationSettings() {
   const [settings, setSettings] = useState<AdminNotifSettings>(defaults);
   const [settingsId, setSettingsId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [adminTimezone, setAdminTimezone] = useState("UTC");
 
   useEffect(() => {
     fetchSettings();
