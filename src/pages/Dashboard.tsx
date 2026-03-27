@@ -81,8 +81,14 @@ export default function Dashboard() {
       fetchDashStats();
       fetchAccountRequests();
       fetchPendingTopups();
+      fetchUserTimezone();
     }
   }, [user]);
+
+  // Fetch historical stats when date filter changes
+  useEffect(() => {
+    if (user) fetchHistoricalStats();
+  }, [user, dateFrom, dateTo, adAccounts.length]);
 
   // Auto-refresh ad accounts: staggered, one account every 60s, cycling through all
   const autoRefreshIndexRef = useRef(0);
