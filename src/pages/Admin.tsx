@@ -154,6 +154,11 @@ export default function Admin() {
     if (dateFrom) txnQuery = txnQuery.gte("created_at", dateFrom);
     if (dateTo) txnQuery = txnQuery.lte("created_at", dateTo + "T23:59:59");
 
+    // Apply date filter to allTimeAdSpend query
+    let spendTxnQuery = supabase.from("ad_account_transactions").select("old_amount_spent, new_amount_spent").eq("type", "spend");
+    if (dateFrom) spendTxnQuery = spendTxnQuery.gte("created_at", dateFrom);
+    if (dateTo) spendTxnQuery = spendTxnQuery.lte("created_at", dateTo + "T23:59:59");
+
     const [balRes, revRes, userCountRes, accCountRes, adAccRes, overridesRes, spendTxnRes] = await Promise.all([
       supabase.from("profiles").select("wallet_balance"),
       txnQuery,
@@ -161,11 +166,13 @@ export default function Admin() {
       supabase.from("ad_accounts").select("id", { count: "exact", head: true }),
       supabase.from("ad_accounts").select("spend_limit, amount_spent, current_spend"),
       supabase.from("user_commission_overrides").select("rate"),
-      supabase.from("ad_account_transactions").select("old_amount_spent, new_amount_spent").eq("type", "spend"),
+      spendTxnQuery,
     ]);
 
     const totalAdSpend = (adAccRes.data || []).reduce((s, a) => s + Number(a.amount_spent || a.current_spend || 0), 0);
     const totalAdRemaining = (adAccRes.data || []).reduce((s, a) => s + Math.max(0, Number(a.spend_limit) - Number(a.amount_spent || a.current_spend || 0)), 0);
+    const totalSpendingLimit = (adAccRes.data || []).reduce((s, a) => s + Number(a.spend_limit || 0), 0);
+    const totalAmountSpent = (adAccRes.data || []).reduce((s, a) => s + Number(a.amount_spent || a.current_spend || 0), 0);
 
     const totalRevenue = (revRes.data || []).reduce((s, t) => {
       const comm = Number(t.commission || 0);
@@ -177,7 +184,7 @@ export default function Admin() {
     const totalCommission = (revRes.data || []).filter(t => t.type === "wallet_to_account").reduce((s, t) => s + Number(t.commission || 0), 0);
     const avgCommissionRate = totalSpentForComm > 0 ? (totalCommission / totalSpentForComm) * 100 : commissionRate;
 
-    // All-time ad spend from transaction logs
+    // All-time ad spend from transaction logs (positive increments only)
     let allTimeAdSpend = 0;
     (spendTxnRes.data || []).forEach((txn: any) => {
       const inc = (Number(txn.new_amount_spent) || 0) - (Number(txn.old_amount_spent) || 0);
@@ -193,7 +200,14 @@ export default function Admin() {
       totalAdRemaining,
       avgCommissionRate,
       allTimeAdSpend,
+      totalSpendingLimit,
+      totalAmountSpent,
     });
+  };
+
+  const fetchAdminTimezone = async () => {
+    const { data } = await supabase.from("admin_settings").select("timezone").limit(1).single();
+    if (data?.timezone) setAdminTimezone(data.timezone);
   };
 
   const [overviewUsers, setOverviewUsers] = useState<any[]>([]);
