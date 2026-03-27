@@ -90,6 +90,21 @@ export function AdminNotificationSettings() {
     <div className="space-y-4">
       <h3 className="text-lg font-bold text-foreground">Admin Notification Settings</h3>
       <div className="bg-card border border-border rounded-xl p-6 max-w-md space-y-5">
+        {/* Timezone */}
+        <div>
+          <p className="font-medium text-foreground text-sm mb-2">Admin Timezone</p>
+          <select
+            value={adminTimezone}
+            onChange={(e) => setAdminTimezone(e.target.value)}
+            className="w-full h-10 rounded-md bg-secondary border border-border px-3 text-foreground text-sm"
+          >
+            {TIMEZONES.map((tz) => (
+              <option key={tz.value} value={tz.value}>{tz.label}</option>
+            ))}
+          </select>
+          <p className="text-xs text-muted-foreground mt-1">Used for displaying dates and times in admin dashboard.</p>
+        </div>
+
         {/* Telegram */}
         <div>
           <div className="flex items-center justify-between mb-3">
