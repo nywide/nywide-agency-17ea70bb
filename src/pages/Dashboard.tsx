@@ -54,6 +54,12 @@ export default function Dashboard() {
   const [refreshingAccount, setRefreshingAccount] = useState<string | null>(null);
   const [dashStats, setDashStats] = useState({ totalSpent: 0, txnCount: 0, invCount: 0 });
 
+  // Date filter for historical cards
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [userTimezone, setUserTimezone] = useState("UTC");
+  const [historicalStats, setHistoricalStats] = useState({ allTimeAdSpend: 0, totalDeposits: 0 });
+
   // Account request form fields
   const [requestPlatform, setRequestPlatform] = useState("facebook");
   const [requestAccountName, setRequestAccountName] = useState("");
