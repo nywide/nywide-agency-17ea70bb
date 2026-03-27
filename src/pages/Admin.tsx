@@ -848,6 +848,7 @@ export default function Admin() {
             <NLogo size={32} />
             <span className="font-bold text-lg"><span className="text-primary">NY</span><span className="text-foreground">WIDE</span></span>
             <span className="ml-2 px-2 py-0.5 bg-primary/20 text-primary text-xs font-bold rounded-full">ADMIN</span>
+            <span className="text-xs text-muted-foreground ml-2 hidden sm:inline">{getCurrentTime(adminTimezone)}</span>
           </Link>
           <div className="flex items-center gap-3">
             <NotificationBell recipientType="admin" />
