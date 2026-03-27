@@ -103,6 +103,7 @@ export default function Admin() {
     fetchAllUsersForDropdown();
     fetchTopupRequests();
     fetchUsers();
+    fetchAdminTimezone();
 
     const channel = supabase
       .channel('admin-profiles')
