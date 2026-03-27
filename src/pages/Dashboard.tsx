@@ -560,9 +560,8 @@ export default function Dashboard() {
                   <Plus className="w-4 h-4 mr-2" />Add Funds
                 </Button>
               </div>
-            <p className="text-xs text-muted-foreground mt-1">Current time ({userTimezone}): {getCurrentTime(userTimezone)}</p>
-          </div>
-          </div>
+              <p className="text-xs text-muted-foreground mt-2">Current time ({userTimezone}): {getCurrentTime(userTimezone)}</p>
+            </div>
 
             {/* Date Filter */}
             <div className="flex flex-wrap items-center gap-3 bg-card border border-border rounded-xl p-4">
@@ -591,6 +590,7 @@ export default function Dashboard() {
             </div>
 
             {/* Snapshot Cards (unaffected by date filter) */}
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
               <div className="bg-card border border-border rounded-xl p-5">
                 <p className="text-muted-foreground text-sm">Active Accounts</p>
                 <p className="text-2xl font-bold text-foreground">{adAccounts.filter(a => a.status === "active").length}</p>
