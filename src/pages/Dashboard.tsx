@@ -151,6 +151,54 @@ export default function Dashboard() {
     });
   };
 
+  const fetchUserTimezone = async () => {
+    const { data } = await supabase.from("profiles").select("timezone").eq("id", user!.id).single();
+    if (data?.timezone) setUserTimezone(data.timezone);
+  };
+
+  const fetchHistoricalStats = async () => {
+    const userAccountIds = adAccounts.map(a => a.account_id);
+
+    // All-Time Ad Spend (User) - positive increments in ad_account_transactions
+    let spendQuery = supabase
+      .from("ad_account_transactions")
+      .select("old_amount_spent, new_amount_spent")
+      .eq("type", "spend");
+    if (userAccountIds.length > 0) {
+      spendQuery = spendQuery.in("ad_account_id", userAccountIds);
+    } else {
+      // No accounts, zero spend
+      setHistoricalStats(prev => ({ ...prev, allTimeAdSpend: 0 }));
+    }
+    if (dateFrom) spendQuery = spendQuery.gte("created_at", dateFrom);
+    if (dateTo) spendQuery = spendQuery.lte("created_at", dateTo + "T23:59:59");
+
+    // Total Deposits (Wallet) - completed wallet_topup transactions
+    let depositQuery = supabase
+      .from("transactions")
+      .select("amount")
+      .eq("user_id", user!.id)
+      .eq("type", "wallet_topup")
+      .eq("status", "completed");
+    if (dateFrom) depositQuery = depositQuery.gte("created_at", dateFrom);
+    if (dateTo) depositQuery = depositQuery.lte("created_at", dateTo + "T23:59:59");
+
+    const [spendRes, depositRes] = await Promise.all([
+      userAccountIds.length > 0 ? spendQuery : Promise.resolve({ data: [] as any[] }),
+      depositQuery,
+    ]);
+
+    let allTimeAdSpend = 0;
+    ((spendRes as any).data || []).forEach((txn: any) => {
+      const inc = (Number(txn.new_amount_spent) || 0) - (Number(txn.old_amount_spent) || 0);
+      if (inc > 0) allTimeAdSpend += inc;
+    });
+
+    const totalDeposits = (depositRes.data || []).reduce((s: number, t: any) => s + Number(t.amount || 0), 0);
+
+    setHistoricalStats({ allTimeAdSpend, totalDeposits });
+  };
+
   const fetchAccountRequests = async () => {
     const { data } = await supabase.from("account_requests").select("*").eq("user_id", user!.id).order("created_at", { ascending: false });
     if (data) setAccountRequests(data);
