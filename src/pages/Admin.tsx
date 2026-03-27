@@ -964,7 +964,7 @@ export default function Admin() {
                               ? <span className="text-primary font-medium">{getUserCommissionRate(u.id)}% (custom)</span>
                               : <span>{commissionRate}%</span>}
                           </td>
-                          <td className="p-4 text-muted-foreground">{new Date(u.created_at).toLocaleDateString()}</td>
+                          <td className="p-4 text-muted-foreground">{formatDateTime(u.created_at, adminTimezone)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -1066,7 +1066,7 @@ export default function Admin() {
                         <td className="p-4 text-foreground">${(userAccountStats[u.id]?.totalAmountSpent || 0).toFixed(2)}</td>
                         <td className="p-4 text-primary font-medium">${((userAccountStats[u.id]?.totalSpendLimit || 0) - (userAccountStats[u.id]?.totalAmountSpent || 0)).toFixed(2)}</td>
                         <td className="p-4 text-muted-foreground text-xs">{u.is_disabled ? (u.disabled_reason || "No reason") : "—"}</td>
-                        <td className="p-4 text-muted-foreground">{new Date(u.created_at).toLocaleDateString()}</td>
+                        <td className="p-4 text-muted-foreground">{formatDateTime(u.created_at, adminTimezone)}</td>
                         <td className="p-4 flex gap-2 flex-wrap">
                           <Button size="sm" variant="outline" className="rounded-full border-primary text-primary" onClick={() => setTopUpDialog({ open: true, userId: u.id, userName: u.full_name })}>
                             <Plus className="w-3.5 h-3.5 mr-1" />Top Up
@@ -1211,7 +1211,7 @@ export default function Admin() {
                         {req.timezone && ` · TZ: ${req.timezone}`}
                       </p>
                       <p className="text-sm text-muted-foreground">Initial Balance: {req.preferred_limit || "Not specified"}</p>
-                      <p className="text-xs text-muted-foreground">{new Date(req.created_at).toLocaleDateString()}</p>
+                      <p className="text-xs text-muted-foreground">{formatDateTime(req.created_at, adminTimezone)}</p>
                     </div>
                     <div className="flex items-center gap-2">
                       {req.status === "pending" ? (
@@ -1288,7 +1288,7 @@ export default function Admin() {
                           <td className="p-4 text-foreground font-medium">${Number(req.amount).toFixed(2)}</td>
                           <td className="p-4 text-foreground">{req.currency}</td>
                           <td className="p-4 text-foreground capitalize">{req.payment_method || "—"}</td>
-                          <td className="p-4 text-muted-foreground">{new Date(req.created_at).toLocaleDateString()}</td>
+                          <td className="p-4 text-muted-foreground">{formatDateTime(req.created_at, adminTimezone)}</td>
                           <td className="p-4">
                             <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                               req.status === "pending" ? "bg-primary/20 text-primary" :
@@ -1351,7 +1351,7 @@ export default function Admin() {
                   <tbody>
                     {allTransactions.map((txn) => (
                       <tr key={txn.id} className="border-b border-border/50 hover:bg-secondary/50">
-                        <td className="p-4 text-foreground">{new Date(txn.created_at).toLocaleDateString()}</td>
+                        <td className="p-4 text-foreground">{formatDateTime(txn.created_at, adminTimezone)}</td>
                         <td className="p-4 text-foreground">{txn.profiles?.full_name || txn.profiles?.email || "—"}</td>
                         <td className="p-4 text-foreground">{txnTypeLabel(txn.type)}</td>
                         <td className="p-4 font-medium text-foreground">${Number(txn.amount).toFixed(2)}</td>
@@ -1401,7 +1401,7 @@ export default function Admin() {
                         <td className="p-4 text-foreground font-medium">{inv.invoice_number}</td>
                         <td className="p-4 text-foreground">{inv.profiles?.full_name || inv.profiles?.email || "—"}</td>
                         <td className="p-4 text-foreground">${Number(inv.amount).toFixed(2)} {inv.currency}</td>
-                        <td className="p-4 text-muted-foreground">{new Date(inv.created_at).toLocaleDateString()}</td>
+                        <td className="p-4 text-muted-foreground">{formatDateTime(inv.created_at, adminTimezone)}</td>
                         <td className="p-4">
                           <span className={`px-2 py-1 rounded-full text-xs font-medium ${inv.pdf_url ? "bg-green-500/20 text-green-500" : "bg-primary/20 text-primary"}`}>
                             {inv.pdf_url ? "Generated" : "Pending"}
@@ -1631,7 +1631,7 @@ export default function Admin() {
                 <tbody>
                   {accountLogs.map((log: any) => (
                     <tr key={log.id} className="border-b border-border/50">
-                      <td className="p-3 text-foreground">{new Date(log.created_at).toLocaleString()}</td>
+                      <td className="p-3 text-foreground">{formatDateTime(log.created_at, adminTimezone)}</td>
                       <td className="p-3 text-foreground capitalize">{log.type}</td>
                       <td className="p-3 text-foreground">${Number(log.amount || 0).toFixed(2)}</td>
                       <td className="p-3 text-foreground">${Number(log.new_spend_limit || 0).toFixed(2)}</td>
