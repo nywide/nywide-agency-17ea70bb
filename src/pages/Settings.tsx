@@ -38,6 +38,7 @@ export default function Settings() {
   const { toast } = useToast();
   const [settings, setSettings] = useState<NotificationSettings>(defaultSettings);
   const [saving, setSaving] = useState(false);
+  const [userTimezone, setUserTimezone] = useState("UTC");
 
   useEffect(() => {
     if (user) fetchSettings();
