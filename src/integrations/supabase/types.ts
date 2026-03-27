@@ -201,16 +201,19 @@ export type Database = {
         Row: {
           id: string
           notification_settings: Json | null
+          timezone: string | null
           updated_at: string | null
         }
         Insert: {
           id?: string
           notification_settings?: Json | null
+          timezone?: string | null
           updated_at?: string | null
         }
         Update: {
           id?: string
           notification_settings?: Json | null
+          timezone?: string | null
           updated_at?: string | null
         }
         Relationships: []
@@ -411,6 +414,7 @@ export type Database = {
           id: string
           is_disabled: boolean | null
           notification_settings: Json | null
+          timezone: string | null
           wallet_balance: number
         }
         Insert: {
@@ -421,6 +425,7 @@ export type Database = {
           id: string
           is_disabled?: boolean | null
           notification_settings?: Json | null
+          timezone?: string | null
           wallet_balance?: number
         }
         Update: {
@@ -431,6 +436,7 @@ export type Database = {
           id?: string
           is_disabled?: boolean | null
           notification_settings?: Json | null
+          timezone?: string | null
           wallet_balance?: number
         }
         Relationships: []
