@@ -560,8 +560,37 @@ export default function Dashboard() {
                   <Plus className="w-4 h-4 mr-2" />Add Funds
                 </Button>
               </div>
+            <p className="text-xs text-muted-foreground mt-1">Current time ({userTimezone}): {getCurrentTime(userTimezone)}</p>
+          </div>
+          </div>
+
+            {/* Date Filter */}
+            <div className="flex flex-wrap items-center gap-3 bg-card border border-border rounded-xl p-4">
+              <CalendarDays className="w-4 h-4 text-muted-foreground" />
+              <span className="text-sm text-muted-foreground">Date filter:</span>
+              <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="bg-secondary border-border text-foreground w-40 h-9" />
+              <span className="text-muted-foreground">to</span>
+              <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="bg-secondary border-border text-foreground w-40 h-9" />
+              {(dateFrom || dateTo) && (
+                <Button size="sm" variant="ghost" onClick={() => { setDateFrom(""); setDateTo(""); }} className="text-xs text-muted-foreground">Clear</Button>
+              )}
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+
+            {/* Historical Cards (linked to date filter) */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="bg-card border border-border rounded-xl p-5">
+                <p className="text-muted-foreground text-sm">All-Time Ad Spend (User)</p>
+                <p className="text-2xl font-bold text-foreground"><span className="text-primary">$</span>{historicalStats.allTimeAdSpend.toFixed(2)}</p>
+                <p className="text-xs text-muted-foreground mt-1">{dateFrom || dateTo ? "Filtered by date range" : "All time"}</p>
+              </div>
+              <div className="bg-card border border-border rounded-xl p-5">
+                <p className="text-muted-foreground text-sm">Total Deposits (Wallet)</p>
+                <p className="text-2xl font-bold text-foreground"><span className="text-primary">$</span>{historicalStats.totalDeposits.toFixed(2)}</p>
+                <p className="text-xs text-muted-foreground mt-1">{dateFrom || dateTo ? "Filtered by date range" : "All time"}</p>
+              </div>
+            </div>
+
+            {/* Snapshot Cards (unaffected by date filter) */}
               <div className="bg-card border border-border rounded-xl p-5">
                 <p className="text-muted-foreground text-sm">Active Accounts</p>
                 <p className="text-2xl font-bold text-foreground">{adAccounts.filter(a => a.status === "active").length}</p>
