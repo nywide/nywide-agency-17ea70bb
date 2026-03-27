@@ -62,7 +62,7 @@ export default function Settings() {
     setSaving(true);
     const { error } = await supabase
       .from("profiles")
-      .update({ notification_settings: settings as any })
+      .update({ notification_settings: settings as any, timezone: userTimezone } as any)
       .eq("id", user!.id);
     if (error) {
       toast({ title: "Error saving settings", description: error.message, variant: "destructive" });
