@@ -941,7 +941,7 @@ export default function Dashboard() {
                       <tbody>
                         {transactions.map((txn) => (
                           <tr key={txn.id} className="border-b border-border/50 hover:bg-secondary/50">
-                            <td className="p-4 text-foreground">{new Date(txn.created_at).toLocaleDateString()}</td>
+                            <td className="p-4 text-foreground text-xs">{formatDateTime(txn.created_at, userTimezone)}</td>
                             <td className="p-4 text-foreground">{txnTypeLabel(txn.type)}</td>
                             <td className="p-4 font-medium">
                               <span className={txnAmountColor(txn.type)}>{txnAmountPrefix(txn.type)}${Number(txn.amount).toFixed(2)}</span>
