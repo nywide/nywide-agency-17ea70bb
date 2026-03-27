@@ -56,8 +56,9 @@ export function AdminNotificationSettings() {
     if (settingsId) {
       const { error } = await supabase.from("admin_settings").update({
         notification_settings: settings as any,
+        timezone: adminTimezone,
         updated_at: new Date().toISOString(),
-      }).eq("id", settingsId);
+      } as any).eq("id", settingsId);
       if (error) {
         toast({ title: "Error saving", description: error.message, variant: "destructive" });
       } else {
