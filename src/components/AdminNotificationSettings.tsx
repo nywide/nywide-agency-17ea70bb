@@ -47,6 +47,7 @@ export function AdminNotificationSettings() {
       if (data.notification_settings) {
         setSettings({ ...defaults, ...(data.notification_settings as any) });
       }
+      if (data.timezone) setAdminTimezone(data.timezone);
     }
   };
 
