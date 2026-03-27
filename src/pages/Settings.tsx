@@ -47,11 +47,14 @@ export default function Settings() {
   const fetchSettings = async () => {
     const { data } = await supabase
       .from("profiles")
-      .select("notification_settings")
+      .select("notification_settings, timezone")
       .eq("id", user!.id)
       .single();
     if (data?.notification_settings) {
       setSettings({ ...defaultSettings, ...(data.notification_settings as any) });
+    }
+    if (data?.timezone) {
+      setUserTimezone(data.timezone);
     }
   };
 
