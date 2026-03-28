@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { fromZonedTime } from "date-fns-tz";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -170,8 +171,12 @@ export default function Dashboard() {
       // No accounts, zero spend
       setHistoricalStats(prev => ({ ...prev, allTimeAdSpend: 0 }));
     }
-    if (dateFrom) spendQuery = spendQuery.gte("created_at", dateFrom);
-    if (dateTo) spendQuery = spendQuery.lte("created_at", dateTo + "T23:59:59");
+    const tz = userTimezone || "UTC";
+    const startUtc = dateFrom ? fromZonedTime(`${dateFrom}T00:00:00`, tz).toISOString() : null;
+    const endUtc = dateTo ? fromZonedTime(`${dateTo}T23:59:59`, tz).toISOString() : null;
+
+    if (startUtc) spendQuery = spendQuery.gte("created_at", startUtc);
+    if (endUtc) spendQuery = spendQuery.lte("created_at", endUtc);
 
     // Total Deposits (Wallet) - completed wallet_topup transactions
     let depositQuery = supabase
@@ -180,8 +185,8 @@ export default function Dashboard() {
       .eq("user_id", user!.id)
       .eq("type", "wallet_topup")
       .eq("status", "completed");
-    if (dateFrom) depositQuery = depositQuery.gte("created_at", dateFrom);
-    if (dateTo) depositQuery = depositQuery.lte("created_at", dateTo + "T23:59:59");
+    if (startUtc) depositQuery = depositQuery.gte("created_at", startUtc);
+    if (endUtc) depositQuery = depositQuery.lte("created_at", endUtc);
 
     const [spendRes, depositRes] = await Promise.all([
       userAccountIds.length > 0 ? spendQuery : Promise.resolve({ data: [] as any[] }),
