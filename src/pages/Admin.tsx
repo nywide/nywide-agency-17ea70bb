@@ -23,6 +23,7 @@ import {
 import { AdminNotificationSettings } from "@/components/AdminNotificationSettings";
 import { createNotification } from "@/lib/notifications";
 import { formatDateTime, getCurrentTime } from "@/lib/timezone";
+import { fromZonedTime } from "date-fns-tz";
 
 const PAGE_SIZE = 50;
 
@@ -150,14 +151,19 @@ export default function Admin() {
   }, [dateFrom, dateTo]);
 
   const fetchOverviewStats = async () => {
+    // Convert date filters to UTC based on admin timezone
+    const tz = adminTimezone || "UTC";
+    const startUtc = dateFrom ? fromZonedTime(`${dateFrom}T00:00:00`, tz).toISOString() : null;
+    const endUtc = dateTo ? fromZonedTime(`${dateTo}T23:59:59`, tz).toISOString() : null;
+
     let txnQuery = supabase.from("transactions").select("commission, type, amount").eq("status", "completed").in("type", ["wallet_to_account", "account_to_wallet"]);
-    if (dateFrom) txnQuery = txnQuery.gte("created_at", dateFrom);
-    if (dateTo) txnQuery = txnQuery.lte("created_at", dateTo + "T23:59:59");
+    if (startUtc) txnQuery = txnQuery.gte("created_at", startUtc);
+    if (endUtc) txnQuery = txnQuery.lte("created_at", endUtc);
 
     // Apply date filter to allTimeAdSpend query
     let spendTxnQuery = supabase.from("ad_account_transactions").select("old_amount_spent, new_amount_spent").eq("type", "spend");
-    if (dateFrom) spendTxnQuery = spendTxnQuery.gte("created_at", dateFrom);
-    if (dateTo) spendTxnQuery = spendTxnQuery.lte("created_at", dateTo + "T23:59:59");
+    if (startUtc) spendTxnQuery = spendTxnQuery.gte("created_at", startUtc);
+    if (endUtc) spendTxnQuery = spendTxnQuery.lte("created_at", endUtc);
 
     const [balRes, revRes, userCountRes, accCountRes, adAccRes, overridesRes, spendTxnRes] = await Promise.all([
       supabase.from("profiles").select("wallet_balance"),
@@ -499,6 +505,14 @@ export default function Admin() {
     }
     setAddingAccount(true);
     try {
+      // Check for duplicate account_id
+      const { data: existing } = await supabase.from("ad_accounts").select("id").eq("account_id", newAccount.account_id.trim()).maybeSingle();
+      if (existing) {
+        toast({ title: "Duplicate account", description: "This ad account already exists in the system (assigned or unassigned).", variant: "destructive" });
+        setAddingAccount(false);
+        return;
+      }
+
       const spendLimit = Number(newAccount.spend_limit) || 0.01;
       const insertData = {
         account_id: newAccount.account_id.trim(),
