@@ -363,7 +363,7 @@ export default function Dashboard() {
     if (!renameDialog.account || !renameValue.trim()) return;
     setRenaming(true);
     const { error } = await supabase.from("ad_accounts")
-      .update({ display_name: renameValue.trim() } as any)
+      .update({ account_name: renameValue.trim() })
       .eq("id", renameDialog.account.id);
     if (error) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -726,7 +726,7 @@ export default function Dashboard() {
                               <p className="text-sm font-medium text-foreground">{getAccountDisplayName(acc)}</p>
                               {acc.is_disabled && <Ban className="w-3.5 h-3.5 text-destructive" />}
                               {!acc.is_disabled && (
-                                <button onClick={() => { setRenameDialog({ open: true, account: acc }); setRenameValue(acc.display_name || acc.account_name); }}
+                                <button onClick={() => { setRenameDialog({ open: true, account: acc }); setRenameValue(acc.account_name); }}
                                   className="text-muted-foreground hover:text-primary transition-colors">
                                   <Pencil className="w-3 h-3" />
                                 </button>
