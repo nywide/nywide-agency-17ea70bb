@@ -1,0 +1,1 @@
+ALTER TABLE ad_accounts ADD COLUMN IF NOT EXISTS user_account_name TEXT;

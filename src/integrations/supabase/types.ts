@@ -149,6 +149,7 @@ export type Database = {
           spend_limit: number
           status: string
           timezone: string
+          user_account_name: string | null
           user_id: string | null
         }
         Insert: {
@@ -167,6 +168,7 @@ export type Database = {
           spend_limit?: number
           status?: string
           timezone?: string
+          user_account_name?: string | null
           user_id?: string | null
         }
         Update: {
@@ -185,6 +187,7 @@ export type Database = {
           spend_limit?: number
           status?: string
           timezone?: string
+          user_account_name?: string | null
           user_id?: string | null
         }
         Relationships: [
