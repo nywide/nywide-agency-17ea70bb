@@ -136,7 +136,12 @@ export default function Settings() {
                   className="bg-secondary border-border text-foreground"
                 />
                 <p className="text-xs text-muted-foreground">
-                  Message @userinfobot on Telegram to get your Chat ID.
+                  Message <a href="https://t.me/userinfobot" target="_blank" rel="noopener noreferrer" className="text-primary underline">@userinfobot</a> on Telegram to get your Chat ID.
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  ⚠️ Before receiving messages, send <strong>/start</strong> to{" "}
+                  <a href="https://t.me/nywideagencybot" target="_blank" rel="noopener noreferrer" className="text-primary underline">@nywideagencybot</a>{" "}
+                  on Telegram to activate your chat ID.
                 </p>
               </div>
             )}
