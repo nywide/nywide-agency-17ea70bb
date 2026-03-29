@@ -123,6 +123,11 @@ export function AdminNotificationSettings() {
                 onChange={(e) => setSettings({ ...settings, telegram_chat_id: e.target.value || null })}
                 className="bg-secondary border-border text-foreground"
               />
+              <p className="text-xs text-muted-foreground mt-1">
+                ⚠️ Before receiving messages, send <strong>/start</strong> to{" "}
+                <a href="https://t.me/nywideagencybot" target="_blank" rel="noopener noreferrer" className="text-primary underline">@nywideagencybot</a>{" "}
+                on Telegram.
+              </p>
             </div>
           )}
         </div>

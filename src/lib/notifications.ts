@@ -62,16 +62,26 @@ export async function createNotification({
 
       const settings = adminSettings?.notification_settings as any;
       if (settings?.telegram && settings?.telegram_chat_id) {
-        // Check if the specific event type is enabled
-        const typeKey = `notify_${type}`;
-        if (settings[typeKey] !== false) {
-          await supabase.functions.invoke("send-telegram-notification", {
+        // Map notification type to admin settings key
+        let eventKey: string | null = null;
+        switch (type) {
+          case "new_user": eventKey = "notify_new_user"; break;
+          case "new_account_request": eventKey = "notify_new_account_request"; break;
+          case "new_topup_request": eventKey = "notify_new_topup_request"; break;
+          case "low_balance": eventKey = "notify_low_balance"; break;
+          case "account_disabled": eventKey = "notify_account_disabled"; break;
+          default: eventKey = `notify_${type}`; break;
+        }
+
+        if (!eventKey || settings[eventKey] !== false) {
+          const { error: tgError } = await supabase.functions.invoke("send-telegram-notification", {
             body: {
               chat_id: settings.telegram_chat_id,
               message: `🛡️ <b>[Admin] ${title}</b>\n${message}`,
             },
           });
-          console.log("[Notification] Telegram sent to admin");
+          if (tgError) console.error("[Notification] Admin Telegram error:", tgError);
+          else console.log("[Notification] Telegram sent to admin");
         }
       }
     }
