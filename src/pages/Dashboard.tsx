@@ -65,6 +65,7 @@ export default function Dashboard() {
   const [requestPlatform, setRequestPlatform] = useState("facebook");
   const [requestAccountName, setRequestAccountName] = useState("");
   const [requestPreferredLimit, setRequestPreferredLimit] = useState("");
+  const [requestFacebookEmail, setRequestFacebookEmail] = useState("");
 
   // Rename account dialog
   const [renameDialog, setRenameDialog] = useState<{ open: boolean; account?: any }>({ open: false });
