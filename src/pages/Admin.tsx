@@ -633,7 +633,6 @@ export default function Admin() {
         toast({ title: "Error", description: error.message, variant: "destructive" });
       } else {
         toast({ title: newDisabled ? "Account disabled" : "Account enabled" });
-        // Send notification to user when disabling
         if (newDisabled && account.user_id) {
           await createNotification({
             userId: account.user_id,
@@ -642,14 +641,19 @@ export default function Admin() {
             message: `Your ad account "${account.account_name}" (${account.account_id}) has been disabled.${reason ? ` Reason: ${reason}` : ""}`,
             type: "account_disabled",
           });
-          // Also notify admin
           await createNotification({
             recipientType: "admin",
-            title: "Ad account disabled",
-            message: `Account "${account.account_name}" (${account.account_id}) has been disabled.${reason ? ` Reason: ${reason}` : ""}`,
+            title: "Account Disabled",
+            message: `Account "${account.account_name}" (${account.account_id}) was disabled.${reason ? ` Reason: ${reason}` : ""}`,
             type: "account_disabled",
           });
-          console.log("[Admin] Notification sent for disabled account:", account.account_id);
+        } else if (!newDisabled) {
+          await createNotification({
+            recipientType: "admin",
+            title: "Account Enabled",
+            message: `Account "${account.account_name}" (${account.account_id}) was re-enabled.`,
+            type: "account_disabled",
+          });
         }
         fetchAccounts();
       }
