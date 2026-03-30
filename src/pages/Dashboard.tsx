@@ -598,22 +598,22 @@ export default function Dashboard() {
             </div>
 
             {/* Snapshot Cards (unaffected by date filter) */}
-            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="bg-card border border-border rounded-xl p-5">
                 <p className="text-muted-foreground text-sm">Active Accounts</p>
                 <p className="text-2xl font-bold text-foreground">{adAccounts.filter(a => a.status === "active").length}</p>
               </div>
               <div className="bg-card border border-border rounded-xl p-5">
-                <p className="text-muted-foreground text-sm">Total Spent</p>
-                <p className="text-2xl font-bold text-foreground">${dashStats.totalSpent.toFixed(2)}</p>
+                <p className="text-muted-foreground text-sm">Spending Limit</p>
+                <p className="text-2xl font-bold text-foreground"><span className="text-primary">$</span>{adAccounts.reduce((s, a) => s + getAccountSpendLimit(a), 0).toFixed(2)}</p>
+              </div>
+              <div className="bg-card border border-border rounded-xl p-5">
+                <p className="text-muted-foreground text-sm">Remaining</p>
+                <p className="text-2xl font-bold text-foreground"><span className="text-primary">$</span>{adAccounts.reduce((s, a) => s + getAccountRemaining(a), 0).toFixed(2)}</p>
               </div>
               <div className="bg-card border border-border rounded-xl p-5">
                 <p className="text-muted-foreground text-sm">Total Transactions</p>
                 <p className="text-2xl font-bold text-foreground">{dashStats.txnCount}</p>
-              </div>
-              <div className="bg-card border border-border rounded-xl p-5">
-                <p className="text-muted-foreground text-sm">Total Invoices</p>
-                <p className="text-2xl font-bold text-foreground">{dashStats.invCount}</p>
               </div>
             </div>
 
