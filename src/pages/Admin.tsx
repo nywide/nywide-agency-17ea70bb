@@ -766,6 +766,12 @@ export default function Admin() {
       message: `Your ad account request "${req.account_name || "Account"}" has been rejected.`,
       type: "account_request_approved",
     });
+    await createNotification({
+      recipientType: "admin",
+      title: "Account Request Rejected",
+      message: `Ad account request for user ${req.profiles?.full_name || req.user_id} was rejected.`,
+      type: "new_account_request",
+    });
     toast({ title: "Request rejected" });
     fetchRequests();
   };
