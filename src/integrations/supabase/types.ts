@@ -20,6 +20,7 @@ export type Database = {
           balance_deducted: boolean | null
           created_at: string
           currency: string | null
+          facebook_email: string | null
           id: string
           platform: string
           preferred_limit: string | null
@@ -32,6 +33,7 @@ export type Database = {
           balance_deducted?: boolean | null
           created_at?: string
           currency?: string | null
+          facebook_email?: string | null
           id?: string
           platform?: string
           preferred_limit?: string | null
@@ -44,6 +46,7 @@ export type Database = {
           balance_deducted?: boolean | null
           created_at?: string
           currency?: string | null
+          facebook_email?: string | null
           id?: string
           platform?: string
           preferred_limit?: string | null
@@ -143,6 +146,7 @@ export type Database = {
           current_spend: number
           disabled_reason: string | null
           display_name: string | null
+          facebook_email: string | null
           id: string
           is_disabled: boolean | null
           platform: string
@@ -162,6 +166,7 @@ export type Database = {
           current_spend?: number
           disabled_reason?: string | null
           display_name?: string | null
+          facebook_email?: string | null
           id?: string
           is_disabled?: boolean | null
           platform?: string
@@ -181,6 +186,7 @@ export type Database = {
           current_spend?: number
           disabled_reason?: string | null
           display_name?: string | null
+          facebook_email?: string | null
           id?: string
           is_disabled?: boolean | null
           platform?: string
@@ -411,6 +417,7 @@ export type Database = {
       profiles: {
         Row: {
           created_at: string
+          daily_report_settings: Json | null
           disabled_reason: string | null
           email: string | null
           full_name: string | null
@@ -422,6 +429,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          daily_report_settings?: Json | null
           disabled_reason?: string | null
           email?: string | null
           full_name?: string | null
@@ -433,6 +441,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          daily_report_settings?: Json | null
           disabled_reason?: string | null
           email?: string | null
           full_name?: string | null
@@ -621,6 +630,47 @@ export type Database = {
             foreignKeyName: "user_commission_overrides_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_custom_metrics: {
+        Row: {
+          alert_enabled: boolean | null
+          alert_type: string | null
+          created_at: string | null
+          formula: string
+          id: string
+          name: string
+          threshold: number | null
+          user_id: string
+        }
+        Insert: {
+          alert_enabled?: boolean | null
+          alert_type?: string | null
+          created_at?: string | null
+          formula: string
+          id?: string
+          name: string
+          threshold?: number | null
+          user_id: string
+        }
+        Update: {
+          alert_enabled?: boolean | null
+          alert_type?: string | null
+          created_at?: string | null
+          formula?: string
+          id?: string
+          name?: string
+          threshold?: number | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_custom_metrics_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
