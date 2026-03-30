@@ -60,7 +60,7 @@ export default function Settings() {
   const fetchSettings = async () => {
     const { data } = await supabase
       .from("profiles")
-      .select("notification_settings, timezone")
+      .select("notification_settings, timezone, daily_report_settings")
       .eq("id", user!.id)
       .single();
     if (data?.notification_settings) {
@@ -68,6 +68,9 @@ export default function Settings() {
     }
     if (data?.timezone) {
       setUserTimezone(data.timezone);
+    }
+    if ((data as any)?.daily_report_settings) {
+      setDailyReport({ ...defaultDailyReport, ...((data as any).daily_report_settings as any) });
     }
   };
 
