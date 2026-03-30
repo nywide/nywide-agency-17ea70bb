@@ -736,7 +736,7 @@ export default function Dashboard() {
                               )}
                             </div>
                           </div>
-                          <div>
+                         <div>
                             <p className="text-xs text-muted-foreground">Account ID</p>
                             <p className="text-sm font-mono text-foreground">{acc.account_id}</p>
                           </div>
@@ -744,6 +744,16 @@ export default function Dashboard() {
                             <p className="text-xs text-muted-foreground">Platform</p>
                             <p className="text-sm text-foreground capitalize">{acc.platform}</p>
                           </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Timezone</p>
+                            <p className="text-sm text-foreground text-xs">{acc.timezone || "N/A"}</p>
+                          </div>
+                          {acc.facebook_email && (
+                            <div>
+                              <p className="text-xs text-muted-foreground">Facebook Email</p>
+                              <p className="text-sm text-foreground text-xs">{acc.facebook_email}</p>
+                            </div>
+                          )}
                           <div>
                             <p className="text-xs text-muted-foreground">Spending Limit</p>
                             <p className="text-sm font-medium text-foreground">${spendLimit.toFixed(2)}</p>
