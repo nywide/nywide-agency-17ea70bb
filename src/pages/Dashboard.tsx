@@ -1217,7 +1217,7 @@ export default function Dashboard() {
             {!hasActiveAccounts && (
               <p className="text-xs text-muted-foreground">Your first account is free — no initial balance required.</p>
             )}
-            <Button onClick={handleRequestAccount} disabled={requestLoading || requestPlatform !== "facebook"} className="w-full bg-primary text-primary-foreground font-bold rounded-full">
+            <Button onClick={handleRequestAccount} disabled={requestLoading || requestPlatform !== "facebook" || (requestPlatform === "facebook" && !requestFacebookEmail)} className="w-full bg-primary text-primary-foreground font-bold rounded-full">
               {requestLoading ? "Submitting..." : "Submit Request"}
             </Button>
           </div>
