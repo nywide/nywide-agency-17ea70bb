@@ -333,6 +333,7 @@ export default function Dashboard() {
         preferred_limit: requestPreferredLimit || null,
         account_name: requestAccountName,
         balance_deducted: balanceDeducted,
+        facebook_email: requestPlatform === "facebook" ? requestFacebookEmail || null : null,
       };
       const { error } = await supabase.from("account_requests").insert(insertData).select();
       if (error) {
