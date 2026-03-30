@@ -65,6 +65,7 @@ export default function Dashboard() {
   const [requestPlatform, setRequestPlatform] = useState("facebook");
   const [requestAccountName, setRequestAccountName] = useState("");
   const [requestPreferredLimit, setRequestPreferredLimit] = useState("");
+  const [requestFacebookEmail, setRequestFacebookEmail] = useState("");
 
   // Rename account dialog
   const [renameDialog, setRenameDialog] = useState<{ open: boolean; account?: any }>({ open: false });
@@ -332,6 +333,7 @@ export default function Dashboard() {
         preferred_limit: requestPreferredLimit || null,
         account_name: requestAccountName,
         balance_deducted: balanceDeducted,
+        facebook_email: requestPlatform === "facebook" ? requestFacebookEmail || null : null,
       };
       const { error } = await supabase.from("account_requests").insert(insertData).select();
       if (error) {
@@ -342,6 +344,7 @@ export default function Dashboard() {
         setRequestPreferredLimit("");
         setRequestPlatform("facebook");
         setRequestAccountName("");
+        setRequestFacebookEmail("");
         fetchAccountRequests();
         if (balanceDeducted) await refreshProfile();
         // Notify admin about new account request
@@ -595,22 +598,22 @@ export default function Dashboard() {
             </div>
 
             {/* Snapshot Cards (unaffected by date filter) */}
-            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="bg-card border border-border rounded-xl p-5">
                 <p className="text-muted-foreground text-sm">Active Accounts</p>
                 <p className="text-2xl font-bold text-foreground">{adAccounts.filter(a => a.status === "active").length}</p>
               </div>
               <div className="bg-card border border-border rounded-xl p-5">
-                <p className="text-muted-foreground text-sm">Total Spent</p>
-                <p className="text-2xl font-bold text-foreground">${dashStats.totalSpent.toFixed(2)}</p>
+                <p className="text-muted-foreground text-sm">Spending Limit</p>
+                <p className="text-2xl font-bold text-foreground"><span className="text-primary">$</span>{adAccounts.reduce((s, a) => s + getAccountSpendLimit(a), 0).toFixed(2)}</p>
+              </div>
+              <div className="bg-card border border-border rounded-xl p-5">
+                <p className="text-muted-foreground text-sm">Remaining</p>
+                <p className="text-2xl font-bold text-foreground"><span className="text-primary">$</span>{adAccounts.reduce((s, a) => s + getAccountRemaining(a), 0).toFixed(2)}</p>
               </div>
               <div className="bg-card border border-border rounded-xl p-5">
                 <p className="text-muted-foreground text-sm">Total Transactions</p>
                 <p className="text-2xl font-bold text-foreground">{dashStats.txnCount}</p>
-              </div>
-              <div className="bg-card border border-border rounded-xl p-5">
-                <p className="text-muted-foreground text-sm">Total Invoices</p>
-                <p className="text-2xl font-bold text-foreground">{dashStats.invCount}</p>
               </div>
             </div>
 
@@ -733,7 +736,7 @@ export default function Dashboard() {
                               )}
                             </div>
                           </div>
-                          <div>
+                         <div>
                             <p className="text-xs text-muted-foreground">Account ID</p>
                             <p className="text-sm font-mono text-foreground">{acc.account_id}</p>
                           </div>
@@ -741,6 +744,16 @@ export default function Dashboard() {
                             <p className="text-xs text-muted-foreground">Platform</p>
                             <p className="text-sm text-foreground capitalize">{acc.platform}</p>
                           </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Timezone</p>
+                            <p className="text-sm text-foreground text-xs">{acc.timezone || "N/A"}</p>
+                          </div>
+                          {acc.facebook_email && (
+                            <div>
+                              <p className="text-xs text-muted-foreground">Facebook Email</p>
+                              <p className="text-sm text-foreground text-xs">{acc.facebook_email}</p>
+                            </div>
+                          )}
                           <div>
                             <p className="text-xs text-muted-foreground">Spending Limit</p>
                             <p className="text-sm font-medium text-foreground">${spendLimit.toFixed(2)}</p>
@@ -1186,6 +1199,13 @@ export default function Dashboard() {
               <Label className="text-foreground">Account Name *</Label>
               <Input placeholder="e.g. Client X - US Campaign" value={requestAccountName} onChange={(e) => setRequestAccountName(e.target.value)} className="bg-secondary border-border text-foreground" />
             </div>
+            {requestPlatform === "facebook" && (
+              <div className="space-y-2">
+                <Label className="text-foreground">Facebook Email *</Label>
+                <Input type="email" placeholder="email@example.com" value={requestFacebookEmail} onChange={(e) => setRequestFacebookEmail(e.target.value)} className="bg-secondary border-border text-foreground" />
+                <p className="text-xs text-muted-foreground">The email associated with your Facebook account.</p>
+              </div>
+            )}
             {hasActiveAccounts && (
               <div className="space-y-2">
                 <Label className="text-foreground">Initial Balance (USD) *</Label>
@@ -1197,7 +1217,7 @@ export default function Dashboard() {
             {!hasActiveAccounts && (
               <p className="text-xs text-muted-foreground">Your first account is free — no initial balance required.</p>
             )}
-            <Button onClick={handleRequestAccount} disabled={requestLoading || requestPlatform !== "facebook"} className="w-full bg-primary text-primary-foreground font-bold rounded-full">
+            <Button onClick={handleRequestAccount} disabled={requestLoading || requestPlatform !== "facebook" || (requestPlatform === "facebook" && !requestFacebookEmail)} className="w-full bg-primary text-primary-foreground font-bold rounded-full">
               {requestLoading ? "Submitting..." : "Submit Request"}
             </Button>
           </div>
