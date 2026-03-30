@@ -461,6 +461,12 @@ export default function Admin() {
       message: `Your top-up request for $${Number(req.amount).toFixed(2)} has been approved.`,
       type: "topup_approved",
     });
+    await createNotification({
+      recipientType: "admin",
+      title: "Top-Up Approved",
+      message: `Top-up of $${Number(req.amount).toFixed(2)} for user ${req.profiles?.full_name || req.user_id} was approved.`,
+      type: "new_topup_request",
+    });
     setApprovingId(null);
     toast({ title: "Top-up approved", description: `$${Number(req.amount).toFixed(2)} added to ${req.profiles?.full_name || "user"}'s wallet.` });
     fetchTopupRequests();
@@ -477,6 +483,12 @@ export default function Admin() {
       title: "Top-up rejected",
       message: `Your top-up request for $${Number(req.amount).toFixed(2)} has been rejected.`,
       type: "topup_approved",
+    });
+    await createNotification({
+      recipientType: "admin",
+      title: "Top-Up Rejected",
+      message: `Top-up request of $${Number(req.amount).toFixed(2)} for user ${req.profiles?.full_name || req.user_id} was rejected.`,
+      type: "new_topup_request",
     });
     setApprovingId(null);
     toast({ title: "Top-up rejected" });
@@ -621,7 +633,6 @@ export default function Admin() {
         toast({ title: "Error", description: error.message, variant: "destructive" });
       } else {
         toast({ title: newDisabled ? "Account disabled" : "Account enabled" });
-        // Send notification to user when disabling
         if (newDisabled && account.user_id) {
           await createNotification({
             userId: account.user_id,
@@ -630,14 +641,19 @@ export default function Admin() {
             message: `Your ad account "${account.account_name}" (${account.account_id}) has been disabled.${reason ? ` Reason: ${reason}` : ""}`,
             type: "account_disabled",
           });
-          // Also notify admin
           await createNotification({
             recipientType: "admin",
-            title: "Ad account disabled",
-            message: `Account "${account.account_name}" (${account.account_id}) has been disabled.${reason ? ` Reason: ${reason}` : ""}`,
+            title: "Account Disabled",
+            message: `Account "${account.account_name}" (${account.account_id}) was disabled.${reason ? ` Reason: ${reason}` : ""}`,
             type: "account_disabled",
           });
-          console.log("[Admin] Notification sent for disabled account:", account.account_id);
+        } else if (!newDisabled) {
+          await createNotification({
+            recipientType: "admin",
+            title: "Account Enabled",
+            message: `Account "${account.account_name}" (${account.account_id}) was re-enabled.`,
+            type: "account_disabled",
+          });
         }
         fetchAccounts();
       }
@@ -731,6 +747,12 @@ export default function Admin() {
       message: `Your ad account request "${req.account_name || "Account"}" has been approved.`,
       type: "account_request_approved",
     });
+    await createNotification({
+      recipientType: "admin",
+      title: "Account Request Approved",
+      message: `Ad account request (${req.account_name || "Account"}) for user ${req.profiles?.full_name || req.user_id} was approved.`,
+      type: "new_account_request",
+    });
     setApprovingId(null);
     toast({ title: "Request approved", description: selectedAccountId ? "Account assigned." : "Request approved." });
     fetchRequests();
@@ -747,6 +769,12 @@ export default function Admin() {
       title: "Account request rejected",
       message: `Your ad account request "${req.account_name || "Account"}" has been rejected.`,
       type: "account_request_approved",
+    });
+    await createNotification({
+      recipientType: "admin",
+      title: "Account Request Rejected",
+      message: `Ad account request for user ${req.profiles?.full_name || req.user_id} was rejected.`,
+      type: "new_account_request",
     });
     toast({ title: "Request rejected" });
     fetchRequests();
