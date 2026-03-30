@@ -484,6 +484,12 @@ export default function Admin() {
       message: `Your top-up request for $${Number(req.amount).toFixed(2)} has been rejected.`,
       type: "topup_approved",
     });
+    await createNotification({
+      recipientType: "admin",
+      title: "Top-Up Rejected",
+      message: `Top-up request of $${Number(req.amount).toFixed(2)} for user ${req.profiles?.full_name || req.user_id} was rejected.`,
+      type: "new_topup_request",
+    });
     setApprovingId(null);
     toast({ title: "Top-up rejected" });
     fetchTopupRequests();
