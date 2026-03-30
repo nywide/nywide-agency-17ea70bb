@@ -194,6 +194,36 @@ export default function Settings() {
             </div>
           </div>
 
+          {/* Daily Report Section */}
+          <div className="border-t border-border pt-6">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <p className="font-medium text-foreground">Daily Telegram Report</p>
+                <p className="text-sm text-muted-foreground">Receive a daily summary of all accounts via Telegram</p>
+              </div>
+              <Switch checked={dailyReport.enabled} onCheckedChange={(v) => setDailyReport({ ...dailyReport, enabled: v })} />
+            </div>
+            {dailyReport.enabled && (
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 space-y-1">
+                    <Label className="text-foreground text-sm">Hour (0-23)</Label>
+                    <Input type="number" min="0" max="23" value={dailyReport.hour}
+                      onChange={(e) => setDailyReport({ ...dailyReport, hour: Math.max(0, Math.min(23, Number(e.target.value))) })}
+                      className="bg-secondary border-border text-foreground" />
+                  </div>
+                  <div className="flex-1 space-y-1">
+                    <Label className="text-foreground text-sm">Minute (0-59)</Label>
+                    <Input type="number" min="0" max="59" value={dailyReport.minute}
+                      onChange={(e) => setDailyReport({ ...dailyReport, minute: Math.max(0, Math.min(59, Number(e.target.value))) })}
+                      className="bg-secondary border-border text-foreground" />
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground">Report will be sent at {String(dailyReport.hour).padStart(2, '0')}:{String(dailyReport.minute).padStart(2, '0')} in your timezone ({userTimezone}). Telegram must be enabled with a valid Chat ID.</p>
+              </div>
+            )}
+          </div>
+
           <Button onClick={handleSave} disabled={saving} className="w-full bg-primary text-primary-foreground font-bold rounded-full">
             {saving ? "Saving..." : "Save Settings"}
           </Button>
