@@ -1199,6 +1199,13 @@ export default function Dashboard() {
               <Label className="text-foreground">Account Name *</Label>
               <Input placeholder="e.g. Client X - US Campaign" value={requestAccountName} onChange={(e) => setRequestAccountName(e.target.value)} className="bg-secondary border-border text-foreground" />
             </div>
+            {requestPlatform === "facebook" && (
+              <div className="space-y-2">
+                <Label className="text-foreground">Facebook Email *</Label>
+                <Input type="email" placeholder="email@example.com" value={requestFacebookEmail} onChange={(e) => setRequestFacebookEmail(e.target.value)} className="bg-secondary border-border text-foreground" />
+                <p className="text-xs text-muted-foreground">The email associated with your Facebook account.</p>
+              </div>
+            )}
             {hasActiveAccounts && (
               <div className="space-y-2">
                 <Label className="text-foreground">Initial Balance (USD) *</Label>
