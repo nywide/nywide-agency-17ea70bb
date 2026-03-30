@@ -22,6 +22,12 @@ interface NotificationSettings {
   notify_withdrawal: boolean;
 }
 
+interface DailyReportSettings {
+  enabled: boolean;
+  hour: number;
+  minute: number;
+}
+
 const defaultSettings: NotificationSettings = {
   telegram: false,
   telegram_chat_id: null,
@@ -31,6 +37,12 @@ const defaultSettings: NotificationSettings = {
   notify_topup_approved: true,
   notify_account_request_approved: true,
   notify_withdrawal: true,
+};
+
+const defaultDailyReport: DailyReportSettings = {
+  enabled: false,
+  hour: 9,
+  minute: 0,
 };
 
 export default function Settings() {
