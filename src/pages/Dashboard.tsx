@@ -344,6 +344,7 @@ export default function Dashboard() {
         setRequestPreferredLimit("");
         setRequestPlatform("facebook");
         setRequestAccountName("");
+        setRequestFacebookEmail("");
         fetchAccountRequests();
         if (balanceDeducted) await refreshProfile();
         // Notify admin about new account request
