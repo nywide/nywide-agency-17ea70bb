@@ -147,8 +147,16 @@ async function syncAdAccountFromFacebook(adminClient: any, accountId: string, to
             type: "low_balance",
             recipient_type: "user",
           });
+          // Also notify admin
+          await adminClient.from("notifications").insert({
+            user_id: null,
+            title: "Low Balance Alert",
+            message: `User ${currentAccount.user_id} has low balance ($${remaining.toFixed(2)} remaining) in ad account ${accountId}.`,
+            type: "low_balance",
+            recipient_type: "admin",
+          });
           console.log(`[FB API] Low balance notification for user ${currentAccount.user_id}, remaining: $${remaining.toFixed(2)}`);
-          // Send Telegram if enabled
+          // Send Telegram to user if enabled
           if (settings?.telegram && settings?.telegram_chat_id) {
             const telegramUrl = Deno.env.get("SUPABASE_URL") + "/functions/v1/send-telegram-notification";
             const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -160,6 +168,29 @@ async function syncAdAccountFromFacebook(adminClient: any, accountId: string, to
                 message: `⚠️ <b>Low Balance Alert</b>\nAccount ${accountId} has <b>$${remaining.toFixed(2)}</b> remaining (threshold: $${threshold}).`,
               }),
             });
+          }
+          // Send Telegram to admin if enabled
+          try {
+            const { data: adminSettings } = await adminClient
+              .from("admin_settings")
+              .select("notification_settings")
+              .limit(1)
+              .single();
+            const adminNs = adminSettings?.notification_settings as any;
+            if (adminNs?.telegram && adminNs?.telegram_chat_id && adminNs?.notify_low_balance !== false) {
+              const telegramUrl = Deno.env.get("SUPABASE_URL") + "/functions/v1/send-telegram-notification";
+              const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+              await fetch(telegramUrl, {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "Authorization": `Bearer ${serviceKey}` },
+                body: JSON.stringify({
+                  chat_id: adminNs.telegram_chat_id,
+                  message: `🛡️ <b>[Admin] Low Balance Alert</b>\nUser ${currentAccount.user_id} has <b>$${remaining.toFixed(2)}</b> remaining in account ${accountId}.`,
+                }),
+              });
+            }
+          } catch (adminErr) {
+            console.warn("[FB API] Admin Telegram error:", adminErr);
           }
         }
       }
