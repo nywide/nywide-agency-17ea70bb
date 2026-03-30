@@ -743,6 +743,12 @@ export default function Admin() {
       message: `Your ad account request "${req.account_name || "Account"}" has been approved.`,
       type: "account_request_approved",
     });
+    await createNotification({
+      recipientType: "admin",
+      title: "Account Request Approved",
+      message: `Ad account request (${req.account_name || "Account"}) for user ${req.profiles?.full_name || req.user_id} was approved.`,
+      type: "new_account_request",
+    });
     setApprovingId(null);
     toast({ title: "Request approved", description: selectedAccountId ? "Account assigned." : "Request approved." });
     fetchRequests();
