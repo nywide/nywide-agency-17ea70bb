@@ -49,6 +49,7 @@ export default function Settings() {
   const { user, signOut } = useAuth();
   const { toast } = useToast();
   const [settings, setSettings] = useState<NotificationSettings>(defaultSettings);
+  const [dailyReport, setDailyReport] = useState<DailyReportSettings>(defaultDailyReport);
   const [saving, setSaving] = useState(false);
   const [userTimezone, setUserTimezone] = useState("UTC");
 
