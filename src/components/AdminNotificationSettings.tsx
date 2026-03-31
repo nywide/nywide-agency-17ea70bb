@@ -18,6 +18,17 @@ interface AdminNotifSettings {
   notify_account_disabled: boolean;
 }
 
+interface AdminDailyReportSettings {
+  enabled: boolean;
+  hour: number;
+  minute: number;
+  include_new_users: boolean;
+  include_new_account_requests: boolean;
+  include_new_topup_requests: boolean;
+  include_low_balance: boolean;
+  include_total_stats: boolean;
+}
+
 const defaults: AdminNotifSettings = {
   telegram: false,
   telegram_chat_id: null,
@@ -29,9 +40,21 @@ const defaults: AdminNotifSettings = {
   notify_account_disabled: true,
 };
 
+const defaultDailyReport: AdminDailyReportSettings = {
+  enabled: false,
+  hour: 9,
+  minute: 0,
+  include_new_users: true,
+  include_new_account_requests: true,
+  include_new_topup_requests: true,
+  include_low_balance: true,
+  include_total_stats: true,
+};
+
 export function AdminNotificationSettings() {
   const { toast } = useToast();
   const [settings, setSettings] = useState<AdminNotifSettings>(defaults);
+  const [dailyReport, setDailyReport] = useState<AdminDailyReportSettings>(defaultDailyReport);
   const [settingsId, setSettingsId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [adminTimezone, setAdminTimezone] = useState("UTC");
@@ -48,6 +71,9 @@ export function AdminNotificationSettings() {
         setSettings({ ...defaults, ...(data.notification_settings as any) });
       }
       if (data.timezone) setAdminTimezone(data.timezone);
+      if ((data as any).daily_report_settings) {
+        setDailyReport({ ...defaultDailyReport, ...((data as any).daily_report_settings as any) });
+      }
     }
   };
 
@@ -57,6 +83,7 @@ export function AdminNotificationSettings() {
       const { error } = await supabase.from("admin_settings").update({
         notification_settings: settings as any,
         timezone: adminTimezone,
+        daily_report_settings: dailyReport as any,
         updated_at: new Date().toISOString(),
       } as any).eq("id", settingsId);
       if (error) {
@@ -67,6 +94,7 @@ export function AdminNotificationSettings() {
     } else {
       const { error } = await supabase.from("admin_settings").insert({
         notification_settings: settings as any,
+        daily_report_settings: dailyReport as any,
       } as any);
       if (error) {
         toast({ title: "Error saving", description: error.message, variant: "destructive" });
@@ -84,6 +112,14 @@ export function AdminNotificationSettings() {
     { key: "notify_new_topup_request" as const, label: "New Top-Up Request" },
     { key: "notify_low_balance" as const, label: "Low Balance Alerts" },
     { key: "notify_account_disabled" as const, label: "Account Disabled" },
+  ];
+
+  const dailyReportIncludes = [
+    { key: "include_new_users" as const, label: "New users today" },
+    { key: "include_new_account_requests" as const, label: "New account requests today" },
+    { key: "include_new_topup_requests" as const, label: "New top-up requests today" },
+    { key: "include_low_balance" as const, label: "Low balance alerts" },
+    { key: "include_total_stats" as const, label: "Total platform stats" },
   ];
 
   return (
@@ -154,6 +190,45 @@ export function AdminNotificationSettings() {
             className="bg-secondary border-border text-foreground"
           />
           <p className="text-xs text-muted-foreground">Alert when user account balance falls below this amount.</p>
+        </div>
+
+        {/* Daily Report */}
+        <div className="border-t border-border pt-4">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <p className="font-medium text-foreground text-sm">Admin Daily Report</p>
+              <p className="text-xs text-muted-foreground">Receive a daily platform summary via Telegram</p>
+            </div>
+            <Switch checked={dailyReport.enabled} onCheckedChange={(v) => setDailyReport({ ...dailyReport, enabled: v })} />
+          </div>
+          {dailyReport.enabled && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-3">
+                <div className="flex-1 space-y-1">
+                  <Label className="text-foreground text-sm">Hour (0-23)</Label>
+                  <Input type="number" min="0" max="23" value={dailyReport.hour}
+                    onChange={(e) => setDailyReport({ ...dailyReport, hour: Math.max(0, Math.min(23, Number(e.target.value))) })}
+                    className="bg-secondary border-border text-foreground" />
+                </div>
+                <div className="flex-1 space-y-1">
+                  <Label className="text-foreground text-sm">Minute (0-59)</Label>
+                  <Input type="number" min="0" max="59" value={dailyReport.minute}
+                    onChange={(e) => setDailyReport({ ...dailyReport, minute: Math.max(0, Math.min(59, Number(e.target.value))) })}
+                    className="bg-secondary border-border text-foreground" />
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">Report sent at {String(dailyReport.hour).padStart(2, '0')}:{String(dailyReport.minute).padStart(2, '0')} in admin timezone ({adminTimezone}).</p>
+              <div className="space-y-2 mt-2">
+                <p className="text-xs font-medium text-foreground">Include in report:</p>
+                {dailyReportIncludes.map((item) => (
+                  <div key={item.key} className="flex items-center justify-between">
+                    <p className="text-xs text-foreground">{item.label}</p>
+                    <Switch checked={dailyReport[item.key]} onCheckedChange={(v) => setDailyReport({ ...dailyReport, [item.key]: v })} />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         <Button onClick={handleSave} disabled={saving} className="w-full bg-primary text-primary-foreground font-bold rounded-full">
