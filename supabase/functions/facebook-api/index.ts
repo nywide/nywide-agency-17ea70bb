@@ -123,7 +123,7 @@ async function syncAdAccountFromFacebook(adminClient: any, accountId: string, to
     try {
       const { data: profile } = await adminClient
         .from("profiles")
-        .select("notification_settings")
+        .select("notification_settings, full_name, email")
         .eq("id", currentAccount.user_id)
         .single();
       const settings = profile?.notification_settings as any;
@@ -140,6 +140,8 @@ async function syncAdAccountFromFacebook(adminClient: any, accountId: string, to
           .gte("created_at", sixHoursAgo)
           .limit(1);
         if (!recentNotif || recentNotif.length === 0) {
+          const userIdentifier = profile?.full_name || profile?.email || currentAccount.user_id;
+
           await adminClient.from("notifications").insert({
             user_id: currentAccount.user_id,
             title: "Low ad account balance",
@@ -147,15 +149,15 @@ async function syncAdAccountFromFacebook(adminClient: any, accountId: string, to
             type: "low_balance",
             recipient_type: "user",
           });
-          // Also notify admin
+          // Also notify admin with user name
           await adminClient.from("notifications").insert({
             user_id: null,
             title: "Low Balance Alert",
-            message: `User ${currentAccount.user_id} has low balance ($${remaining.toFixed(2)} remaining) in ad account ${accountId}.`,
+            message: `User ${userIdentifier} has $${remaining.toFixed(2)} remaining in ad account ${accountId}.`,
             type: "low_balance",
             recipient_type: "admin",
           });
-          console.log(`[FB API] Low balance notification for user ${currentAccount.user_id}, remaining: $${remaining.toFixed(2)}`);
+          console.log(`[FB API] Low balance notification for user ${userIdentifier}, remaining: $${remaining.toFixed(2)}`);
           // Send Telegram to user if enabled
           if (settings?.telegram && settings?.telegram_chat_id) {
             const telegramUrl = Deno.env.get("SUPABASE_URL") + "/functions/v1/send-telegram-notification";
@@ -185,7 +187,7 @@ async function syncAdAccountFromFacebook(adminClient: any, accountId: string, to
                 headers: { "Content-Type": "application/json", "Authorization": `Bearer ${serviceKey}` },
                 body: JSON.stringify({
                   chat_id: adminNs.telegram_chat_id,
-                  message: `🛡️ <b>[Admin] Low Balance Alert</b>\nUser ${currentAccount.user_id} has <b>$${remaining.toFixed(2)}</b> remaining in account ${accountId}.`,
+                  message: `🛡️ <b>[Admin] Low Balance Alert</b>\nUser ${userIdentifier} has <b>$${remaining.toFixed(2)}</b> remaining in account ${accountId}.`,
                 }),
               });
             }

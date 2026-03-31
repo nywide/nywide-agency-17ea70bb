@@ -206,20 +206,53 @@ export type Database = {
           },
         ]
       }
+      admin_custom_metrics: {
+        Row: {
+          alert_enabled: boolean | null
+          alert_type: string | null
+          created_at: string | null
+          formula: string
+          id: string
+          name: string
+          threshold: number | null
+        }
+        Insert: {
+          alert_enabled?: boolean | null
+          alert_type?: string | null
+          created_at?: string | null
+          formula: string
+          id?: string
+          name: string
+          threshold?: number | null
+        }
+        Update: {
+          alert_enabled?: boolean | null
+          alert_type?: string | null
+          created_at?: string | null
+          formula?: string
+          id?: string
+          name?: string
+          threshold?: number | null
+        }
+        Relationships: []
+      }
       admin_settings: {
         Row: {
+          daily_report_settings: Json | null
           id: string
           notification_settings: Json | null
           timezone: string | null
           updated_at: string | null
         }
         Insert: {
+          daily_report_settings?: Json | null
           id?: string
           notification_settings?: Json | null
           timezone?: string | null
           updated_at?: string | null
         }
         Update: {
+          daily_report_settings?: Json | null
           id?: string
           notification_settings?: Json | null
           timezone?: string | null

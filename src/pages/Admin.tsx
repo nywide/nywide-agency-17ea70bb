@@ -34,10 +34,11 @@ export default function Admin() {
 
   const [overviewStats, setOverviewStats] = useState({ totalBalance: 0, totalRevenue: 0, totalUsers: 0, totalAccounts: 0, totalAdSpend: 0, totalAdRemaining: 0, avgCommissionRate: 0, allTimeAdSpend: 0, totalSpendingLimit: 0, totalAmountSpent: 0 });
 
-  // Date filter for overview
+  // Date filter and user filter for overview
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [adminTimezone, setAdminTimezone] = useState("UTC");
+  const [overviewUserFilter, setOverviewUserFilter] = useState("");
 
   const [users, setUsers] = useState<any[]>([]);
   const [userCount, setUserCount] = useState(0);
@@ -148,7 +149,7 @@ export default function Admin() {
 
   useEffect(() => {
     if (user && activeTab === "overview") fetchOverviewStats();
-  }, [dateFrom, dateTo]);
+  }, [dateFrom, dateTo, overviewUserFilter]);
 
   const fetchOverviewStats = async () => {
     // Convert date filters to UTC based on admin timezone
@@ -156,21 +157,31 @@ export default function Admin() {
     const startUtc = dateFrom ? fromZonedTime(`${dateFrom}T00:00:00`, tz).toISOString() : null;
     const endUtc = dateTo ? fromZonedTime(`${dateTo}T23:59:59`, tz).toISOString() : null;
 
-    let txnQuery = supabase.from("transactions").select("commission, type, amount").eq("status", "completed").in("type", ["wallet_to_account", "account_to_wallet"]);
+    let txnQuery = supabase.from("transactions").select("commission, type, amount, user_id").eq("status", "completed").in("type", ["wallet_to_account", "account_to_wallet"]);
     if (startUtc) txnQuery = txnQuery.gte("created_at", startUtc);
     if (endUtc) txnQuery = txnQuery.lte("created_at", endUtc);
+    if (overviewUserFilter) txnQuery = txnQuery.eq("user_id", overviewUserFilter);
 
     // Apply date filter to allTimeAdSpend query
-    let spendTxnQuery = supabase.from("ad_account_transactions").select("old_amount_spent, new_amount_spent").eq("type", "spend");
+    let spendTxnQuery = supabase.from("ad_account_transactions").select("old_amount_spent, new_amount_spent, user_id").eq("type", "spend");
     if (startUtc) spendTxnQuery = spendTxnQuery.gte("created_at", startUtc);
     if (endUtc) spendTxnQuery = spendTxnQuery.lte("created_at", endUtc);
+    if (overviewUserFilter) spendTxnQuery = spendTxnQuery.eq("user_id", overviewUserFilter);
+
+    // Profiles query – filter by user if set
+    let balQuery = supabase.from("profiles").select("wallet_balance");
+    if (overviewUserFilter) balQuery = balQuery.eq("id", overviewUserFilter);
+
+    // Ad accounts query – filter by user if set
+    let adAccQuery = supabase.from("ad_accounts").select("spend_limit, amount_spent, current_spend");
+    if (overviewUserFilter) adAccQuery = adAccQuery.eq("user_id", overviewUserFilter);
 
     const [balRes, revRes, userCountRes, accCountRes, adAccRes, overridesRes, spendTxnRes] = await Promise.all([
-      supabase.from("profiles").select("wallet_balance"),
+      balQuery,
       txnQuery,
       supabase.from("profiles").select("id", { count: "exact", head: true }),
       supabase.from("ad_accounts").select("id", { count: "exact", head: true }),
-      supabase.from("ad_accounts").select("spend_limit, amount_spent, current_spend"),
+      adAccQuery,
       supabase.from("user_commission_overrides").select("rate"),
       spendTxnQuery,
     ]);
@@ -865,6 +876,9 @@ export default function Admin() {
     { id: "settings", label: "Settings", icon: Settings },
   ];
 
+  // Link to admin custom metrics (rendered in overview)
+  const adminCustomMetricsLink = "/admin/custom-metrics";
+
   const txnTotalPages = Math.ceil(txnCount / PAGE_SIZE);
   const userTotalPages = Math.ceil(userCount / PAGE_SIZE);
   const accTotalPages = Math.ceil(accCount / PAGE_SIZE);
@@ -919,15 +933,25 @@ export default function Admin() {
         {/* Overview Tab */}
         {activeTab === "overview" && (
           <div className="space-y-6">
-            {/* Date Filter + Refresh */}
+            {/* Date Filter + User Filter + Refresh */}
             <div className="flex flex-wrap items-center gap-3 bg-card border border-border rounded-xl p-4">
               <CalendarDays className="w-4 h-4 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">Filter by date:</span>
+              <span className="text-sm text-muted-foreground">Filter:</span>
               <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="bg-secondary border-border text-foreground w-40 h-9" placeholder="From" />
               <span className="text-muted-foreground">to</span>
               <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="bg-secondary border-border text-foreground w-40 h-9" placeholder="To" />
-              {(dateFrom || dateTo) && (
-                <Button size="sm" variant="ghost" onClick={() => { setDateFrom(""); setDateTo(""); }} className="text-xs text-muted-foreground">Clear</Button>
+              <select
+                value={overviewUserFilter}
+                onChange={(e) => setOverviewUserFilter(e.target.value)}
+                className="h-9 rounded-md bg-secondary border border-border px-3 text-foreground text-sm max-w-[200px]"
+              >
+                <option value="">All Users</option>
+                {allUsersForDropdown.map(u => (
+                  <option key={u.id} value={u.id}>{u.full_name || u.email || u.id}</option>
+                ))}
+              </select>
+              {(dateFrom || dateTo || overviewUserFilter) && (
+                <Button size="sm" variant="ghost" onClick={() => { setDateFrom(""); setDateTo(""); setOverviewUserFilter(""); }} className="text-xs text-muted-foreground">Clear</Button>
               )}
               <Button size="sm" variant="outline" onClick={() => fetchOverviewStats()} className="rounded-full border-border ml-auto">
                 <RefreshCw className="w-3.5 h-3.5 mr-1" />Refresh Stats
@@ -978,6 +1002,16 @@ export default function Admin() {
                 <p className="text-3xl font-bold text-foreground"><span className="text-primary">$</span>{overviewStats.totalAmountSpent.toFixed(2)}</p>
                 <p className="text-xs text-muted-foreground mt-1">Current snapshot</p>
               </div>
+            </div>
+
+            {/* Admin Custom Metrics Link */}
+            <div className="bg-card border border-border rounded-xl p-5 text-center">
+              <p className="text-muted-foreground text-sm mb-2">Track platform-wide metrics with custom formulas and alerts.</p>
+              <Link to={adminCustomMetricsLink}>
+                <Button size="sm" variant="outline" className="rounded-full border-border text-sm">
+                  <BarChart3 className="w-3.5 h-3.5 mr-1" />Admin Custom Metrics
+                </Button>
+              </Link>
             </div>
 
             {/* Recent Profiles */}

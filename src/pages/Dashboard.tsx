@@ -471,6 +471,44 @@ export default function Dashboard() {
     return "-";
   };
 
+  // Custom metrics data for dashboard cards
+  const [customMetrics, setCustomMetrics] = useState<any[]>([]);
+  const [customMetricValues, setCustomMetricValues] = useState<Record<string, number | null>>({});
+
+  useEffect(() => {
+    if (user) fetchCustomMetrics();
+  }, [user, adAccounts.length]);
+
+  const fetchCustomMetrics = async () => {
+    const { data } = await supabase.from("user_custom_metrics" as any).select("*").eq("user_id", user!.id);
+    if (data && data.length > 0) {
+      setCustomMetrics(data as any);
+      // Evaluate each metric
+      const totalSpendLimit = adAccounts.reduce((s, a) => s + getAccountSpendLimit(a), 0);
+      const totalAmountSpent = adAccounts.reduce((s, a) => s + getAccountSpent(a), 0);
+      const variables: Record<string, number> = {
+        spend_limit: totalSpendLimit,
+        amount_spent: totalAmountSpent,
+        commission_rate: commissionRate,
+        wallet_balance: Number(profile?.wallet_balance || 0),
+      };
+      const vals: Record<string, number | null> = {};
+      for (const m of data as any[]) {
+        try {
+          let expr = m.formula;
+          for (const [key, val] of Object.entries(variables)) {
+            expr = expr.replace(new RegExp(key, "g"), String(val));
+          }
+          const result = new Function(`return (${expr})`)();
+          vals[m.id] = typeof result === "number" && !isNaN(result) ? result : null;
+        } catch { vals[m.id] = null; }
+      }
+      setCustomMetricValues(vals);
+    } else {
+      setCustomMetrics([]);
+    }
+  };
+
   const tabs = [
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
     { id: "accounts", label: "Ad Accounts", icon: Monitor },
@@ -616,6 +654,48 @@ export default function Dashboard() {
                 <p className="text-2xl font-bold text-foreground">{dashStats.txnCount}</p>
               </div>
             </div>
+
+            {/* Custom Metrics Cards */}
+            {customMetrics.length > 0 ? (
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="text-lg font-bold text-foreground">Custom Metrics</h2>
+                  <Link to="/custom-metrics">
+                    <Button size="sm" variant="ghost" className="text-primary text-xs">Manage →</Button>
+                  </Link>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {customMetrics.map((m: any) => {
+                    const val = customMetricValues[m.id];
+                    const isAlert = m.alert_enabled && m.threshold !== null && val !== null && (
+                      (m.alert_type === "below" && val < m.threshold) ||
+                      (m.alert_type === "above" && val > m.threshold)
+                    );
+                    return (
+                      <div key={m.id} className={`bg-card border rounded-xl p-5 ${isAlert ? "border-destructive" : "border-border"}`}>
+                        <p className="text-muted-foreground text-sm">{m.name}</p>
+                        <p className="text-2xl font-bold text-foreground">
+                          {val !== null ? val.toFixed(2) : "N/A"}
+                        </p>
+                        {isAlert && (
+                          <p className="text-xs text-destructive mt-1">⚠️ {m.alert_type === "below" ? "Below" : "Above"} threshold ({m.threshold})</p>
+                        )}
+                        <p className="text-xs text-muted-foreground mt-1 font-mono">{m.formula}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              <div className="bg-card border border-border rounded-xl p-5 text-center">
+                <p className="text-muted-foreground text-sm mb-2">No custom metrics defined.</p>
+                <Link to="/custom-metrics">
+                  <Button size="sm" variant="outline" className="rounded-full border-border text-sm">
+                    <Plus className="w-3.5 h-3.5 mr-1" />Create Custom Metric
+                  </Button>
+                </Link>
+              </div>
+            )}
 
             {adAccounts.length > 0 && (
               <div>
