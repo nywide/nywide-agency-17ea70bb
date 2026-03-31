@@ -1004,6 +1004,16 @@ export default function Admin() {
               </div>
             </div>
 
+            {/* Admin Custom Metrics Link */}
+            <div className="bg-card border border-border rounded-xl p-5 text-center">
+              <p className="text-muted-foreground text-sm mb-2">Track platform-wide metrics with custom formulas and alerts.</p>
+              <Link to={adminCustomMetricsLink}>
+                <Button size="sm" variant="outline" className="rounded-full border-border text-sm">
+                  <BarChart3 className="w-3.5 h-3.5 mr-1" />Admin Custom Metrics
+                </Button>
+              </Link>
+            </div>
+
             {/* Recent Profiles */}
             <div>
               <h2 className="text-xl font-bold text-foreground mb-3">Recent Profiles</h2>
