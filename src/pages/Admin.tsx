@@ -876,6 +876,9 @@ export default function Admin() {
     { id: "settings", label: "Settings", icon: Settings },
   ];
 
+  // Link to admin custom metrics (rendered in overview)
+  const adminCustomMetricsLink = "/admin/custom-metrics";
+
   const txnTotalPages = Math.ceil(txnCount / PAGE_SIZE);
   const userTotalPages = Math.ceil(userCount / PAGE_SIZE);
   const accTotalPages = Math.ceil(accCount / PAGE_SIZE);
