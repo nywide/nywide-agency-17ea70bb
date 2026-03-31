@@ -34,10 +34,11 @@ export default function Admin() {
 
   const [overviewStats, setOverviewStats] = useState({ totalBalance: 0, totalRevenue: 0, totalUsers: 0, totalAccounts: 0, totalAdSpend: 0, totalAdRemaining: 0, avgCommissionRate: 0, allTimeAdSpend: 0, totalSpendingLimit: 0, totalAmountSpent: 0 });
 
-  // Date filter for overview
+  // Date filter and user filter for overview
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [adminTimezone, setAdminTimezone] = useState("UTC");
+  const [overviewUserFilter, setOverviewUserFilter] = useState("");
 
   const [users, setUsers] = useState<any[]>([]);
   const [userCount, setUserCount] = useState(0);
