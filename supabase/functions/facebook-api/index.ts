@@ -187,7 +187,7 @@ async function syncAdAccountFromFacebook(adminClient: any, accountId: string, to
                 headers: { "Content-Type": "application/json", "Authorization": `Bearer ${serviceKey}` },
                 body: JSON.stringify({
                   chat_id: adminNs.telegram_chat_id,
-                  message: `🛡️ <b>[Admin] Low Balance Alert</b>\nUser ${currentAccount.user_id} has <b>$${remaining.toFixed(2)}</b> remaining in account ${accountId}.`,
+                  message: `🛡️ <b>[Admin] Low Balance Alert</b>\nUser ${userIdentifier} has <b>$${remaining.toFixed(2)}</b> remaining in account ${accountId}.`,
                 }),
               });
             }
