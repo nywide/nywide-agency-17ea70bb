@@ -157,21 +157,31 @@ export default function Admin() {
     const startUtc = dateFrom ? fromZonedTime(`${dateFrom}T00:00:00`, tz).toISOString() : null;
     const endUtc = dateTo ? fromZonedTime(`${dateTo}T23:59:59`, tz).toISOString() : null;
 
-    let txnQuery = supabase.from("transactions").select("commission, type, amount").eq("status", "completed").in("type", ["wallet_to_account", "account_to_wallet"]);
+    let txnQuery = supabase.from("transactions").select("commission, type, amount, user_id").eq("status", "completed").in("type", ["wallet_to_account", "account_to_wallet"]);
     if (startUtc) txnQuery = txnQuery.gte("created_at", startUtc);
     if (endUtc) txnQuery = txnQuery.lte("created_at", endUtc);
+    if (overviewUserFilter) txnQuery = txnQuery.eq("user_id", overviewUserFilter);
 
     // Apply date filter to allTimeAdSpend query
-    let spendTxnQuery = supabase.from("ad_account_transactions").select("old_amount_spent, new_amount_spent").eq("type", "spend");
+    let spendTxnQuery = supabase.from("ad_account_transactions").select("old_amount_spent, new_amount_spent, user_id").eq("type", "spend");
     if (startUtc) spendTxnQuery = spendTxnQuery.gte("created_at", startUtc);
     if (endUtc) spendTxnQuery = spendTxnQuery.lte("created_at", endUtc);
+    if (overviewUserFilter) spendTxnQuery = spendTxnQuery.eq("user_id", overviewUserFilter);
+
+    // Profiles query – filter by user if set
+    let balQuery = supabase.from("profiles").select("wallet_balance");
+    if (overviewUserFilter) balQuery = balQuery.eq("id", overviewUserFilter);
+
+    // Ad accounts query – filter by user if set
+    let adAccQuery = supabase.from("ad_accounts").select("spend_limit, amount_spent, current_spend");
+    if (overviewUserFilter) adAccQuery = adAccQuery.eq("user_id", overviewUserFilter);
 
     const [balRes, revRes, userCountRes, accCountRes, adAccRes, overridesRes, spendTxnRes] = await Promise.all([
-      supabase.from("profiles").select("wallet_balance"),
+      balQuery,
       txnQuery,
       supabase.from("profiles").select("id", { count: "exact", head: true }),
       supabase.from("ad_accounts").select("id", { count: "exact", head: true }),
-      supabase.from("ad_accounts").select("spend_limit, amount_spent, current_spend"),
+      adAccQuery,
       supabase.from("user_commission_overrides").select("rate"),
       spendTxnQuery,
     ]);
