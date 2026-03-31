@@ -41,7 +41,6 @@ export async function createNotification({
 
       const settings = profile?.notification_settings as any;
       if (settings?.telegram && settings?.telegram_chat_id) {
-        // Check if the specific notification type is enabled
         const typeKey = `notify_${type}`;
         if (settings[typeKey] !== false) {
           await supabase.functions.invoke("send-telegram-notification", {
@@ -61,6 +60,8 @@ export async function createNotification({
         .single();
 
       const settings = adminSettings?.notification_settings as any;
+      console.log("[createNotification] Admin settings fetched:", { type, settings });
+
       if (settings?.telegram && settings?.telegram_chat_id) {
         // Map notification type to admin settings key
         let eventKey: string | null = null;
@@ -73,7 +74,10 @@ export async function createNotification({
           default: eventKey = `notify_${type}`; break;
         }
 
-        if (!eventKey || settings[eventKey] !== false) {
+        const shouldSend = !eventKey || settings[eventKey] !== false;
+        console.log("[createNotification] Admin Telegram check:", { type, eventKey, shouldSend, chatId: settings.telegram_chat_id });
+
+        if (shouldSend) {
           const { error: tgError } = await supabase.functions.invoke("send-telegram-notification", {
             body: {
               chat_id: settings.telegram_chat_id,
@@ -83,6 +87,8 @@ export async function createNotification({
           if (tgError) console.error("[Notification] Admin Telegram error:", tgError);
           else console.log("[Notification] Telegram sent to admin");
         }
+      } else {
+        console.log("[createNotification] Admin Telegram not configured:", { telegram: settings?.telegram, chatId: settings?.telegram_chat_id });
       }
     }
   } catch (err) {

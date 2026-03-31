@@ -655,6 +655,48 @@ export default function Dashboard() {
               </div>
             </div>
 
+            {/* Custom Metrics Cards */}
+            {customMetrics.length > 0 ? (
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="text-lg font-bold text-foreground">Custom Metrics</h2>
+                  <Link to="/custom-metrics">
+                    <Button size="sm" variant="ghost" className="text-primary text-xs">Manage →</Button>
+                  </Link>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {customMetrics.map((m: any) => {
+                    const val = customMetricValues[m.id];
+                    const isAlert = m.alert_enabled && m.threshold !== null && val !== null && (
+                      (m.alert_type === "below" && val < m.threshold) ||
+                      (m.alert_type === "above" && val > m.threshold)
+                    );
+                    return (
+                      <div key={m.id} className={`bg-card border rounded-xl p-5 ${isAlert ? "border-destructive" : "border-border"}`}>
+                        <p className="text-muted-foreground text-sm">{m.name}</p>
+                        <p className="text-2xl font-bold text-foreground">
+                          {val !== null ? val.toFixed(2) : "N/A"}
+                        </p>
+                        {isAlert && (
+                          <p className="text-xs text-destructive mt-1">⚠️ {m.alert_type === "below" ? "Below" : "Above"} threshold ({m.threshold})</p>
+                        )}
+                        <p className="text-xs text-muted-foreground mt-1 font-mono">{m.formula}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              <div className="bg-card border border-border rounded-xl p-5 text-center">
+                <p className="text-muted-foreground text-sm mb-2">No custom metrics defined.</p>
+                <Link to="/custom-metrics">
+                  <Button size="sm" variant="outline" className="rounded-full border-border text-sm">
+                    <Plus className="w-3.5 h-3.5 mr-1" />Create Custom Metric
+                  </Button>
+                </Link>
+              </div>
+            )}
+
             {adAccounts.length > 0 && (
               <div>
                 <h2 className="text-lg font-bold text-foreground mb-3">Ad Accounts</h2>
