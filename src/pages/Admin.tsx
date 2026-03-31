@@ -930,15 +930,25 @@ export default function Admin() {
         {/* Overview Tab */}
         {activeTab === "overview" && (
           <div className="space-y-6">
-            {/* Date Filter + Refresh */}
+            {/* Date Filter + User Filter + Refresh */}
             <div className="flex flex-wrap items-center gap-3 bg-card border border-border rounded-xl p-4">
               <CalendarDays className="w-4 h-4 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">Filter by date:</span>
+              <span className="text-sm text-muted-foreground">Filter:</span>
               <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="bg-secondary border-border text-foreground w-40 h-9" placeholder="From" />
               <span className="text-muted-foreground">to</span>
               <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="bg-secondary border-border text-foreground w-40 h-9" placeholder="To" />
-              {(dateFrom || dateTo) && (
-                <Button size="sm" variant="ghost" onClick={() => { setDateFrom(""); setDateTo(""); }} className="text-xs text-muted-foreground">Clear</Button>
+              <select
+                value={overviewUserFilter}
+                onChange={(e) => setOverviewUserFilter(e.target.value)}
+                className="h-9 rounded-md bg-secondary border border-border px-3 text-foreground text-sm max-w-[200px]"
+              >
+                <option value="">All Users</option>
+                {allUsersForDropdown.map(u => (
+                  <option key={u.id} value={u.id}>{u.full_name || u.email || u.id}</option>
+                ))}
+              </select>
+              {(dateFrom || dateTo || overviewUserFilter) && (
+                <Button size="sm" variant="ghost" onClick={() => { setDateFrom(""); setDateTo(""); setOverviewUserFilter(""); }} className="text-xs text-muted-foreground">Clear</Button>
               )}
               <Button size="sm" variant="outline" onClick={() => fetchOverviewStats()} className="rounded-full border-border ml-auto">
                 <RefreshCw className="w-3.5 h-3.5 mr-1" />Refresh Stats
