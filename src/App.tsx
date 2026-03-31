@@ -18,6 +18,7 @@ const Unsubscribe = lazy(() => import("./pages/Unsubscribe.tsx"));
 const Contact = lazy(() => import("./pages/Contact.tsx"));
 const Settings = lazy(() => import("./pages/Settings.tsx"));
 const CustomMetrics = lazy(() => import("./pages/CustomMetrics.tsx"));
+const AdminCustomMetrics = lazy(() => import("./pages/AdminCustomMetrics.tsx"));
 
 const queryClient = new QueryClient();
 
