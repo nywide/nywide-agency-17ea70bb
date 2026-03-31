@@ -471,6 +471,44 @@ export default function Dashboard() {
     return "-";
   };
 
+  // Custom metrics data for dashboard cards
+  const [customMetrics, setCustomMetrics] = useState<any[]>([]);
+  const [customMetricValues, setCustomMetricValues] = useState<Record<string, number | null>>({});
+
+  useEffect(() => {
+    if (user) fetchCustomMetrics();
+  }, [user, adAccounts.length]);
+
+  const fetchCustomMetrics = async () => {
+    const { data } = await supabase.from("user_custom_metrics" as any).select("*").eq("user_id", user!.id);
+    if (data && data.length > 0) {
+      setCustomMetrics(data as any);
+      // Evaluate each metric
+      const totalSpendLimit = adAccounts.reduce((s, a) => s + getAccountSpendLimit(a), 0);
+      const totalAmountSpent = adAccounts.reduce((s, a) => s + getAccountSpent(a), 0);
+      const variables: Record<string, number> = {
+        spend_limit: totalSpendLimit,
+        amount_spent: totalAmountSpent,
+        commission_rate: commissionRate,
+        wallet_balance: Number(profile?.wallet_balance || 0),
+      };
+      const vals: Record<string, number | null> = {};
+      for (const m of data as any[]) {
+        try {
+          let expr = m.formula;
+          for (const [key, val] of Object.entries(variables)) {
+            expr = expr.replace(new RegExp(key, "g"), String(val));
+          }
+          const result = new Function(`return (${expr})`)();
+          vals[m.id] = typeof result === "number" && !isNaN(result) ? result : null;
+        } catch { vals[m.id] = null; }
+      }
+      setCustomMetricValues(vals);
+    } else {
+      setCustomMetrics([]);
+    }
+  };
+
   const tabs = [
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
     { id: "accounts", label: "Ad Accounts", icon: Monitor },
