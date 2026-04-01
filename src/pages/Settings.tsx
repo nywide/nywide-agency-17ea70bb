@@ -26,6 +26,10 @@ interface DailyReportSettings {
   enabled: boolean;
   hour: number;
   minute: number;
+  include_wallet_balance: boolean;
+  include_ad_accounts: boolean;
+  include_custom_metrics: boolean;
+  include_recent_transactions: boolean;
 }
 
 const defaultSettings: NotificationSettings = {
@@ -43,6 +47,10 @@ const defaultDailyReport: DailyReportSettings = {
   enabled: false,
   hour: 9,
   minute: 0,
+  include_wallet_balance: true,
+  include_ad_accounts: true,
+  include_custom_metrics: true,
+  include_recent_transactions: true,
 };
 
 export default function Settings() {
@@ -220,6 +228,24 @@ export default function Settings() {
                   </div>
                 </div>
                 <p className="text-xs text-muted-foreground">Report will be sent at {String(dailyReport.hour).padStart(2, '0')}:{String(dailyReport.minute).padStart(2, '0')} in your timezone ({userTimezone}). Telegram must be enabled with a valid Chat ID.</p>
+                
+                <div className="border-t border-border pt-4 mt-4 space-y-3">
+                  <p className="font-medium text-foreground text-sm">Report Content</p>
+                  {[
+                    { key: "include_wallet_balance" as const, label: "Wallet Balance" },
+                    { key: "include_ad_accounts" as const, label: "Ad Accounts Details" },
+                    { key: "include_custom_metrics" as const, label: "Custom Metrics Values" },
+                    { key: "include_recent_transactions" as const, label: "Recent Transactions (24h)" },
+                  ].map((item) => (
+                    <div key={item.key} className="flex items-center justify-between">
+                      <p className="text-sm text-foreground">{item.label}</p>
+                      <Switch
+                        checked={dailyReport[item.key] !== false}
+                        onCheckedChange={(v) => setDailyReport({ ...dailyReport, [item.key]: v })}
+                      />
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </div>

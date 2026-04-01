@@ -71,10 +71,13 @@ Deno.serve(async (req) => {
         const totalRemaining = totalSpendLimit - totalAmountSpent;
 
         let msg = `📋 <b>Daily Report</b>\n━━━━━━━━━━━━━━━━\n`;
-        msg += `💰 <b>Wallet Balance:</b> $${Number(profile.wallet_balance).toFixed(2)}\n`;
-        msg += `📊 <b>Commission Rate:</b> ${commissionRate}%\n\n`;
 
-        if (accs.length > 0) {
+        if (reportSettings.include_wallet_balance !== false) {
+          msg += `💰 <b>Wallet Balance:</b> $${Number(profile.wallet_balance).toFixed(2)}\n`;
+          msg += `📊 <b>Commission Rate:</b> ${commissionRate}%\n\n`;
+        }
+
+        if (reportSettings.include_ad_accounts !== false && accs.length > 0) {
           msg += `<b>Ad Accounts (${accs.length}):</b>\n`;
           for (const acc of accs) {
             const name = acc.user_account_name || acc.account_name;
@@ -87,7 +90,7 @@ Deno.serve(async (req) => {
           msg += `\n<b>Totals:</b> Limit $${totalSpendLimit.toFixed(2)} | Spent $${totalAmountSpent.toFixed(2)} | Remaining $${totalRemaining.toFixed(2)}\n`;
         }
 
-        if (customMetrics && customMetrics.length > 0) {
+        if (reportSettings.include_custom_metrics !== false && customMetrics && customMetrics.length > 0) {
           msg += `\n<b>Custom Metrics:</b>\n`;
           const variables: Record<string, number> = {
             spend_limit: totalSpendLimit, amount_spent: totalAmountSpent,
@@ -108,7 +111,7 @@ Deno.serve(async (req) => {
         }
 
         const txns = recentTxns || [];
-        if (txns.length > 0) {
+        if (reportSettings.include_recent_transactions !== false && txns.length > 0) {
           msg += `\n<b>Recent Transactions (24h):</b>\n`;
           for (const t of txns.slice(0, 10)) {
             msg += `• ${t.type.replace(/_/g, " ")} $${Number(t.amount).toFixed(2)} [${t.status}]\n`;

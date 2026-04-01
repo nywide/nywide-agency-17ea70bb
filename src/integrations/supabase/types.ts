@@ -88,6 +88,35 @@ export type Database = {
         }
         Relationships: []
       }
+      ad_account_cards: {
+        Row: {
+          ad_account_id: string
+          created_at: string
+          id: string
+          last4: string
+        }
+        Insert: {
+          ad_account_id: string
+          created_at?: string
+          id?: string
+          last4: string
+        }
+        Update: {
+          ad_account_id?: string
+          created_at?: string
+          id?: string
+          last4?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ad_account_cards_ad_account_id_fkey"
+            columns: ["ad_account_id"]
+            isOneToOne: false
+            referencedRelation: "ad_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ad_account_transactions: {
         Row: {
           ad_account_id: string

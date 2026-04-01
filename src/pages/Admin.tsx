@@ -44,6 +44,7 @@ export default function Admin() {
   const [userCount, setUserCount] = useState(0);
   const [userPage, setUserPage] = useState(0);
   const [adAccounts, setAdAccounts] = useState<any[]>([]);
+  const [adAccountCards, setAdAccountCards] = useState<Record<string, string[]>>({});
   const [accCount, setAccCount] = useState(0);
   const [accPage, setAccPage] = useState(0);
   const [requests, setRequests] = useState<any[]>([]);
@@ -94,6 +95,24 @@ export default function Admin() {
   const [resetLoading, setResetLoading] = useState(false);
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
 
+  // Ad account filters
+  const [accSearchTerm, setAccSearchTerm] = useState("");
+  const [accUserFilter, setAccUserFilter] = useState("");
+  const [accDateFrom, setAccDateFrom] = useState("");
+  const [accDateTo, setAccDateTo] = useState("");
+  const [accMinRemaining, setAccMinRemaining] = useState("");
+  const [accMaxRemaining, setAccMaxRemaining] = useState("");
+  const [accTimezoneFilter, setAccTimezoneFilter] = useState("");
+  const [accStatusFilter, setAccStatusFilter] = useState("");
+  const [accCardFilter, setAccCardFilter] = useState("");
+  const [accFiltersOpen, setAccFiltersOpen] = useState(false);
+
+  // New account cards state
+  const [newAccountCards, setNewAccountCards] = useState<string[]>([""]);
+
+  // Edit account cards state
+  const [editAccountCards, setEditAccountCards] = useState<string[]>([]);
+
   const [allUsersForDropdown, setAllUsersForDropdown] = useState<any[]>([]);
   const [userTotalSpent, setUserTotalSpent] = useState<Record<string, number>>({});
   const [userAccountStats, setUserAccountStats] = useState<Record<string, { totalSpendLimit: number; totalAmountSpent: number }>>({});
@@ -125,7 +144,7 @@ export default function Admin() {
 
   useEffect(() => {
     if (user && activeTab === "accounts") fetchAccounts();
-  }, [user, activeTab, accPage]);
+  }, [user, activeTab, accPage, accSearchTerm, accUserFilter, accDateFrom, accDateTo, accMinRemaining, accMaxRemaining, accTimezoneFilter, accStatusFilter, accCardFilter]);
 
   useEffect(() => {
     if (user && activeTab === "requests") fetchRequests();
@@ -314,30 +333,75 @@ export default function Admin() {
   const [refreshingAccountId, setRefreshingAccountId] = useState<string | null>(null);
 
   const fetchAccounts = async () => {
-    const { data, count } = await supabase.from("ad_accounts").select("*, profiles(full_name, email)", { count: "exact" })
-      .order("created_at", { ascending: false }).range(accPage * PAGE_SIZE, (accPage + 1) * PAGE_SIZE - 1);
-    if (data) {
-      setAdAccounts(data);
-      const fbAccountIds = data.filter(a => a.platform === "facebook").map(a => a.account_id);
-      if (fbAccountIds.length > 0) {
-        supabase.functions.invoke("facebook-api", {
-          body: { action: "batch_get_spend_limits", account_ids: fbAccountIds },
-        }).then(({ data: fbData }) => {
-          if (fbData?.results) {
-            setAdAccounts(prev => prev.map(acc => {
-              const cached = fbData.results[acc.account_id];
-              if (cached) {
-                const amountSpent = cached.amount_spent ?? Number(acc.amount_spent || acc.current_spend || 0);
-                const spendLimit = cached.spend_cap ?? Number(acc.spend_limit);
-                return { ...acc, spend_limit: spendLimit, amount_spent: amountSpent, current_spend: amountSpent };
-              }
-              return acc;
-            }));
-          }
-        }).catch(() => {});
-      }
+    let query = supabase.from("ad_accounts").select("*, profiles(full_name, email)", { count: "exact" });
+
+    // Apply filters
+    if (accSearchTerm) query = query.or(`account_name.ilike.%${accSearchTerm}%,account_id.ilike.%${accSearchTerm}%`);
+    if (accUserFilter) query = query.eq("user_id", accUserFilter);
+    if (accDateFrom) query = query.gte("created_at", `${accDateFrom}T00:00:00`);
+    if (accDateTo) query = query.lte("created_at", `${accDateTo}T23:59:59`);
+    if (accTimezoneFilter) query = query.eq("timezone", accTimezoneFilter);
+    if (accStatusFilter === "disabled") query = query.eq("is_disabled", true);
+    else if (accStatusFilter === "active") query = query.eq("is_disabled", false);
+
+    const { data, count } = await query.order("created_at", { ascending: false }).range(accPage * PAGE_SIZE, (accPage + 1) * PAGE_SIZE - 1);
+
+    let filteredData = data || [];
+
+    // Client-side filter for remaining balance (computed field)
+    if (accMinRemaining || accMaxRemaining) {
+      const min = Number(accMinRemaining) || 0;
+      const max = accMaxRemaining ? Number(accMaxRemaining) : Infinity;
+      filteredData = filteredData.filter(a => {
+        const remaining = Math.max(0, Number(a.spend_limit) - Number(a.amount_spent || a.current_spend || 0));
+        return remaining >= min && remaining <= max;
+      });
     }
-    setAccCount(count || 0);
+
+    // Fetch all cards for displayed accounts
+    if (filteredData.length > 0) {
+      const accountIds = filteredData.map(a => a.id);
+      const { data: cardsData } = await supabase.from("ad_account_cards").select("ad_account_id, last4").in("ad_account_id", accountIds);
+      const cardsMap: Record<string, string[]> = {};
+      (cardsData || []).forEach((c: any) => {
+        if (!cardsMap[c.ad_account_id]) cardsMap[c.ad_account_id] = [];
+        cardsMap[c.ad_account_id].push(c.last4);
+      });
+      setAdAccountCards(cardsMap);
+
+      // Filter by card last4 if set
+      if (accCardFilter) {
+        const matchingAccountIds = new Set(
+          (cardsData || []).filter((c: any) => c.last4.includes(accCardFilter)).map((c: any) => c.ad_account_id)
+        );
+        filteredData = filteredData.filter(a => matchingAccountIds.has(a.id));
+      }
+    } else {
+      setAdAccountCards({});
+    }
+
+    setAdAccounts(filteredData);
+    setAccCount(accCardFilter || accMinRemaining || accMaxRemaining ? filteredData.length : (count || 0));
+
+    // Background FB sync
+    const fbAccountIds = filteredData.filter(a => a.platform === "facebook").map(a => a.account_id);
+    if (fbAccountIds.length > 0) {
+      supabase.functions.invoke("facebook-api", {
+        body: { action: "batch_get_spend_limits", account_ids: fbAccountIds },
+      }).then(({ data: fbData }) => {
+        if (fbData?.results) {
+          setAdAccounts(prev => prev.map(acc => {
+            const cached = fbData.results[acc.account_id];
+            if (cached) {
+              const amountSpent = cached.amount_spent ?? Number(acc.amount_spent || acc.current_spend || 0);
+              const spendLimit = cached.spend_cap ?? Number(acc.spend_limit);
+              return { ...acc, spend_limit: spendLimit, amount_spent: amountSpent, current_spend: amountSpent };
+            }
+            return acc;
+          }));
+        }
+      }).catch(() => {});
+    }
   };
 
   const handleRefreshAccount = async (accountId: string) => {
@@ -559,14 +623,22 @@ export default function Admin() {
         }
       }
 
-      const { error } = await supabase.from("ad_accounts").insert(insertData).select();
+      const { data: insertedData, error } = await supabase.from("ad_accounts").insert(insertData).select();
       if (error) {
         toast({ title: "Error creating account", description: error.message, variant: "destructive" });
         return;
       }
+      // Insert linked cards
+      const validCards = newAccountCards.filter(c => c.trim().length > 0);
+      if (validCards.length > 0 && insertedData?.[0]?.id) {
+        await supabase.from("ad_account_cards").insert(
+          validCards.map(c => ({ ad_account_id: insertedData[0].id, last4: c.trim() })) as any
+        );
+      }
       toast({ title: "Account created successfully" });
       setAddAccountDialog(false);
       setNewAccount({ account_id: "", account_name: "", currency: "USD", timezone: "", spend_limit: "0.01", user_id: "", platform: "facebook" });
+      setNewAccountCards([""]);
       fetchAccounts();
       fetchOverviewStats();
     } catch (err: any) {
@@ -600,6 +672,14 @@ export default function Admin() {
       if (error) {
         toast({ title: "Error updating account", description: error.message, variant: "destructive" });
       } else {
+        // Update cards: delete all existing, re-insert
+        await supabase.from("ad_account_cards").delete().eq("ad_account_id", acc.id);
+        const validCards = editAccountCards.filter(c => c.trim().length > 0);
+        if (validCards.length > 0) {
+          await supabase.from("ad_account_cards").insert(
+            validCards.map(c => ({ ad_account_id: acc.id, last4: c.trim() })) as any
+          );
+        }
         toast({ title: "Account updated" });
       }
     } catch (err: any) {
@@ -1174,10 +1254,74 @@ export default function Admin() {
           <div className="space-y-4">
             <div className="flex justify-between items-center">
               <h2 className="text-xl font-bold text-foreground">All Ad Accounts</h2>
-              <Button onClick={() => setAddAccountDialog(true)} className="bg-primary text-primary-foreground font-bold rounded-full px-5">
-                <Plus className="w-4 h-4 mr-2" />Add Account
-              </Button>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={() => setAccFiltersOpen(!accFiltersOpen)} className="rounded-full border-border">
+                  <Search className="w-3.5 h-3.5 mr-1" />{accFiltersOpen ? "Hide Filters" : "Filters"}
+                </Button>
+                <Button onClick={() => { setAddAccountDialog(true); setNewAccountCards([""]); }} className="bg-primary text-primary-foreground font-bold rounded-full px-5">
+                  <Plus className="w-4 h-4 mr-2" />Add Account
+                </Button>
+              </div>
             </div>
+
+            {/* Collapsible Filter Panel */}
+            {accFiltersOpen && (
+              <div className="bg-card border border-border rounded-xl p-4 space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Search (Name / ID)</Label>
+                    <Input placeholder="Search..." value={accSearchTerm} onChange={(e) => { setAccSearchTerm(e.target.value); setAccPage(0); }} className="bg-secondary border-border text-foreground h-9" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">User</Label>
+                    <select value={accUserFilter} onChange={(e) => { setAccUserFilter(e.target.value); setAccPage(0); }} className="w-full h-9 rounded-md bg-secondary border border-border px-3 text-foreground text-sm">
+                      <option value="">All Users</option>
+                      {allUsersForDropdown.map(u => <option key={u.id} value={u.id}>{u.full_name || u.email || u.id}</option>)}
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Added From</Label>
+                    <Input type="date" value={accDateFrom} onChange={(e) => { setAccDateFrom(e.target.value); setAccPage(0); }} className="bg-secondary border-border text-foreground h-9" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Added To</Label>
+                    <Input type="date" value={accDateTo} onChange={(e) => { setAccDateTo(e.target.value); setAccPage(0); }} className="bg-secondary border-border text-foreground h-9" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Min Remaining ($)</Label>
+                    <Input type="number" placeholder="0" value={accMinRemaining} onChange={(e) => { setAccMinRemaining(e.target.value); setAccPage(0); }} className="bg-secondary border-border text-foreground h-9" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Max Remaining ($)</Label>
+                    <Input type="number" placeholder="∞" value={accMaxRemaining} onChange={(e) => { setAccMaxRemaining(e.target.value); setAccPage(0); }} className="bg-secondary border-border text-foreground h-9" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Timezone</Label>
+                    <Input placeholder="e.g. America/New_York" value={accTimezoneFilter} onChange={(e) => { setAccTimezoneFilter(e.target.value); setAccPage(0); }} className="bg-secondary border-border text-foreground h-9" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Status</Label>
+                    <select value={accStatusFilter} onChange={(e) => { setAccStatusFilter(e.target.value); setAccPage(0); }} className="w-full h-9 rounded-md bg-secondary border border-border px-3 text-foreground text-sm">
+                      <option value="">All</option>
+                      <option value="active">Active</option>
+                      <option value="disabled">Disabled</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Card Last4</Label>
+                    <Input placeholder="e.g. 1234" maxLength={4} value={accCardFilter} onChange={(e) => { setAccCardFilter(e.target.value); setAccPage(0); }} className="bg-secondary border-border text-foreground h-9" />
+                  </div>
+                </div>
+                {(accSearchTerm || accUserFilter || accDateFrom || accDateTo || accMinRemaining || accMaxRemaining || accTimezoneFilter || accStatusFilter || accCardFilter) && (
+                  <Button size="sm" variant="ghost" className="text-xs text-muted-foreground" onClick={() => {
+                    setAccSearchTerm(""); setAccUserFilter(""); setAccDateFrom(""); setAccDateTo("");
+                    setAccMinRemaining(""); setAccMaxRemaining(""); setAccTimezoneFilter(""); setAccStatusFilter(""); setAccCardFilter("");
+                    setAccPage(0);
+                  }}>Clear All Filters</Button>
+                )}
+              </div>
+            )}
+
             <div className="bg-card border border-border rounded-xl overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -1189,6 +1333,7 @@ export default function Admin() {
                     <th className="text-left p-4 text-muted-foreground font-medium">Spending Limit</th>
                     <th className="text-left p-4 text-muted-foreground font-medium">Amount Spent</th>
                     <th className="text-left p-4 text-muted-foreground font-medium">Remaining</th>
+                    <th className="text-left p-4 text-muted-foreground font-medium">Cards</th>
                     <th className="text-left p-4 text-muted-foreground font-medium">Timezone</th>
                     <th className="text-left p-4 text-muted-foreground font-medium">Status</th>
                     <th className="text-left p-4 text-muted-foreground font-medium">Assigned To</th>
@@ -1199,6 +1344,7 @@ export default function Admin() {
                       const spendLimit = Number(acc.spend_limit);
                       const amountSpent = Number(acc.amount_spent || acc.current_spend || 0);
                       const remaining = Math.max(0, spendLimit - amountSpent);
+                      const cards = adAccountCards[acc.id] || [];
                       return (
                       <tr key={acc.id} className={`border-b border-border/50 hover:bg-secondary/50 ${acc.is_disabled ? "opacity-60" : ""}`}>
                         <td className="p-4 text-foreground font-mono text-xs">{acc.account_id}</td>
@@ -1213,6 +1359,9 @@ export default function Admin() {
                             <Progress value={spendLimit > 0 ? (amountSpent / spendLimit) * 100 : 0} className="h-1.5" />
                           </div>
                         </td>
+                        <td className="p-4 text-muted-foreground text-xs">
+                          {cards.length > 0 ? cards.map(c => `****${c}`).join(", ") : "—"}
+                        </td>
                         <td className="p-4 text-muted-foreground text-xs">{acc.timezone || "—"}</td>
                         <td className="p-4">
                           {acc.is_disabled ? (
@@ -1223,7 +1372,10 @@ export default function Admin() {
                         </td>
                         <td className="p-4 text-muted-foreground">{acc.profiles?.full_name || "Unassigned"}</td>
                         <td className="p-4 flex gap-1 flex-wrap">
-                          <Button size="sm" variant="ghost" className="text-primary" onClick={() => setEditAccountDialog({ open: true, account: { ...acc } })}>Edit</Button>
+                          <Button size="sm" variant="ghost" className="text-primary" onClick={() => {
+                            setEditAccountDialog({ open: true, account: { ...acc } });
+                            setEditAccountCards(adAccountCards[acc.id] || []);
+                          }}>Edit</Button>
                           <Button size="sm" variant="ghost" className="text-muted-foreground" onClick={() => {
                             setAccountLogDialog({ open: true, accountId: acc.account_id, accountName: acc.account_name });
                             fetchAccountLogs(acc.account_id);
@@ -1615,6 +1767,28 @@ export default function Admin() {
                 {allUsersForDropdown.map(u => <option key={u.id} value={u.id}>{u.full_name || u.email || u.id}</option>)}
               </select>
             </div>
+            <div className="space-y-2">
+              <Label className="text-foreground">Linked Cards (Last 4 Digits)</Label>
+              {newAccountCards.map((card, idx) => (
+                <div key={idx} className="flex gap-2 items-center">
+                  <Input placeholder="e.g. 1234" maxLength={4} value={card}
+                    onChange={(e) => { const c = [...newAccountCards]; c[idx] = e.target.value; setNewAccountCards(c); }}
+                    className="bg-secondary border-border text-foreground flex-1" />
+                  {newAccountCards.length > 1 && (
+                    <Button type="button" size="sm" variant="ghost" className="text-destructive"
+                      onClick={() => setNewAccountCards(newAccountCards.filter((_, i) => i !== idx))}>
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  )}
+                </div>
+              ))}
+              {newAccountCards.length < 10 && (
+                <Button type="button" size="sm" variant="outline" className="rounded-full border-border text-xs"
+                  onClick={() => setNewAccountCards([...newAccountCards, ""])}>
+                  <Plus className="w-3 h-3 mr-1" />Add Card
+                </Button>
+              )}
+            </div>
             <Button type="submit" disabled={addingAccount} className="w-full bg-primary text-primary-foreground font-bold rounded-full">
               {addingAccount ? "Creating..." : "Create Account"}
             </Button>
@@ -1653,6 +1827,26 @@ export default function Admin() {
                   <option value="">Unassigned</option>
                   {allUsersForDropdown.map(u => <option key={u.id} value={u.id}>{u.full_name || u.email || u.id}</option>)}
                 </select>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-foreground">Linked Cards (Last 4 Digits)</Label>
+                {editAccountCards.map((card, idx) => (
+                  <div key={idx} className="flex gap-2 items-center">
+                    <Input placeholder="e.g. 1234" maxLength={4} value={card}
+                      onChange={(e) => { const c = [...editAccountCards]; c[idx] = e.target.value; setEditAccountCards(c); }}
+                      className="bg-secondary border-border text-foreground flex-1" />
+                    <Button size="sm" variant="ghost" className="text-destructive"
+                      onClick={() => setEditAccountCards(editAccountCards.filter((_, i) => i !== idx))}>
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                ))}
+                {editAccountCards.length < 10 && (
+                  <Button size="sm" variant="outline" className="rounded-full border-border text-xs"
+                    onClick={() => setEditAccountCards([...editAccountCards, ""])}>
+                    <Plus className="w-3 h-3 mr-1" />Add Card
+                  </Button>
+                )}
               </div>
               <Button onClick={handleUpdateAccount} disabled={updatingAccount} className="w-full bg-primary text-primary-foreground font-bold rounded-full">
                 {updatingAccount ? "Saving..." : "Save Changes"}
