@@ -95,6 +95,24 @@ export default function Admin() {
   const [resetLoading, setResetLoading] = useState(false);
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
 
+  // Ad account filters
+  const [accSearchTerm, setAccSearchTerm] = useState("");
+  const [accUserFilter, setAccUserFilter] = useState("");
+  const [accDateFrom, setAccDateFrom] = useState("");
+  const [accDateTo, setAccDateTo] = useState("");
+  const [accMinRemaining, setAccMinRemaining] = useState("");
+  const [accMaxRemaining, setAccMaxRemaining] = useState("");
+  const [accTimezoneFilter, setAccTimezoneFilter] = useState("");
+  const [accStatusFilter, setAccStatusFilter] = useState("");
+  const [accCardFilter, setAccCardFilter] = useState("");
+  const [accFiltersOpen, setAccFiltersOpen] = useState(false);
+
+  // New account cards state
+  const [newAccountCards, setNewAccountCards] = useState<string[]>([""]);
+
+  // Edit account cards state
+  const [editAccountCards, setEditAccountCards] = useState<string[]>([]);
+
   const [allUsersForDropdown, setAllUsersForDropdown] = useState<any[]>([]);
   const [userTotalSpent, setUserTotalSpent] = useState<Record<string, number>>({});
   const [userAccountStats, setUserAccountStats] = useState<Record<string, { totalSpendLimit: number; totalAmountSpent: number }>>({});
