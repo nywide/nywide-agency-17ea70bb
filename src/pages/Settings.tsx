@@ -47,6 +47,10 @@ const defaultDailyReport: DailyReportSettings = {
   enabled: false,
   hour: 9,
   minute: 0,
+  include_wallet_balance: true,
+  include_ad_accounts: true,
+  include_custom_metrics: true,
+  include_recent_transactions: true,
 };
 
 export default function Settings() {
