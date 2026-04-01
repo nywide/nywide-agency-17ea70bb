@@ -672,6 +672,14 @@ export default function Admin() {
       if (error) {
         toast({ title: "Error updating account", description: error.message, variant: "destructive" });
       } else {
+        // Update cards: delete all existing, re-insert
+        await supabase.from("ad_account_cards").delete().eq("ad_account_id", acc.id);
+        const validCards = editAccountCards.filter(c => c.trim().length > 0);
+        if (validCards.length > 0) {
+          await supabase.from("ad_account_cards").insert(
+            validCards.map(c => ({ ad_account_id: acc.id, last4: c.trim() })) as any
+          );
+        }
         toast({ title: "Account updated" });
       }
     } catch (err: any) {
