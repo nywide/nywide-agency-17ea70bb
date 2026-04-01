@@ -1254,10 +1254,74 @@ export default function Admin() {
           <div className="space-y-4">
             <div className="flex justify-between items-center">
               <h2 className="text-xl font-bold text-foreground">All Ad Accounts</h2>
-              <Button onClick={() => setAddAccountDialog(true)} className="bg-primary text-primary-foreground font-bold rounded-full px-5">
-                <Plus className="w-4 h-4 mr-2" />Add Account
-              </Button>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={() => setAccFiltersOpen(!accFiltersOpen)} className="rounded-full border-border">
+                  <Search className="w-3.5 h-3.5 mr-1" />{accFiltersOpen ? "Hide Filters" : "Filters"}
+                </Button>
+                <Button onClick={() => { setAddAccountDialog(true); setNewAccountCards([""]); }} className="bg-primary text-primary-foreground font-bold rounded-full px-5">
+                  <Plus className="w-4 h-4 mr-2" />Add Account
+                </Button>
+              </div>
             </div>
+
+            {/* Collapsible Filter Panel */}
+            {accFiltersOpen && (
+              <div className="bg-card border border-border rounded-xl p-4 space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Search (Name / ID)</Label>
+                    <Input placeholder="Search..." value={accSearchTerm} onChange={(e) => { setAccSearchTerm(e.target.value); setAccPage(0); }} className="bg-secondary border-border text-foreground h-9" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">User</Label>
+                    <select value={accUserFilter} onChange={(e) => { setAccUserFilter(e.target.value); setAccPage(0); }} className="w-full h-9 rounded-md bg-secondary border border-border px-3 text-foreground text-sm">
+                      <option value="">All Users</option>
+                      {allUsersForDropdown.map(u => <option key={u.id} value={u.id}>{u.full_name || u.email || u.id}</option>)}
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Added From</Label>
+                    <Input type="date" value={accDateFrom} onChange={(e) => { setAccDateFrom(e.target.value); setAccPage(0); }} className="bg-secondary border-border text-foreground h-9" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Added To</Label>
+                    <Input type="date" value={accDateTo} onChange={(e) => { setAccDateTo(e.target.value); setAccPage(0); }} className="bg-secondary border-border text-foreground h-9" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Min Remaining ($)</Label>
+                    <Input type="number" placeholder="0" value={accMinRemaining} onChange={(e) => { setAccMinRemaining(e.target.value); setAccPage(0); }} className="bg-secondary border-border text-foreground h-9" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Max Remaining ($)</Label>
+                    <Input type="number" placeholder="∞" value={accMaxRemaining} onChange={(e) => { setAccMaxRemaining(e.target.value); setAccPage(0); }} className="bg-secondary border-border text-foreground h-9" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Timezone</Label>
+                    <Input placeholder="e.g. America/New_York" value={accTimezoneFilter} onChange={(e) => { setAccTimezoneFilter(e.target.value); setAccPage(0); }} className="bg-secondary border-border text-foreground h-9" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Status</Label>
+                    <select value={accStatusFilter} onChange={(e) => { setAccStatusFilter(e.target.value); setAccPage(0); }} className="w-full h-9 rounded-md bg-secondary border border-border px-3 text-foreground text-sm">
+                      <option value="">All</option>
+                      <option value="active">Active</option>
+                      <option value="disabled">Disabled</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Card Last4</Label>
+                    <Input placeholder="e.g. 1234" maxLength={4} value={accCardFilter} onChange={(e) => { setAccCardFilter(e.target.value); setAccPage(0); }} className="bg-secondary border-border text-foreground h-9" />
+                  </div>
+                </div>
+                {(accSearchTerm || accUserFilter || accDateFrom || accDateTo || accMinRemaining || accMaxRemaining || accTimezoneFilter || accStatusFilter || accCardFilter) && (
+                  <Button size="sm" variant="ghost" className="text-xs text-muted-foreground" onClick={() => {
+                    setAccSearchTerm(""); setAccUserFilter(""); setAccDateFrom(""); setAccDateTo("");
+                    setAccMinRemaining(""); setAccMaxRemaining(""); setAccTimezoneFilter(""); setAccStatusFilter(""); setAccCardFilter("");
+                    setAccPage(0);
+                  }}>Clear All Filters</Button>
+                )}
+              </div>
+            )}
+
             <div className="bg-card border border-border rounded-xl overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -1269,6 +1333,7 @@ export default function Admin() {
                     <th className="text-left p-4 text-muted-foreground font-medium">Spending Limit</th>
                     <th className="text-left p-4 text-muted-foreground font-medium">Amount Spent</th>
                     <th className="text-left p-4 text-muted-foreground font-medium">Remaining</th>
+                    <th className="text-left p-4 text-muted-foreground font-medium">Cards</th>
                     <th className="text-left p-4 text-muted-foreground font-medium">Timezone</th>
                     <th className="text-left p-4 text-muted-foreground font-medium">Status</th>
                     <th className="text-left p-4 text-muted-foreground font-medium">Assigned To</th>
@@ -1279,6 +1344,7 @@ export default function Admin() {
                       const spendLimit = Number(acc.spend_limit);
                       const amountSpent = Number(acc.amount_spent || acc.current_spend || 0);
                       const remaining = Math.max(0, spendLimit - amountSpent);
+                      const cards = adAccountCards[acc.id] || [];
                       return (
                       <tr key={acc.id} className={`border-b border-border/50 hover:bg-secondary/50 ${acc.is_disabled ? "opacity-60" : ""}`}>
                         <td className="p-4 text-foreground font-mono text-xs">{acc.account_id}</td>
@@ -1293,6 +1359,9 @@ export default function Admin() {
                             <Progress value={spendLimit > 0 ? (amountSpent / spendLimit) * 100 : 0} className="h-1.5" />
                           </div>
                         </td>
+                        <td className="p-4 text-muted-foreground text-xs">
+                          {cards.length > 0 ? cards.map(c => `****${c}`).join(", ") : "—"}
+                        </td>
                         <td className="p-4 text-muted-foreground text-xs">{acc.timezone || "—"}</td>
                         <td className="p-4">
                           {acc.is_disabled ? (
@@ -1303,7 +1372,10 @@ export default function Admin() {
                         </td>
                         <td className="p-4 text-muted-foreground">{acc.profiles?.full_name || "Unassigned"}</td>
                         <td className="p-4 flex gap-1 flex-wrap">
-                          <Button size="sm" variant="ghost" className="text-primary" onClick={() => setEditAccountDialog({ open: true, account: { ...acc } })}>Edit</Button>
+                          <Button size="sm" variant="ghost" className="text-primary" onClick={() => {
+                            setEditAccountDialog({ open: true, account: { ...acc } });
+                            setEditAccountCards(adAccountCards[acc.id] || []);
+                          }}>Edit</Button>
                           <Button size="sm" variant="ghost" className="text-muted-foreground" onClick={() => {
                             setAccountLogDialog({ open: true, accountId: acc.account_id, accountName: acc.account_name });
                             fetchAccountLogs(acc.account_id);
