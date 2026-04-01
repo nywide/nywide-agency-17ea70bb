@@ -623,14 +623,22 @@ export default function Admin() {
         }
       }
 
-      const { error } = await supabase.from("ad_accounts").insert(insertData).select();
+      const { data: insertedData, error } = await supabase.from("ad_accounts").insert(insertData).select();
       if (error) {
         toast({ title: "Error creating account", description: error.message, variant: "destructive" });
         return;
       }
+      // Insert linked cards
+      const validCards = newAccountCards.filter(c => c.trim().length > 0);
+      if (validCards.length > 0 && insertedData?.[0]?.id) {
+        await supabase.from("ad_account_cards").insert(
+          validCards.map(c => ({ ad_account_id: insertedData[0].id, last4: c.trim() })) as any
+        );
+      }
       toast({ title: "Account created successfully" });
       setAddAccountDialog(false);
       setNewAccount({ account_id: "", account_name: "", currency: "USD", timezone: "", spend_limit: "0.01", user_id: "", platform: "facebook" });
+      setNewAccountCards([""]);
       fetchAccounts();
       fetchOverviewStats();
     } catch (err: any) {
