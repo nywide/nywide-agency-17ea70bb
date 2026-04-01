@@ -26,6 +26,10 @@ interface DailyReportSettings {
   enabled: boolean;
   hour: number;
   minute: number;
+  include_wallet_balance: boolean;
+  include_ad_accounts: boolean;
+  include_custom_metrics: boolean;
+  include_recent_transactions: boolean;
 }
 
 const defaultSettings: NotificationSettings = {
