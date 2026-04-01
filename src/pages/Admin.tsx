@@ -144,7 +144,7 @@ export default function Admin() {
 
   useEffect(() => {
     if (user && activeTab === "accounts") fetchAccounts();
-  }, [user, activeTab, accPage]);
+  }, [user, activeTab, accPage, accSearchTerm, accUserFilter, accDateFrom, accDateTo, accMinRemaining, accMaxRemaining, accTimezoneFilter, accStatusFilter, accCardFilter]);
 
   useEffect(() => {
     if (user && activeTab === "requests") fetchRequests();
