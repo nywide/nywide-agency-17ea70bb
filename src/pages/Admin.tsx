@@ -1828,6 +1828,26 @@ export default function Admin() {
                   {allUsersForDropdown.map(u => <option key={u.id} value={u.id}>{u.full_name || u.email || u.id}</option>)}
                 </select>
               </div>
+              <div className="space-y-2">
+                <Label className="text-foreground">Linked Cards (Last 4 Digits)</Label>
+                {editAccountCards.map((card, idx) => (
+                  <div key={idx} className="flex gap-2 items-center">
+                    <Input placeholder="e.g. 1234" maxLength={4} value={card}
+                      onChange={(e) => { const c = [...editAccountCards]; c[idx] = e.target.value; setEditAccountCards(c); }}
+                      className="bg-secondary border-border text-foreground flex-1" />
+                    <Button size="sm" variant="ghost" className="text-destructive"
+                      onClick={() => setEditAccountCards(editAccountCards.filter((_, i) => i !== idx))}>
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                ))}
+                {editAccountCards.length < 10 && (
+                  <Button size="sm" variant="outline" className="rounded-full border-border text-xs"
+                    onClick={() => setEditAccountCards([...editAccountCards, ""])}>
+                    <Plus className="w-3 h-3 mr-1" />Add Card
+                  </Button>
+                )}
+              </div>
               <Button onClick={handleUpdateAccount} disabled={updatingAccount} className="w-full bg-primary text-primary-foreground font-bold rounded-full">
                 {updatingAccount ? "Saving..." : "Save Changes"}
               </Button>
