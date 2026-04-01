@@ -333,30 +333,75 @@ export default function Admin() {
   const [refreshingAccountId, setRefreshingAccountId] = useState<string | null>(null);
 
   const fetchAccounts = async () => {
-    const { data, count } = await supabase.from("ad_accounts").select("*, profiles(full_name, email)", { count: "exact" })
-      .order("created_at", { ascending: false }).range(accPage * PAGE_SIZE, (accPage + 1) * PAGE_SIZE - 1);
-    if (data) {
-      setAdAccounts(data);
-      const fbAccountIds = data.filter(a => a.platform === "facebook").map(a => a.account_id);
-      if (fbAccountIds.length > 0) {
-        supabase.functions.invoke("facebook-api", {
-          body: { action: "batch_get_spend_limits", account_ids: fbAccountIds },
-        }).then(({ data: fbData }) => {
-          if (fbData?.results) {
-            setAdAccounts(prev => prev.map(acc => {
-              const cached = fbData.results[acc.account_id];
-              if (cached) {
-                const amountSpent = cached.amount_spent ?? Number(acc.amount_spent || acc.current_spend || 0);
-                const spendLimit = cached.spend_cap ?? Number(acc.spend_limit);
-                return { ...acc, spend_limit: spendLimit, amount_spent: amountSpent, current_spend: amountSpent };
-              }
-              return acc;
-            }));
-          }
-        }).catch(() => {});
-      }
+    let query = supabase.from("ad_accounts").select("*, profiles(full_name, email)", { count: "exact" });
+
+    // Apply filters
+    if (accSearchTerm) query = query.or(`account_name.ilike.%${accSearchTerm}%,account_id.ilike.%${accSearchTerm}%`);
+    if (accUserFilter) query = query.eq("user_id", accUserFilter);
+    if (accDateFrom) query = query.gte("created_at", `${accDateFrom}T00:00:00`);
+    if (accDateTo) query = query.lte("created_at", `${accDateTo}T23:59:59`);
+    if (accTimezoneFilter) query = query.eq("timezone", accTimezoneFilter);
+    if (accStatusFilter === "disabled") query = query.eq("is_disabled", true);
+    else if (accStatusFilter === "active") query = query.eq("is_disabled", false);
+
+    const { data, count } = await query.order("created_at", { ascending: false }).range(accPage * PAGE_SIZE, (accPage + 1) * PAGE_SIZE - 1);
+
+    let filteredData = data || [];
+
+    // Client-side filter for remaining balance (computed field)
+    if (accMinRemaining || accMaxRemaining) {
+      const min = Number(accMinRemaining) || 0;
+      const max = accMaxRemaining ? Number(accMaxRemaining) : Infinity;
+      filteredData = filteredData.filter(a => {
+        const remaining = Math.max(0, Number(a.spend_limit) - Number(a.amount_spent || a.current_spend || 0));
+        return remaining >= min && remaining <= max;
+      });
     }
-    setAccCount(count || 0);
+
+    // Fetch all cards for displayed accounts
+    if (filteredData.length > 0) {
+      const accountIds = filteredData.map(a => a.id);
+      const { data: cardsData } = await supabase.from("ad_account_cards").select("ad_account_id, last4").in("ad_account_id", accountIds);
+      const cardsMap: Record<string, string[]> = {};
+      (cardsData || []).forEach((c: any) => {
+        if (!cardsMap[c.ad_account_id]) cardsMap[c.ad_account_id] = [];
+        cardsMap[c.ad_account_id].push(c.last4);
+      });
+      setAdAccountCards(cardsMap);
+
+      // Filter by card last4 if set
+      if (accCardFilter) {
+        const matchingAccountIds = new Set(
+          (cardsData || []).filter((c: any) => c.last4.includes(accCardFilter)).map((c: any) => c.ad_account_id)
+        );
+        filteredData = filteredData.filter(a => matchingAccountIds.has(a.id));
+      }
+    } else {
+      setAdAccountCards({});
+    }
+
+    setAdAccounts(filteredData);
+    setAccCount(accCardFilter || accMinRemaining || accMaxRemaining ? filteredData.length : (count || 0));
+
+    // Background FB sync
+    const fbAccountIds = filteredData.filter(a => a.platform === "facebook").map(a => a.account_id);
+    if (fbAccountIds.length > 0) {
+      supabase.functions.invoke("facebook-api", {
+        body: { action: "batch_get_spend_limits", account_ids: fbAccountIds },
+      }).then(({ data: fbData }) => {
+        if (fbData?.results) {
+          setAdAccounts(prev => prev.map(acc => {
+            const cached = fbData.results[acc.account_id];
+            if (cached) {
+              const amountSpent = cached.amount_spent ?? Number(acc.amount_spent || acc.current_spend || 0);
+              const spendLimit = cached.spend_cap ?? Number(acc.spend_limit);
+              return { ...acc, spend_limit: spendLimit, amount_spent: amountSpent, current_spend: amountSpent };
+            }
+            return acc;
+          }));
+        }
+      }).catch(() => {});
+    }
   };
 
   const handleRefreshAccount = async (accountId: string) => {
