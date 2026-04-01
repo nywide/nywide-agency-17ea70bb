@@ -44,6 +44,7 @@ export default function Admin() {
   const [userCount, setUserCount] = useState(0);
   const [userPage, setUserPage] = useState(0);
   const [adAccounts, setAdAccounts] = useState<any[]>([]);
+  const [adAccountCards, setAdAccountCards] = useState<Record<string, string[]>>({});
   const [accCount, setAccCount] = useState(0);
   const [accPage, setAccPage] = useState(0);
   const [requests, setRequests] = useState<any[]>([]);
