@@ -40,11 +40,13 @@ async function fbGet(adAccountId: string, fields: string, token: string) {
 }
 
 async function fbUpdateSpendCap(adAccountId: string, newCapDollars: number, token: string) {
-  console.log(`[FB API] Sending spend_cap=${newCapDollars} dollars to act_${adAccountId}`);
+  // Convert dollars to cents (Facebook API expects cents) and ensure minimum 1 cent
+  const newCapCents = Math.max(1, Math.round(newCapDollars * 100));
+  console.log(`[FB API] fbUpdateSpendCap: sending spend_cap=${newCapCents} cents ($${newCapDollars}) to act_${adAccountId}`);
   const res = await fetch(`${FB_API_BASE}/act_${adAccountId}`, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: `spend_cap=${newCapDollars}&access_token=${token}`,
+    body: `spend_cap=${newCapCents}&access_token=${token}`,
   });
   return res.json();
 }
