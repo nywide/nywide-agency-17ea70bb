@@ -380,24 +380,38 @@ Deno.serve(async (req) => {
         return jsonResponse({ error: `Insufficient account balance. Available: $${currentRemaining.toFixed(2)}` }, 400);
       }
 
-      const newCap = currentCap - withdrawalAmount;
-      const remainingAfterWithdraw = newCap - amountSpent;
+      // Calculate new spend limit in dollars
+      let newCapDollars = currentCap - withdrawalAmount;
 
-      // Only enforce $0.01 minimum when withdrawing the full (or nearly full) balance
+      // Check if user is trying to withdraw the FULL balance
       const isWithdrawingFullBalance = Math.abs(withdrawalAmount - currentRemaining) < 0.01;
-      if (isWithdrawingFullBalance && remainingAfterWithdraw < 0.01) {
+
+      if (isWithdrawingFullBalance) {
         const maxWithdraw = currentRemaining - 0.01;
-        return jsonResponse({
-          error: `Account must retain at least $0.01 balance. You can withdraw up to $${maxWithdraw.toFixed(2)}.`
-        }, 400);
+        if (maxWithdraw < 0.01) {
+          return jsonResponse({ error: "Cannot withdraw: account would have less than $0.01 remaining." }, 400);
+        }
+        // Adjust to leave exactly $0.01
+        newCapDollars = amountSpent + 0.01;
+      }
+
+      // Ensure newCapDollars is at least $0.01
+      const safeNewCapDollars = Math.max(0.01, newCapDollars);
+
+      if (isNaN(safeNewCapDollars) || !isFinite(safeNewCapDollars)) {
+        return jsonResponse({ error: "Invalid spend limit value. Please contact support." }, 400);
       }
 
       const refund = withdrawalAmount / (1 - commissionRate / 100);
 
-      console.log(`[FB API] account_to_wallet: withdrawal=$${withdrawalAmount}, refund=$${refund}, currentCap=$${currentCap}, newCap=$${newCap}, isFullWithdrawal=${isWithdrawingFullBalance}`);
+      console.log(`[FB API] account_to_wallet: withdrawal=$${withdrawalAmount}, refund=$${refund}, currentCap=$${currentCap}, newCap=$${safeNewCapDollars}, isFullWithdrawal=${isWithdrawingFullBalance}`);
 
-      const fbUpdateData = await fbUpdateSpendCap(ad_account_id, newCap, FB_ACCESS_TOKEN);
-      if (fbUpdateData.error) return jsonResponse({ error: `Facebook API: ${fbUpdateData.error.message}` }, 400);
+      // Send to Facebook (fbUpdateSpendCap converts dollars to cents internally)
+      const fbUpdateData = await fbUpdateSpendCap(ad_account_id, safeNewCapDollars, FB_ACCESS_TOKEN);
+      if (fbUpdateData.error) {
+        console.error("[FB API] Facebook error:", fbUpdateData.error);
+        return jsonResponse({ error: `Facebook API: ${fbUpdateData.error.message}` }, 400);
+      }
 
       const { data: profile } = await adminClient
         .from("profiles").select("wallet_balance").eq("id", targetUserId).single();
@@ -405,10 +419,10 @@ Deno.serve(async (req) => {
         wallet_balance: Number(profile!.wallet_balance) + refund,
       }).eq("id", targetUserId);
 
-      await adminClient.from("ad_accounts").update({ spend_limit: newCap }).eq("account_id", ad_account_id);
+      await adminClient.from("ad_accounts").update({ spend_limit: safeNewCapDollars }).eq("account_id", ad_account_id);
 
       await adminClient.from("ad_account_cache").upsert({
-        account_id: ad_account_id, spend_cap: newCap, amount_spent: amountSpent,
+        account_id: ad_account_id, spend_cap: safeNewCapDollars, amount_spent: amountSpent,
         last_fetched_at: new Date().toISOString(),
       }, { onConflict: "account_id" });
 
@@ -419,15 +433,15 @@ Deno.serve(async (req) => {
 
       await logAdAccountTransaction(adminClient, {
         ad_account_id, user_id: targetUserId, type: "withdrawal", amount: withdrawalAmount,
-        old_spend_limit: currentCap, new_spend_limit: newCap,
+        old_spend_limit: currentCap, new_spend_limit: safeNewCapDollars,
         old_amount_spent: amountSpent, new_amount_spent: amountSpent,
       });
 
       return jsonResponse({
         success: true, refund, amount_withdrawn: withdrawalAmount,
         new_wallet_balance: Number(profile!.wallet_balance) + refund,
-        new_spend_limit: newCap,
-        remaining_balance: remainingAfterWithdraw,
+        new_spend_limit: safeNewCapDollars,
+        remaining_balance: safeNewCapDollars - amountSpent,
       });
     }
 
