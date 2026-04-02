@@ -367,21 +367,32 @@ Deno.serve(async (req) => {
       const synced = await syncAdAccountFromFacebook(adminClient, ad_account_id, FB_ACCESS_TOKEN);
       const currentCap = synced ? synced.spend_limit : 0;
       const amountSpent = synced ? synced.amount_spent : 0;
-      const availableBalance = currentCap - amountSpent;
+      const currentRemaining = currentCap - amountSpent;
+      const withdrawalAmount = Number(amount);
 
-      if (amount > availableBalance) {
-        return jsonResponse({ error: `Insufficient account balance. Available: $${availableBalance.toFixed(2)}` }, 400);
+      if (withdrawalAmount <= 0) {
+        return jsonResponse({ error: "Withdrawal amount must be greater than 0" }, 400);
       }
 
-      const newCap = currentCap - amount;
+      if (withdrawalAmount > currentRemaining) {
+        return jsonResponse({ error: `Insufficient account balance. Available: $${currentRemaining.toFixed(2)}` }, 400);
+      }
 
-      // Enforce minimum remaining balance
+      const newCap = currentCap - withdrawalAmount;
       const remainingAfterWithdraw = newCap - amountSpent;
-      if (remainingAfterWithdraw < 0.01 && newCap > 0) {
-        return jsonResponse({ error: "Account must retain at least $0.01 balance." }, 400);
+
+      // Only enforce $0.01 minimum when withdrawing the full (or nearly full) balance
+      const isWithdrawingFullBalance = Math.abs(withdrawalAmount - currentRemaining) < 0.01;
+      if (isWithdrawingFullBalance && remainingAfterWithdraw < 0.01) {
+        const maxWithdraw = currentRemaining - 0.01;
+        return jsonResponse({
+          error: `Account must retain at least $0.01 balance. You can withdraw up to $${maxWithdraw.toFixed(2)}.`
+        }, 400);
       }
 
-      const refund = amount / (1 - commissionRate / 100);
+      const refund = withdrawalAmount / (1 - commissionRate / 100);
+
+      console.log(`[FB API] account_to_wallet: withdrawal=$${withdrawalAmount}, refund=$${refund}, currentCap=$${currentCap}, newCap=$${newCap}, isFullWithdrawal=${isWithdrawingFullBalance}`);
 
       const fbUpdateData = await fbUpdateSpendCap(ad_account_id, newCap, FB_ACCESS_TOKEN);
       if (fbUpdateData.error) return jsonResponse({ error: `Facebook API: ${fbUpdateData.error.message}` }, 400);
@@ -401,18 +412,20 @@ Deno.serve(async (req) => {
 
       await adminClient.from("transactions").insert({
         user_id: targetUserId, type: "account_to_wallet", amount: refund,
-        commission: refund - amount, ad_account_id, status: "completed", payment_method: "platform",
+        commission: refund - withdrawalAmount, ad_account_id, status: "completed", payment_method: "platform",
       });
 
       await logAdAccountTransaction(adminClient, {
-        ad_account_id, user_id: targetUserId, type: "withdrawal", amount,
+        ad_account_id, user_id: targetUserId, type: "withdrawal", amount: withdrawalAmount,
         old_spend_limit: currentCap, new_spend_limit: newCap,
         old_amount_spent: amountSpent, new_amount_spent: amountSpent,
       });
 
       return jsonResponse({
-        success: true, refund, amount_withdrawn: amount,
+        success: true, refund, amount_withdrawn: withdrawalAmount,
         new_wallet_balance: Number(profile!.wallet_balance) + refund,
+        new_spend_limit: newCap,
+        remaining_balance: remainingAfterWithdraw,
       });
     }
 
