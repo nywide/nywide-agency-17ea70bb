@@ -274,6 +274,11 @@ export default function Admin() {
     if (data) setAllUsersForDropdown(data);
   };
 
+  const fetchAllAccountsForDropdown = async () => {
+    const { data } = await supabase.from("ad_accounts").select("id, account_id, account_name");
+    if (data) setAllAccountsForDropdown(data);
+  };
+
   const fetchCommission = async () => {
     const [commRes, overridesRes] = await Promise.all([
       supabase.from("commission_settings").select("*").limit(1).single(),
