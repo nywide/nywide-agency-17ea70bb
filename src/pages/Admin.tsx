@@ -115,6 +115,7 @@ export default function Admin() {
   const [editAccountCards, setEditAccountCards] = useState<string[]>([]);
 
   const [allUsersForDropdown, setAllUsersForDropdown] = useState<any[]>([]);
+  const [allAccountsForDropdown, setAllAccountsForDropdown] = useState<any[]>([]);
   const [userTotalSpent, setUserTotalSpent] = useState<Record<string, number>>({});
   const [userAccountStats, setUserAccountStats] = useState<Record<string, { totalSpendLimit: number; totalAmountSpent: number }>>({});
 
@@ -123,6 +124,7 @@ export default function Admin() {
     fetchOverviewStats();
     fetchCommission();
     fetchAllUsersForDropdown();
+    fetchAllAccountsForDropdown();
     fetchTopupRequests();
     fetchUsers();
     fetchAdminTimezone();
