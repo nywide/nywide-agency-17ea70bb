@@ -92,7 +92,7 @@ export default function Dashboard() {
   // Fetch historical stats when date filter changes
   useEffect(() => {
     if (user) fetchHistoricalStats();
-  }, [user, dateFrom, dateTo, adAccounts.length]);
+  }, [user, dateFrom, dateTo, adAccounts.length, selectedAccountId]);
 
   // Auto-refresh ad accounts: staggered, one account every 60s, cycling through all
   const autoRefreshIndexRef = useRef(0);
@@ -161,7 +161,11 @@ export default function Dashboard() {
   };
 
   const fetchHistoricalStats = async () => {
-    const userAccountIds = adAccounts.map(a => a.account_id);
+    let userAccountIds = adAccounts.map(a => a.account_id);
+    if (selectedAccountId) {
+      const acc = adAccounts.find(a => a.id === selectedAccountId);
+      userAccountIds = acc ? [acc.account_id] : [];
+    }
 
     // All-Time Ad Spend (User) - positive increments in ad_account_transactions
     let spendQuery = supabase
@@ -171,7 +175,6 @@ export default function Dashboard() {
     if (userAccountIds.length > 0) {
       spendQuery = spendQuery.in("ad_account_id", userAccountIds);
     } else {
-      // No accounts, zero spend
       setHistoricalStats(prev => ({ ...prev, allTimeAdSpend: 0 }));
     }
     const tz = userTimezone || "UTC";
