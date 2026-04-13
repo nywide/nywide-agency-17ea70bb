@@ -109,10 +109,10 @@ export default function Admin() {
   const [accFiltersOpen, setAccFiltersOpen] = useState(false);
 
   // New account cards state
-  const [newAccountCards, setNewAccountCards] = useState<string[]>([""]);
+  const [newAccountCards, setNewAccountCards] = useState<{last4: string; bank_name: string}[]>([{last4: "", bank_name: ""}]);
 
   // Edit account cards state
-  const [editAccountCards, setEditAccountCards] = useState<string[]>([]);
+  const [editAccountCards, setEditAccountCards] = useState<{last4: string; bank_name: string}[]>([]);
 
   const [allUsersForDropdown, setAllUsersForDropdown] = useState<any[]>([]);
   const [allAccountsForDropdown, setAllAccountsForDropdown] = useState<any[]>([]);
