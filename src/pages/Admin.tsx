@@ -1044,8 +1044,18 @@ export default function Admin() {
                   <option key={u.id} value={u.id}>{u.full_name || u.email || u.id}</option>
                 ))}
               </select>
-              {(dateFrom || dateTo || overviewUserFilter) && (
-                <Button size="sm" variant="ghost" onClick={() => { setDateFrom(""); setDateTo(""); setOverviewUserFilter(""); }} className="text-xs text-muted-foreground">Clear</Button>
+              <select
+                value={overviewAccountFilter}
+                onChange={(e) => setOverviewAccountFilter(e.target.value)}
+                className="h-9 rounded-md bg-secondary border border-border px-3 text-foreground text-sm max-w-[200px]"
+              >
+                <option value="">All Accounts</option>
+                {allAccountsForDropdown.map(a => (
+                  <option key={a.id} value={a.account_id}>{a.account_name} ({a.account_id})</option>
+                ))}
+              </select>
+              {(dateFrom || dateTo || overviewUserFilter || overviewAccountFilter) && (
+                <Button size="sm" variant="ghost" onClick={() => { setDateFrom(""); setDateTo(""); setOverviewUserFilter(""); setOverviewAccountFilter(""); }} className="text-xs text-muted-foreground">Clear</Button>
               )}
               <Button size="sm" variant="outline" onClick={() => fetchOverviewStats()} className="rounded-full border-border ml-auto">
                 <RefreshCw className="w-3.5 h-3.5 mr-1" />Refresh Stats
