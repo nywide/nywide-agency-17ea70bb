@@ -1261,26 +1261,6 @@ export default function Dashboard() {
                 <div className="border-t border-border pt-1 flex justify-between font-medium text-foreground">
                   <span>Added to wallet</span><span className="text-primary">${withdrawRefund.toFixed(2)}</span>
                 </div>
-                {(() => {
-                  const acc = withdrawOpen.account;
-                  if (!acc) return null;
-                  const currentRemaining = getAccountRemaining(acc);
-                  const currentLimit = getAccountSpendLimit(acc);
-                  const spent = getAccountSpent(acc);
-                  const newLimit = currentLimit - Number(withdrawAmount);
-                  const newRemaining = Math.max(0, newLimit - spent);
-                  return (
-                    <div className="border-t border-border pt-2 mt-2 space-y-1">
-                      <p className="text-xs text-muted-foreground font-medium">After withdrawal:</p>
-                      <div className="flex justify-between text-muted-foreground text-xs">
-                        <span>New spending limit</span><span className="text-foreground">${newLimit.toFixed(2)}</span>
-                      </div>
-                      <div className="flex justify-between text-muted-foreground text-xs">
-                        <span>New remaining balance</span><span className="text-foreground">${newRemaining.toFixed(2)}</span>
-                      </div>
-                    </div>
-                  );
-                })()}
               </div>
             )}
             <Button onClick={handleWithdrawToWallet} disabled={withdrawLoading || !withdrawAmount || Number(withdrawAmount) <= 0 || Number(withdrawAmount) > Math.max(0, getAccountRemaining(withdrawOpen.account || {}) - 0.01)} className="w-full bg-primary text-primary-foreground font-bold rounded-full">
