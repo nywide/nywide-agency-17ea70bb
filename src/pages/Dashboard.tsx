@@ -476,6 +476,12 @@ export default function Dashboard() {
     return "-";
   };
 
+  // Filtered accounts based on selected account filter
+  const filteredAccounts = useMemo(() => {
+    if (!selectedAccountId) return adAccounts;
+    return adAccounts.filter(a => a.id === selectedAccountId);
+  }, [adAccounts, selectedAccountId]);
+
   // Custom metrics data for dashboard cards
   const [customMetrics, setCustomMetrics] = useState<any[]>([]);
   const [customMetricValues, setCustomMetricValues] = useState<Record<string, number | null>>({});
