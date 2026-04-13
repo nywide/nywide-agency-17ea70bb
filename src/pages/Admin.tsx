@@ -169,7 +169,7 @@ export default function Admin() {
 
   useEffect(() => {
     if (user && activeTab === "overview") fetchOverviewStats();
-  }, [dateFrom, dateTo, overviewUserFilter]);
+  }, [dateFrom, dateTo, overviewUserFilter, overviewAccountFilter]);
 
   const fetchOverviewStats = async () => {
     // Convert date filters to UTC based on admin timezone
