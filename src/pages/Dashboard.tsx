@@ -718,11 +718,11 @@ export default function Dashboard() {
               </div>
             )}
 
-            {adAccounts.length > 0 && (
+            {filteredAccounts.length > 0 && (
               <div>
                 <h2 className="text-lg font-bold text-foreground mb-3">Ad Accounts</h2>
                 <div className="grid gap-3">
-                  {adAccounts.slice(0, 3).map((acc) => (
+                  {filteredAccounts.slice(0, 3).map((acc) => (
                     <div key={acc.id} className={`bg-card border rounded-xl p-4 flex items-center justify-between ${acc.is_disabled ? "border-destructive/30 opacity-70" : "border-border"}`}>
                       <div>
                         <div className="flex items-center gap-2">
