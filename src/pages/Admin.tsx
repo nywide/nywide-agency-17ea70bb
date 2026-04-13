@@ -643,16 +643,16 @@ export default function Admin() {
         return;
       }
       // Insert linked cards
-      const validCards = newAccountCards.filter(c => c.trim().length > 0);
+      const validCards = newAccountCards.filter(c => c.last4.trim().length > 0);
       if (validCards.length > 0 && insertedData?.[0]?.id) {
         await supabase.from("ad_account_cards").insert(
-          validCards.map(c => ({ ad_account_id: insertedData[0].id, last4: c.trim() })) as any
+          validCards.map(c => ({ ad_account_id: insertedData[0].id, last4: c.last4.trim(), bank_name: c.bank_name.trim() || null })) as any
         );
       }
       toast({ title: "Account created successfully" });
       setAddAccountDialog(false);
       setNewAccount({ account_id: "", account_name: "", currency: "USD", timezone: "", spend_limit: "0.01", user_id: "", platform: "facebook" });
-      setNewAccountCards([""]);
+      setNewAccountCards([{last4: "", bank_name: ""}]);
       fetchAccounts();
       fetchOverviewStats();
     } catch (err: any) {
@@ -688,10 +688,10 @@ export default function Admin() {
       } else {
         // Update cards: delete all existing, re-insert
         await supabase.from("ad_account_cards").delete().eq("ad_account_id", acc.id);
-        const validCards = editAccountCards.filter(c => c.trim().length > 0);
+        const validCards = editAccountCards.filter(c => c.last4.trim().length > 0);
         if (validCards.length > 0) {
           await supabase.from("ad_account_cards").insert(
-            validCards.map(c => ({ ad_account_id: acc.id, last4: c.trim() })) as any
+            validCards.map(c => ({ ad_account_id: acc.id, last4: c.last4.trim(), bank_name: c.bank_name.trim() || null })) as any
           );
         }
         toast({ title: "Account updated" });
@@ -1322,7 +1322,7 @@ export default function Admin() {
                 <Button variant="outline" size="sm" onClick={() => setAccFiltersOpen(!accFiltersOpen)} className="rounded-full border-border">
                   <Search className="w-3.5 h-3.5 mr-1" />{accFiltersOpen ? "Hide Filters" : "Filters"}
                 </Button>
-                <Button onClick={() => { setAddAccountDialog(true); setNewAccountCards([""]); }} className="bg-primary text-primary-foreground font-bold rounded-full px-5">
+                <Button onClick={() => { setAddAccountDialog(true); setNewAccountCards([{last4: "", bank_name: ""}]); }} className="bg-primary text-primary-foreground font-bold rounded-full px-5">
                   <Plus className="w-4 h-4 mr-2" />Add Account
                 </Button>
               </div>
@@ -1438,7 +1438,7 @@ export default function Admin() {
                         <td className="p-4 flex gap-1 flex-wrap">
                           <Button size="sm" variant="ghost" className="text-primary" onClick={() => {
                             setEditAccountDialog({ open: true, account: { ...acc } });
-                            setEditAccountCards(adAccountCards[acc.id] || []);
+                            setEditAccountCards((adAccountCards[acc.id] || []).map((l4: string) => ({last4: l4, bank_name: ""})));
                           }}>Edit</Button>
                           <Button size="sm" variant="ghost" className="text-muted-foreground" onClick={() => {
                             setAccountLogDialog({ open: true, accountId: acc.account_id, accountName: acc.account_name });
@@ -1832,11 +1832,14 @@ export default function Admin() {
               </select>
             </div>
             <div className="space-y-2">
-              <Label className="text-foreground">Linked Cards (Last 4 Digits)</Label>
+              <Label className="text-foreground">Linked Cards</Label>
               {newAccountCards.map((card, idx) => (
                 <div key={idx} className="flex gap-2 items-center">
-                  <Input placeholder="e.g. 1234" maxLength={4} value={card}
-                    onChange={(e) => { const c = [...newAccountCards]; c[idx] = e.target.value; setNewAccountCards(c); }}
+                  <Input placeholder="Last 4" maxLength={4} value={card.last4}
+                    onChange={(e) => { const c = [...newAccountCards]; c[idx] = {...c[idx], last4: e.target.value}; setNewAccountCards(c); }}
+                    className="bg-secondary border-border text-foreground w-24" />
+                  <Input placeholder="Bank name" value={card.bank_name}
+                    onChange={(e) => { const c = [...newAccountCards]; c[idx] = {...c[idx], bank_name: e.target.value}; setNewAccountCards(c); }}
                     className="bg-secondary border-border text-foreground flex-1" />
                   {newAccountCards.length > 1 && (
                     <Button type="button" size="sm" variant="ghost" className="text-destructive"
@@ -1848,7 +1851,7 @@ export default function Admin() {
               ))}
               {newAccountCards.length < 10 && (
                 <Button type="button" size="sm" variant="outline" className="rounded-full border-border text-xs"
-                  onClick={() => setNewAccountCards([...newAccountCards, ""])}>
+                  onClick={() => setNewAccountCards([...newAccountCards, {last4: "", bank_name: ""}])}>
                   <Plus className="w-3 h-3 mr-1" />Add Card
                 </Button>
               )}
@@ -1893,11 +1896,14 @@ export default function Admin() {
                 </select>
               </div>
               <div className="space-y-2">
-                <Label className="text-foreground">Linked Cards (Last 4 Digits)</Label>
+                <Label className="text-foreground">Linked Cards</Label>
                 {editAccountCards.map((card, idx) => (
                   <div key={idx} className="flex gap-2 items-center">
-                    <Input placeholder="e.g. 1234" maxLength={4} value={card}
-                      onChange={(e) => { const c = [...editAccountCards]; c[idx] = e.target.value; setEditAccountCards(c); }}
+                    <Input placeholder="Last 4" maxLength={4} value={card.last4}
+                      onChange={(e) => { const c = [...editAccountCards]; c[idx] = {...c[idx], last4: e.target.value}; setEditAccountCards(c); }}
+                      className="bg-secondary border-border text-foreground w-24" />
+                    <Input placeholder="Bank name" value={card.bank_name}
+                      onChange={(e) => { const c = [...editAccountCards]; c[idx] = {...c[idx], bank_name: e.target.value}; setEditAccountCards(c); }}
                       className="bg-secondary border-border text-foreground flex-1" />
                     <Button size="sm" variant="ghost" className="text-destructive"
                       onClick={() => setEditAccountCards(editAccountCards.filter((_, i) => i !== idx))}>
@@ -1907,7 +1913,7 @@ export default function Admin() {
                 ))}
                 {editAccountCards.length < 10 && (
                   <Button size="sm" variant="outline" className="rounded-full border-border text-xs"
-                    onClick={() => setEditAccountCards([...editAccountCards, ""])}>
+                    onClick={() => setEditAccountCards([...editAccountCards, {last4: "", bank_name: ""}])}>
                     <Plus className="w-3 h-3 mr-1" />Add Card
                   </Button>
                 )}
