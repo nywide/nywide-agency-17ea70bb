@@ -58,6 +58,8 @@ export default function Dashboard() {
   // Date filter for historical cards
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  // Ad account filter
+  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
   const [userTimezone, setUserTimezone] = useState("UTC");
   const [historicalStats, setHistoricalStats] = useState({ allTimeAdSpend: 0, totalDeposits: 0 });
 
