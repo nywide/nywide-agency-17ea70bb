@@ -39,6 +39,7 @@ export default function Admin() {
   const [dateTo, setDateTo] = useState("");
   const [adminTimezone, setAdminTimezone] = useState("UTC");
   const [overviewUserFilter, setOverviewUserFilter] = useState("");
+  const [overviewAccountFilter, setOverviewAccountFilter] = useState("");
 
   const [users, setUsers] = useState<any[]>([]);
   const [userCount, setUserCount] = useState(0);
