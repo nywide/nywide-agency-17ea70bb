@@ -708,12 +708,52 @@ export default function Admin() {
   const handleDeleteAccount = async () => {
     if (!deleteConfirm.account) return;
     setDeletingAccount(true);
+    const acc = deleteConfirm.account;
     try {
-      const { error } = await supabase.from("ad_accounts").delete().eq("id", deleteConfirm.account.id);
+      const remaining = Math.max(0, Number(acc.spend_limit) - Number(acc.amount_spent || acc.current_spend || 0));
+
+      if (remaining > 0 && acc.user_id) {
+        // Calculate refund: remaining + commission
+        const userCommRate = getUserCommissionRate(acc.user_id);
+        const refund = remaining / (1 - userCommRate / 100);
+
+        // Refund to user wallet
+        const { data: prof } = await supabase.from("profiles").select("wallet_balance").eq("id", acc.user_id).single();
+        if (prof) {
+          await supabase.from("profiles").update({
+            wallet_balance: Number(prof.wallet_balance) + refund,
+          }).eq("id", acc.user_id);
+        }
+
+        // Log refund transaction
+        await supabase.from("transactions").insert({
+          user_id: acc.user_id,
+          type: "account_to_wallet",
+          amount: refund,
+          commission: refund - remaining,
+          ad_account_id: acc.account_id,
+          status: "completed",
+          payment_method: "account_deletion_refund",
+        });
+
+        await createNotification({
+          userId: acc.user_id,
+          recipientType: "user",
+          title: "Account deleted & balance refunded",
+          message: `Ad account "${acc.account_name}" was deleted. $${refund.toFixed(2)} (including commission) refunded to your wallet.`,
+          type: "account_disabled",
+        });
+      }
+
+      // Delete cards first (cascade should handle, but be explicit)
+      await supabase.from("ad_account_cards").delete().eq("ad_account_id", acc.id);
+      // Delete account
+      const { error } = await supabase.from("ad_accounts").delete().eq("id", acc.id);
       if (error) {
         toast({ title: "Error deleting account", description: error.message, variant: "destructive" });
       } else {
-        toast({ title: "Account deleted" });
+        const refundMsg = remaining > 0 && acc.user_id ? ` $${(remaining / (1 - getUserCommissionRate(acc.user_id) / 100)).toFixed(2)} refunded.` : "";
+        toast({ title: "Account deleted" + refundMsg });
         fetchAccounts();
         fetchOverviewStats();
       }
