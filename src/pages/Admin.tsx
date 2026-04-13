@@ -39,6 +39,7 @@ export default function Admin() {
   const [dateTo, setDateTo] = useState("");
   const [adminTimezone, setAdminTimezone] = useState("UTC");
   const [overviewUserFilter, setOverviewUserFilter] = useState("");
+  const [overviewAccountFilter, setOverviewAccountFilter] = useState("");
 
   const [users, setUsers] = useState<any[]>([]);
   const [userCount, setUserCount] = useState(0);
@@ -114,6 +115,7 @@ export default function Admin() {
   const [editAccountCards, setEditAccountCards] = useState<string[]>([]);
 
   const [allUsersForDropdown, setAllUsersForDropdown] = useState<any[]>([]);
+  const [allAccountsForDropdown, setAllAccountsForDropdown] = useState<any[]>([]);
   const [userTotalSpent, setUserTotalSpent] = useState<Record<string, number>>({});
   const [userAccountStats, setUserAccountStats] = useState<Record<string, { totalSpendLimit: number; totalAmountSpent: number }>>({});
 
@@ -122,6 +124,7 @@ export default function Admin() {
     fetchOverviewStats();
     fetchCommission();
     fetchAllUsersForDropdown();
+    fetchAllAccountsForDropdown();
     fetchTopupRequests();
     fetchUsers();
     fetchAdminTimezone();
@@ -168,7 +171,7 @@ export default function Admin() {
 
   useEffect(() => {
     if (user && activeTab === "overview") fetchOverviewStats();
-  }, [dateFrom, dateTo, overviewUserFilter]);
+  }, [dateFrom, dateTo, overviewUserFilter, overviewAccountFilter]);
 
   const fetchOverviewStats = async () => {
     // Convert date filters to UTC based on admin timezone
@@ -180,20 +183,26 @@ export default function Admin() {
     if (startUtc) txnQuery = txnQuery.gte("created_at", startUtc);
     if (endUtc) txnQuery = txnQuery.lte("created_at", endUtc);
     if (overviewUserFilter) txnQuery = txnQuery.eq("user_id", overviewUserFilter);
+    if (overviewAccountFilter) txnQuery = txnQuery.eq("ad_account_id", overviewAccountFilter);
 
     // Apply date filter to allTimeAdSpend query
     let spendTxnQuery = supabase.from("ad_account_transactions").select("old_amount_spent, new_amount_spent, user_id").eq("type", "spend");
     if (startUtc) spendTxnQuery = spendTxnQuery.gte("created_at", startUtc);
     if (endUtc) spendTxnQuery = spendTxnQuery.lte("created_at", endUtc);
     if (overviewUserFilter) spendTxnQuery = spendTxnQuery.eq("user_id", overviewUserFilter);
+    if (overviewAccountFilter) spendTxnQuery = spendTxnQuery.eq("ad_account_id", overviewAccountFilter);
 
     // Profiles query – filter by user if set
     let balQuery = supabase.from("profiles").select("wallet_balance");
     if (overviewUserFilter) balQuery = balQuery.eq("id", overviewUserFilter);
 
-    // Ad accounts query – filter by user if set
+    // Ad accounts query – filter by user and/or account if set
     let adAccQuery = supabase.from("ad_accounts").select("spend_limit, amount_spent, current_spend");
     if (overviewUserFilter) adAccQuery = adAccQuery.eq("user_id", overviewUserFilter);
+    if (overviewAccountFilter) {
+      const selectedAcc = allAccountsForDropdown.find(a => a.account_id === overviewAccountFilter);
+      if (selectedAcc) adAccQuery = adAccQuery.eq("id", selectedAcc.id);
+    }
 
     const [balRes, revRes, userCountRes, accCountRes, adAccRes, overridesRes, spendTxnRes] = await Promise.all([
       balQuery,
@@ -269,6 +278,11 @@ export default function Admin() {
   const fetchAllUsersForDropdown = async () => {
     const { data } = await supabase.from("profiles").select("id, full_name, email");
     if (data) setAllUsersForDropdown(data);
+  };
+
+  const fetchAllAccountsForDropdown = async () => {
+    const { data } = await supabase.from("ad_accounts").select("id, account_id, account_name");
+    if (data) setAllAccountsForDropdown(data);
   };
 
   const fetchCommission = async () => {
@@ -1030,8 +1044,18 @@ export default function Admin() {
                   <option key={u.id} value={u.id}>{u.full_name || u.email || u.id}</option>
                 ))}
               </select>
-              {(dateFrom || dateTo || overviewUserFilter) && (
-                <Button size="sm" variant="ghost" onClick={() => { setDateFrom(""); setDateTo(""); setOverviewUserFilter(""); }} className="text-xs text-muted-foreground">Clear</Button>
+              <select
+                value={overviewAccountFilter}
+                onChange={(e) => setOverviewAccountFilter(e.target.value)}
+                className="h-9 rounded-md bg-secondary border border-border px-3 text-foreground text-sm max-w-[200px]"
+              >
+                <option value="">All Accounts</option>
+                {allAccountsForDropdown.map(a => (
+                  <option key={a.id} value={a.account_id}>{a.account_name} ({a.account_id})</option>
+                ))}
+              </select>
+              {(dateFrom || dateTo || overviewUserFilter || overviewAccountFilter) && (
+                <Button size="sm" variant="ghost" onClick={() => { setDateFrom(""); setDateTo(""); setOverviewUserFilter(""); setOverviewAccountFilter(""); }} className="text-xs text-muted-foreground">Clear</Button>
               )}
               <Button size="sm" variant="outline" onClick={() => fetchOverviewStats()} className="rounded-full border-border ml-auto">
                 <RefreshCw className="w-3.5 h-3.5 mr-1" />Refresh Stats
