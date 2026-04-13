@@ -183,20 +183,26 @@ export default function Admin() {
     if (startUtc) txnQuery = txnQuery.gte("created_at", startUtc);
     if (endUtc) txnQuery = txnQuery.lte("created_at", endUtc);
     if (overviewUserFilter) txnQuery = txnQuery.eq("user_id", overviewUserFilter);
+    if (overviewAccountFilter) txnQuery = txnQuery.eq("ad_account_id", overviewAccountFilter);
 
     // Apply date filter to allTimeAdSpend query
     let spendTxnQuery = supabase.from("ad_account_transactions").select("old_amount_spent, new_amount_spent, user_id").eq("type", "spend");
     if (startUtc) spendTxnQuery = spendTxnQuery.gte("created_at", startUtc);
     if (endUtc) spendTxnQuery = spendTxnQuery.lte("created_at", endUtc);
     if (overviewUserFilter) spendTxnQuery = spendTxnQuery.eq("user_id", overviewUserFilter);
+    if (overviewAccountFilter) spendTxnQuery = spendTxnQuery.eq("ad_account_id", overviewAccountFilter);
 
     // Profiles query – filter by user if set
     let balQuery = supabase.from("profiles").select("wallet_balance");
     if (overviewUserFilter) balQuery = balQuery.eq("id", overviewUserFilter);
 
-    // Ad accounts query – filter by user if set
+    // Ad accounts query – filter by user and/or account if set
     let adAccQuery = supabase.from("ad_accounts").select("spend_limit, amount_spent, current_spend");
     if (overviewUserFilter) adAccQuery = adAccQuery.eq("user_id", overviewUserFilter);
+    if (overviewAccountFilter) {
+      const selectedAcc = allAccountsForDropdown.find(a => a.account_id === overviewAccountFilter);
+      if (selectedAcc) adAccQuery = adAccQuery.eq("id", selectedAcc.id);
+    }
 
     const [balRes, revRes, userCountRes, accCountRes, adAccRes, overridesRes, spendTxnRes] = await Promise.all([
       balQuery,
