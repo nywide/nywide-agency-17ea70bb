@@ -623,12 +623,22 @@ export default function Dashboard() {
             {/* Date Filter */}
             <div className="flex flex-wrap items-center gap-3 bg-card border border-border rounded-xl p-4">
               <CalendarDays className="w-4 h-4 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">Date filter:</span>
+              <span className="text-sm text-muted-foreground">Filter:</span>
               <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="bg-secondary border-border text-foreground w-40 h-9" />
               <span className="text-muted-foreground">to</span>
               <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="bg-secondary border-border text-foreground w-40 h-9" />
-              {(dateFrom || dateTo) && (
-                <Button size="sm" variant="ghost" onClick={() => { setDateFrom(""); setDateTo(""); }} className="text-xs text-muted-foreground">Clear</Button>
+              <select
+                value={selectedAccountId || ""}
+                onChange={(e) => setSelectedAccountId(e.target.value || null)}
+                className="h-9 rounded-md bg-secondary border border-border px-3 text-foreground text-sm max-w-[200px]"
+              >
+                <option value="">All Accounts</option>
+                {adAccounts.map(a => (
+                  <option key={a.id} value={a.id}>{getAccountDisplayName(a)} ({a.account_id})</option>
+                ))}
+              </select>
+              {(dateFrom || dateTo || selectedAccountId) && (
+                <Button size="sm" variant="ghost" onClick={() => { setDateFrom(""); setDateTo(""); setSelectedAccountId(null); }} className="text-xs text-muted-foreground">Clear</Button>
               )}
             </div>
 
