@@ -647,7 +647,7 @@ export default function Dashboard() {
               <div className="bg-card border border-border rounded-xl p-5">
                 <p className="text-muted-foreground text-sm">All-Time Ad Spend (User)</p>
                 <p className="text-2xl font-bold text-foreground"><span className="text-primary">$</span>{historicalStats.allTimeAdSpend.toFixed(2)}</p>
-                <p className="text-xs text-muted-foreground mt-1">{dateFrom || dateTo ? "Filtered by date range" : "All time"}</p>
+                <p className="text-xs text-muted-foreground mt-1">{dateFrom || dateTo || selectedAccountId ? "Filtered" : "All time"}</p>
               </div>
               <div className="bg-card border border-border rounded-xl p-5">
                 <p className="text-muted-foreground text-sm">Total Deposits (Wallet)</p>
@@ -656,19 +656,19 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {/* Snapshot Cards (unaffected by date filter) */}
+            {/* Snapshot Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="bg-card border border-border rounded-xl p-5">
                 <p className="text-muted-foreground text-sm">Active Accounts</p>
-                <p className="text-2xl font-bold text-foreground">{adAccounts.filter(a => a.status === "active").length}</p>
+                <p className="text-2xl font-bold text-foreground">{filteredAccounts.filter(a => a.status === "active").length}</p>
               </div>
               <div className="bg-card border border-border rounded-xl p-5">
                 <p className="text-muted-foreground text-sm">Spending Limit</p>
-                <p className="text-2xl font-bold text-foreground"><span className="text-primary">$</span>{adAccounts.reduce((s, a) => s + getAccountSpendLimit(a), 0).toFixed(2)}</p>
+                <p className="text-2xl font-bold text-foreground"><span className="text-primary">$</span>{filteredAccounts.reduce((s, a) => s + getAccountSpendLimit(a), 0).toFixed(2)}</p>
               </div>
               <div className="bg-card border border-border rounded-xl p-5">
                 <p className="text-muted-foreground text-sm">Remaining</p>
-                <p className="text-2xl font-bold text-foreground"><span className="text-primary">$</span>{adAccounts.reduce((s, a) => s + getAccountRemaining(a), 0).toFixed(2)}</p>
+                <p className="text-2xl font-bold text-foreground"><span className="text-primary">$</span>{filteredAccounts.reduce((s, a) => s + getAccountRemaining(a), 0).toFixed(2)}</p>
               </div>
               <div className="bg-card border border-border rounded-xl p-5">
                 <p className="text-muted-foreground text-sm">Total Transactions</p>
