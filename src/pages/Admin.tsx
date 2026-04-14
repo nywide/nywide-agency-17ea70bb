@@ -1007,6 +1007,7 @@ export default function Admin() {
     { id: "topups", label: "Pending Top-Ups", icon: CreditCard, badge: pendingTopupCount },
     { id: "transactions", label: "Transactions", icon: DollarSign },
     { id: "invoices", label: "Invoices", icon: Receipt },
+    { id: "cards", label: "Bank Cards", icon: CreditCard, link: "/admin/cards" },
     { id: "settings", label: "Settings", icon: Settings },
   ];
 
