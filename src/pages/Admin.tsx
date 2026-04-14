@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
+import { Checkbox } from "@/components/ui/checkbox";
 import { NLogo } from "@/components/nywide/NLogo";
 import { NotificationBell } from "@/components/nywide/NotificationBell";
 import { Link } from "react-router-dom";
@@ -110,6 +111,7 @@ export default function Admin() {
 
   // New account cards state
   const [newAccountCards, setNewAccountCards] = useState<{last4: string; bank_name: string}[]>([{last4: "", bank_name: ""}]);
+  const [linkFbCard, setLinkFbCard] = useState(false);
 
   // Edit account cards state
   const [editAccountCards, setEditAccountCards] = useState<{last4: string; bank_name: string}[]>([]);
@@ -649,10 +651,32 @@ export default function Admin() {
           validCards.map(c => ({ ad_account_id: insertedData[0].id, last4: c.last4.trim(), bank_name: c.bank_name.trim() || null })) as any
         );
       }
+
+      // If Facebook card linking is checked, open the payment dialog
+      if (linkFbCard && newAccount.platform === "facebook" && insertedData?.[0]) {
+        try {
+          const { data: session } = await supabase.auth.getSession();
+          const res = await supabase.functions.invoke("facebook-api", {
+            body: {
+              action: "get_payment_dialog_url",
+              ad_account_id: newAccount.account_id.trim(),
+              redirect_uri: window.location.origin + "/admin",
+            },
+          });
+          if (res.data?.url) {
+            window.open(res.data.url, "fb_payment", "width=800,height=600,scrollbars=yes");
+            toast({ title: "Facebook Payment Dialog opened", description: "Complete card linking in the popup window." });
+          }
+        } catch (fbErr) {
+          console.warn("Failed to open FB payment dialog:", fbErr);
+        }
+      }
+
       toast({ title: "Account created successfully" });
       setAddAccountDialog(false);
       setNewAccount({ account_id: "", account_name: "", currency: "USD", timezone: "", spend_limit: "0.01", user_id: "", platform: "facebook" });
       setNewAccountCards([{last4: "", bank_name: ""}]);
+      setLinkFbCard(false);
       fetchAccounts();
       fetchOverviewStats();
     } catch (err: any) {
@@ -1868,6 +1892,12 @@ export default function Admin() {
                 </Button>
               )}
             </div>
+            {newAccount.platform === "facebook" && (
+              <div className="flex items-center gap-2">
+                <Checkbox id="link-fb-card" checked={linkFbCard} onCheckedChange={(v) => setLinkFbCard(!!v)} />
+                <Label htmlFor="link-fb-card" className="text-foreground text-sm cursor-pointer">Link payment card via Facebook</Label>
+              </div>
+            )}
             <Button type="submit" disabled={addingAccount} className="w-full bg-primary text-primary-foreground font-bold rounded-full">
               {addingAccount ? "Creating..." : "Create Account"}
             </Button>
