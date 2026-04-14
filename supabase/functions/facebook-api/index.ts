@@ -40,14 +40,11 @@ async function fbGet(adAccountId: string, fields: string, token: string) {
 }
 
 async function fbUpdateSpendCap(adAccountId: string, newCapDollars: number, token: string) {
-  // Facebook expects spend_cap in dollars (not cents)
-  // Ensure minimum of 0.01 dollars
-  const safeCap = Math.max(0.01, newCapDollars);
-  console.log(`[FB API] Sending spend_cap = ${safeCap} dollars to act_${adAccountId}`);
+  console.log(`[FB API] Sending spend_cap=${newCapDollars} dollars to act_${adAccountId}`);
   const res = await fetch(`${FB_API_BASE}/act_${adAccountId}`, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: `spend_cap=${safeCap}&access_token=${token}`,
+    body: `spend_cap=${newCapDollars}&access_token=${token}`,
   });
   return res.json();
 }
@@ -438,14 +435,7 @@ Deno.serve(async (req) => {
         old_amount_spent: Number(oldAcc?.amount_spent || 0), new_amount_spent: Number(oldAcc?.amount_spent || 0),
       });
 
-    return jsonResponse({ success: true, spend_limit: amountDollars });
-    }
-
-    if (action === "get_payment_dialog_url") {
-      const redirectUri = body.redirect_uri || "https://nywide-agency.lovable.app/admin";
-      const fbAppId = Deno.env.get("FB_APP_ID") || "";
-      const url = `https://www.facebook.com/ads/manage/payment_settings.php?act=${ad_account_id}&redirect_uri=${encodeURIComponent(redirectUri)}`;
-      return jsonResponse({ url });
+      return jsonResponse({ success: true, spend_limit: amountDollars });
     }
 
     return jsonResponse({ error: "Unknown action" }, 400);

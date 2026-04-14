@@ -1,1 +1,0 @@
-SELECT cron.alter_job(4, schedule := '28,58 * * * *');

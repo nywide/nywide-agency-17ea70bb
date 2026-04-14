@@ -1,1 +1,0 @@
-ALTER TABLE public.ad_account_cards ADD COLUMN IF NOT EXISTS bank_name TEXT;
