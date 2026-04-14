@@ -1007,6 +1007,7 @@ export default function Admin() {
     { id: "topups", label: "Pending Top-Ups", icon: CreditCard, badge: pendingTopupCount },
     { id: "transactions", label: "Transactions", icon: DollarSign },
     { id: "invoices", label: "Invoices", icon: Receipt },
+    { id: "cards", label: "Bank Cards", icon: CreditCard, link: "/admin/cards" },
     { id: "settings", label: "Settings", icon: Settings },
   ];
 
@@ -1052,16 +1053,27 @@ export default function Admin() {
         <h1 className="text-3xl font-bold text-foreground mb-8">Admin Panel</h1>
 
         <div className="flex gap-2 mb-8 overflow-x-auto pb-2">
-          {tabs.map((tab) => (
-            <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-medium transition-all whitespace-nowrap ${
-                activeTab === tab.id ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground hover:text-foreground"
-              }`}>
-              <tab.icon className="w-4 h-4" />
-              {tab.label}
-              {tab.badge ? <span className="ml-1 bg-destructive text-destructive-foreground text-xs px-1.5 py-0.5 rounded-full">{tab.badge}</span> : null}
-            </button>
-          ))}
+          {tabs.map((tab) => {
+            if ((tab as any).link) {
+              return (
+                <Link key={tab.id} to={(tab as any).link}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-medium transition-all whitespace-nowrap bg-secondary text-muted-foreground hover:text-foreground">
+                  <tab.icon className="w-4 h-4" />
+                  {tab.label}
+                </Link>
+              );
+            }
+            return (
+              <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-medium transition-all whitespace-nowrap ${
+                  activeTab === tab.id ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground hover:text-foreground"
+                }`}>
+                <tab.icon className="w-4 h-4" />
+                {tab.label}
+                {tab.badge ? <span className="ml-1 bg-destructive text-destructive-foreground text-xs px-1.5 py-0.5 rounded-full">{tab.badge}</span> : null}
+              </button>
+            );
+          })}
         </div>
 
         {/* Overview Tab */}
