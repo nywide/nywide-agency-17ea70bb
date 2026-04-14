@@ -110,6 +110,7 @@ export default function Admin() {
 
   // New account cards state
   const [newAccountCards, setNewAccountCards] = useState<{last4: string; bank_name: string}[]>([{last4: "", bank_name: ""}]);
+  const [linkFbCard, setLinkFbCard] = useState(false);
 
   // Edit account cards state
   const [editAccountCards, setEditAccountCards] = useState<{last4: string; bank_name: string}[]>([]);
