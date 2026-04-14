@@ -58,8 +58,6 @@ export default function Dashboard() {
   // Date filter for historical cards
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
-  // Ad account filter
-  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
   const [userTimezone, setUserTimezone] = useState("UTC");
   const [historicalStats, setHistoricalStats] = useState({ allTimeAdSpend: 0, totalDeposits: 0 });
 
@@ -92,7 +90,7 @@ export default function Dashboard() {
   // Fetch historical stats when date filter changes
   useEffect(() => {
     if (user) fetchHistoricalStats();
-  }, [user, dateFrom, dateTo, adAccounts.length, selectedAccountId]);
+  }, [user, dateFrom, dateTo, adAccounts.length]);
 
   // Auto-refresh ad accounts: staggered, one account every 60s, cycling through all
   const autoRefreshIndexRef = useRef(0);
@@ -161,11 +159,7 @@ export default function Dashboard() {
   };
 
   const fetchHistoricalStats = async () => {
-    let userAccountIds = adAccounts.map(a => a.account_id);
-    if (selectedAccountId) {
-      const acc = adAccounts.find(a => a.id === selectedAccountId);
-      userAccountIds = acc ? [acc.account_id] : [];
-    }
+    const userAccountIds = adAccounts.map(a => a.account_id);
 
     // All-Time Ad Spend (User) - positive increments in ad_account_transactions
     let spendQuery = supabase
@@ -175,6 +169,7 @@ export default function Dashboard() {
     if (userAccountIds.length > 0) {
       spendQuery = spendQuery.in("ad_account_id", userAccountIds);
     } else {
+      // No accounts, zero spend
       setHistoricalStats(prev => ({ ...prev, allTimeAdSpend: 0 }));
     }
     const tz = userTimezone || "UTC";
@@ -476,12 +471,6 @@ export default function Dashboard() {
     return "-";
   };
 
-  // Filtered accounts based on selected account filter
-  const filteredAccounts = useMemo(() => {
-    if (!selectedAccountId) return adAccounts;
-    return adAccounts.filter(a => a.id === selectedAccountId);
-  }, [adAccounts, selectedAccountId]);
-
   // Custom metrics data for dashboard cards
   const [customMetrics, setCustomMetrics] = useState<any[]>([]);
   const [customMetricValues, setCustomMetricValues] = useState<Record<string, number | null>>({});
@@ -623,22 +612,12 @@ export default function Dashboard() {
             {/* Date Filter */}
             <div className="flex flex-wrap items-center gap-3 bg-card border border-border rounded-xl p-4">
               <CalendarDays className="w-4 h-4 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">Filter:</span>
+              <span className="text-sm text-muted-foreground">Date filter:</span>
               <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="bg-secondary border-border text-foreground w-40 h-9" />
               <span className="text-muted-foreground">to</span>
               <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="bg-secondary border-border text-foreground w-40 h-9" />
-              <select
-                value={selectedAccountId || ""}
-                onChange={(e) => setSelectedAccountId(e.target.value || null)}
-                className="h-9 rounded-md bg-secondary border border-border px-3 text-foreground text-sm max-w-[200px]"
-              >
-                <option value="">All Accounts</option>
-                {adAccounts.map(a => (
-                  <option key={a.id} value={a.id}>{getAccountDisplayName(a)} ({a.account_id})</option>
-                ))}
-              </select>
-              {(dateFrom || dateTo || selectedAccountId) && (
-                <Button size="sm" variant="ghost" onClick={() => { setDateFrom(""); setDateTo(""); setSelectedAccountId(null); }} className="text-xs text-muted-foreground">Clear</Button>
+              {(dateFrom || dateTo) && (
+                <Button size="sm" variant="ghost" onClick={() => { setDateFrom(""); setDateTo(""); }} className="text-xs text-muted-foreground">Clear</Button>
               )}
             </div>
 
@@ -647,7 +626,7 @@ export default function Dashboard() {
               <div className="bg-card border border-border rounded-xl p-5">
                 <p className="text-muted-foreground text-sm">All-Time Ad Spend (User)</p>
                 <p className="text-2xl font-bold text-foreground"><span className="text-primary">$</span>{historicalStats.allTimeAdSpend.toFixed(2)}</p>
-                <p className="text-xs text-muted-foreground mt-1">{dateFrom || dateTo || selectedAccountId ? "Filtered" : "All time"}</p>
+                <p className="text-xs text-muted-foreground mt-1">{dateFrom || dateTo ? "Filtered by date range" : "All time"}</p>
               </div>
               <div className="bg-card border border-border rounded-xl p-5">
                 <p className="text-muted-foreground text-sm">Total Deposits (Wallet)</p>
@@ -656,19 +635,19 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {/* Snapshot Cards */}
+            {/* Snapshot Cards (unaffected by date filter) */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="bg-card border border-border rounded-xl p-5">
                 <p className="text-muted-foreground text-sm">Active Accounts</p>
-                <p className="text-2xl font-bold text-foreground">{filteredAccounts.filter(a => a.status === "active").length}</p>
+                <p className="text-2xl font-bold text-foreground">{adAccounts.filter(a => a.status === "active").length}</p>
               </div>
               <div className="bg-card border border-border rounded-xl p-5">
                 <p className="text-muted-foreground text-sm">Spending Limit</p>
-                <p className="text-2xl font-bold text-foreground"><span className="text-primary">$</span>{filteredAccounts.reduce((s, a) => s + getAccountSpendLimit(a), 0).toFixed(2)}</p>
+                <p className="text-2xl font-bold text-foreground"><span className="text-primary">$</span>{adAccounts.reduce((s, a) => s + getAccountSpendLimit(a), 0).toFixed(2)}</p>
               </div>
               <div className="bg-card border border-border rounded-xl p-5">
                 <p className="text-muted-foreground text-sm">Remaining</p>
-                <p className="text-2xl font-bold text-foreground"><span className="text-primary">$</span>{filteredAccounts.reduce((s, a) => s + getAccountRemaining(a), 0).toFixed(2)}</p>
+                <p className="text-2xl font-bold text-foreground"><span className="text-primary">$</span>{adAccounts.reduce((s, a) => s + getAccountRemaining(a), 0).toFixed(2)}</p>
               </div>
               <div className="bg-card border border-border rounded-xl p-5">
                 <p className="text-muted-foreground text-sm">Total Transactions</p>
@@ -718,11 +697,11 @@ export default function Dashboard() {
               </div>
             )}
 
-            {filteredAccounts.length > 0 && (
+            {adAccounts.length > 0 && (
               <div>
                 <h2 className="text-lg font-bold text-foreground mb-3">Ad Accounts</h2>
                 <div className="grid gap-3">
-                  {filteredAccounts.slice(0, 3).map((acc) => (
+                  {adAccounts.slice(0, 3).map((acc) => (
                     <div key={acc.id} className={`bg-card border rounded-xl p-4 flex items-center justify-between ${acc.is_disabled ? "border-destructive/30 opacity-70" : "border-border"}`}>
                       <div>
                         <div className="flex items-center gap-2">
