@@ -1360,7 +1360,7 @@ export default function Admin() {
                           </div>
                         </td>
                         <td className="p-4 text-muted-foreground text-xs">
-                          {cards.length > 0 ? cards.map(c => `****${c}`).join(", ") : "—"}
+                          {cards.length > 0 ? cards.map(c => `****${c.last4}${c.bank_name ? ` (${c.bank_name})` : ""}`).join(", ") : "—"}
                         </td>
                         <td className="p-4 text-muted-foreground text-xs">{acc.timezone || "—"}</td>
                         <td className="p-4">
