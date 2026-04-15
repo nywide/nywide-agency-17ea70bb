@@ -1161,91 +1161,52 @@ export default function Dashboard() {
       </Dialog>
 
       {/* Transfer to Account Dialog */}
-      <Dialog open={transferOpen.open} onOpenChange={(open) => setTransferOpen({ ...transferOpen, open })}>
+      <Dialog open={transferOpen.open} onOpenChange={(open) => {
+        setTransferOpen({ ...transferOpen, open });
+        if (!open) setTransferAmount("");
+      }}>
         <DialogContent className="bg-card border-border">
           <DialogHeader>
             <DialogTitle className="text-foreground">Transfer to Account</DialogTitle>
             <DialogDescription>Add funds from your wallet to {transferOpen.account?.account_name}. A {commissionRate}% commission applies.</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label className="text-foreground">Amount (USD)</Label>
-              <div className="relative">
-                <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input type="number" min="10" placeholder="50" value={transferAmount} onChange={(e) => setTransferAmount(e.target.value)} className="pl-10 bg-secondary border-border text-foreground" />
-              {Number(transferAmount) > 0 && Number(transferAmount) < 10 && (
-                <p className="text-xs text-destructive">Minimum top-up amount is $10.</p>
-              )}
-              </div>
-              <p className="text-xs text-muted-foreground">Available: ${Number(profile?.wallet_balance || 0).toFixed(2)}</p>
-            </div>
-            {Number(transferAmount) > 0 && (
-              <div className="bg-secondary rounded-xl p-4 space-y-1 text-sm">
-                <div className="flex justify-between text-muted-foreground">
-                  <span>Amount from wallet</span><span className="text-foreground">${Number(transferAmount).toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between text-muted-foreground">
-                  <span>Commission ({commissionRate}%)</span><span className="text-destructive">-${transferCommission.toFixed(2)}</span>
-                </div>
-                <div className="border-t border-border pt-1 flex justify-between font-medium text-foreground">
-                  <span>Sent to account</span><span className="text-primary">${transferNet.toFixed(2)}</span>
-                </div>
-              </div>
-            )}
-            <Button onClick={handleTransferToAccount} disabled={transferLoading || !transferAmount || Number(transferAmount) < 10 || Number(transferAmount) > Number(profile?.wallet_balance || 0)} className="w-full bg-primary text-primary-foreground font-bold rounded-full">
-              {transferLoading ? "Processing..." : "Transfer to Account"}
-            </Button>
-          </div>
+          <DepositDialogBody
+            account={transferOpen.account}
+            commissionRate={commissionRate}
+            walletBalance={Number(profile?.wallet_balance || 0)}
+            transferAmount={transferAmount}
+            setTransferAmount={setTransferAmount}
+            onSubmit={handleTransferToAccount}
+            loading={transferLoading}
+            getAccountSpendLimit={getAccountSpendLimit}
+            getAccountSpent={getAccountSpent}
+            refreshAccountBalance={refreshAccountBalance}
+          />
         </DialogContent>
       </Dialog>
 
       {/* Withdraw to Wallet Dialog */}
-      <Dialog open={withdrawOpen.open} onOpenChange={(open) => setWithdrawOpen({ ...withdrawOpen, open })}>
+      <Dialog open={withdrawOpen.open} onOpenChange={(open) => {
+        setWithdrawOpen({ ...withdrawOpen, open });
+        if (!open) setWithdrawAmount("");
+      }}>
         <DialogContent className="bg-card border-border">
           <DialogHeader>
             <DialogTitle className="text-foreground">Withdraw to Wallet</DialogTitle>
             <DialogDescription>Withdraw funds from {withdrawOpen.account?.account_name} back to your wallet. Commission is refunded proportionally.</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label className="text-foreground">Amount to withdraw from account (USD)</Label>
-              <div className="relative">
-                <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input type="number" min="1" placeholder="30" value={withdrawAmount} onChange={(e) => setWithdrawAmount(e.target.value)} className="pl-10 bg-secondary border-border text-foreground" />
-              </div>
-              {(() => {
-                const remaining = getAccountRemaining(withdrawOpen.account || {});
-                const maxWithdraw = Math.max(0, remaining - 0.01);
-                const amount = Number(withdrawAmount);
-                const wouldExceed = amount > 0 && amount > maxWithdraw;
-                return (
-                  <>
-                    <p className="text-xs text-muted-foreground">Remaining Balance: ${remaining.toFixed(2)}</p>
-                    <p className="text-xs text-primary">Minimum remaining balance $0.01 required. Max withdraw: ${maxWithdraw.toFixed(2)}</p>
-                    {wouldExceed && (
-                      <p className="text-xs text-destructive font-medium">Amount exceeds maximum withdrawable balance.</p>
-                    )}
-                  </>
-                );
-              })()}
-            </div>
-            {Number(withdrawAmount) > 0 && (
-              <div className="bg-secondary rounded-xl p-4 space-y-1 text-sm">
-                <div className="flex justify-between text-muted-foreground">
-                  <span>Withdrawn from account</span><span className="text-foreground">${Number(withdrawAmount).toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between text-muted-foreground">
-                  <span>Commission refund</span><span className="text-green-500">+${(withdrawRefund - Number(withdrawAmount)).toFixed(2)}</span>
-                </div>
-                <div className="border-t border-border pt-1 flex justify-between font-medium text-foreground">
-                  <span>Added to wallet</span><span className="text-primary">${withdrawRefund.toFixed(2)}</span>
-                </div>
-              </div>
-            )}
-            <Button onClick={handleWithdrawToWallet} disabled={withdrawLoading || !withdrawAmount || Number(withdrawAmount) <= 0 || Number(withdrawAmount) > Math.max(0, getAccountRemaining(withdrawOpen.account || {}) - 0.01)} className="w-full bg-primary text-primary-foreground font-bold rounded-full">
-              {withdrawLoading ? "Processing..." : "Withdraw to Wallet"}
-            </Button>
-          </div>
+          <WithdrawDialogBody
+            account={withdrawOpen.account}
+            commissionRate={commissionRate}
+            withdrawAmount={withdrawAmount}
+            setWithdrawAmount={setWithdrawAmount}
+            onSubmit={handleWithdrawToWallet}
+            loading={withdrawLoading}
+            getAccountSpendLimit={getAccountSpendLimit}
+            getAccountSpent={getAccountSpent}
+            getAccountRemaining={getAccountRemaining}
+            refreshAccountBalance={refreshAccountBalance}
+          />
         </DialogContent>
       </Dialog>
 
