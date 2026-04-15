@@ -308,8 +308,9 @@ export default function Dashboard() {
     setRequestLoading(true);
     try {
       let balanceDeducted = false;
-      if (hasActiveAccounts && preferredLimit >= 10) {
-        // Deduct balance immediately for non-first accounts
+      const shouldDeduct = preferredLimit >= 10;
+      if (shouldDeduct) {
+        // Deduct balance immediately for any request with initial balance >= $10
         const commission = preferredLimit * (commissionRate / 100);
         const totalDeduction = preferredLimit;
         const walletBalance = Number(profile?.wallet_balance || 0);
@@ -318,7 +319,6 @@ export default function Dashboard() {
           setRequestLoading(false);
           return;
         }
-        // Deduct from wallet
         const { error: walletError } = await supabase.from("profiles").update({
           wallet_balance: walletBalance - totalDeduction,
         }).eq("id", user!.id);
@@ -327,7 +327,6 @@ export default function Dashboard() {
           setRequestLoading(false);
           return;
         }
-        // Log pending transaction
         await supabase.from("transactions").insert({
           user_id: user!.id, type: "wallet_to_account", amount: totalDeduction,
           commission, status: "pending", payment_method: "platform",
