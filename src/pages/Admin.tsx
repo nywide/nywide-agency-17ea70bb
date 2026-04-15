@@ -44,7 +44,7 @@ export default function Admin() {
   const [userCount, setUserCount] = useState(0);
   const [userPage, setUserPage] = useState(0);
   const [adAccounts, setAdAccounts] = useState<any[]>([]);
-  const [adAccountCards, setAdAccountCards] = useState<Record<string, string[]>>({});
+  const [adAccountCards, setAdAccountCards] = useState<Record<string, { last4: string; bank_name: string }[]>>({});
   const [accCount, setAccCount] = useState(0);
   const [accPage, setAccPage] = useState(0);
   const [requests, setRequests] = useState<any[]>([]);
@@ -361,11 +361,11 @@ export default function Admin() {
     // Fetch all cards for displayed accounts
     if (filteredData.length > 0) {
       const accountIds = filteredData.map(a => a.id);
-      const { data: cardsData } = await supabase.from("ad_account_cards").select("ad_account_id, last4").in("ad_account_id", accountIds);
-      const cardsMap: Record<string, string[]> = {};
+      const { data: cardsData } = await supabase.from("ad_account_cards").select("ad_account_id, last4, bank_name").in("ad_account_id", accountIds);
+      const cardsMap: Record<string, { last4: string; bank_name: string }[]> = {};
       (cardsData || []).forEach((c: any) => {
         if (!cardsMap[c.ad_account_id]) cardsMap[c.ad_account_id] = [];
-        cardsMap[c.ad_account_id].push(c.last4);
+        cardsMap[c.ad_account_id].push({ last4: c.last4, bank_name: c.bank_name || "" });
       });
       setAdAccountCards(cardsMap);
 
@@ -629,16 +629,16 @@ export default function Admin() {
         return;
       }
       // Insert linked cards
-      const validCards = newAccountCards.filter(c => c.trim().length > 0);
+      const validCards = newAccountCards.filter(c => c.last4.trim().length > 0);
       if (validCards.length > 0 && insertedData?.[0]?.id) {
         await supabase.from("ad_account_cards").insert(
-          validCards.map(c => ({ ad_account_id: insertedData[0].id, last4: c.trim() })) as any
+          validCards.map(c => ({ ad_account_id: insertedData[0].id, last4: c.last4.trim(), bank_name: c.bank_name.trim() || null })) as any
         );
       }
       toast({ title: "Account created successfully" });
       setAddAccountDialog(false);
       setNewAccount({ account_id: "", account_name: "", currency: "USD", timezone: "", spend_limit: "0.01", user_id: "", platform: "facebook" });
-      setNewAccountCards([""]);
+      setNewAccountCards([{ last4: "", bank_name: "" }]);
       fetchAccounts();
       fetchOverviewStats();
     } catch (err: any) {
@@ -674,10 +674,10 @@ export default function Admin() {
       } else {
         // Update cards: delete all existing, re-insert
         await supabase.from("ad_account_cards").delete().eq("ad_account_id", acc.id);
-        const validCards = editAccountCards.filter(c => c.trim().length > 0);
+        const validCards = editAccountCards.filter(c => c.last4.trim().length > 0);
         if (validCards.length > 0) {
           await supabase.from("ad_account_cards").insert(
-            validCards.map(c => ({ ad_account_id: acc.id, last4: c.trim() })) as any
+            validCards.map(c => ({ ad_account_id: acc.id, last4: c.last4.trim(), bank_name: c.bank_name.trim() || null })) as any
           );
         }
         toast({ title: "Account updated" });
