@@ -1255,16 +1255,23 @@ export default function Dashboard() {
                 <p className="text-xs text-muted-foreground">The email associated with your Facebook account.</p>
               </div>
             )}
-            {hasActiveAccounts && (
+            {!isFirstRequest && (
               <div className="space-y-2">
                 <Label className="text-foreground">Initial Balance (USD) *</Label>
                 <Input type="number" min="10" placeholder="Minimum $10"
                   value={requestPreferredLimit} onChange={(e) => setRequestPreferredLimit(e.target.value)}
                   className="bg-secondary border-border text-foreground" required />
+                <p className="text-xs text-muted-foreground">Amount will be deducted from your wallet immediately (including {commissionRate}% commission).</p>
               </div>
             )}
-            {!hasActiveAccounts && (
-              <p className="text-xs text-muted-foreground">Your first account is free — no initial balance required.</p>
+            {isFirstRequest && (
+              <div className="space-y-2">
+                <Label className="text-foreground">Initial Balance (USD) <span className="text-muted-foreground">(optional, min $10 if provided)</span></Label>
+                <Input type="number" min="10" placeholder="Optional"
+                  value={requestPreferredLimit} onChange={(e) => setRequestPreferredLimit(e.target.value)}
+                  className="bg-secondary border-border text-foreground" />
+                <p className="text-xs text-muted-foreground">Your first account is free. If you provide a balance (≥$10), it will be deducted from your wallet.</p>
+              </div>
             )}
             <Button onClick={handleRequestAccount} disabled={requestLoading || requestPlatform !== "facebook" || (requestPlatform === "facebook" && !requestFacebookEmail)} className="w-full bg-primary text-primary-foreground font-bold rounded-full">
               {requestLoading ? "Submitting..." : "Submit Request"}
