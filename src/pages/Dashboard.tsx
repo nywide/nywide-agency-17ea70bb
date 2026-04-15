@@ -24,6 +24,116 @@ import { formatDateTime, getCurrentTime } from "@/lib/timezone";
 
 const PAGE_SIZE = 50;
 
+// Deposit dialog with preview and live refresh
+function DepositDialogBody({ account, commissionRate, walletBalance, transferAmount, setTransferAmount, onSubmit, loading, getAccountSpendLimit, getAccountSpent, refreshAccountBalance }: any) {
+  const [liveSpendLimit, setLiveSpendLimit] = useState(0);
+  const [liveSpent, setLiveSpent] = useState(0);
+
+  useEffect(() => {
+    if (!account) return;
+    setLiveSpendLimit(getAccountSpendLimit(account));
+    setLiveSpent(getAccountSpent(account));
+    const interval = setInterval(() => {
+      refreshAccountBalance(account.account_id);
+      setLiveSpendLimit(getAccountSpendLimit(account));
+      setLiveSpent(getAccountSpent(account));
+    }, 60000);
+    return () => clearInterval(interval);
+  }, [account?.account_id]);
+
+  const amount = Number(transferAmount) || 0;
+  const commission = amount * (commissionRate / 100);
+  const amountToAccount = amount - commission;
+  const newSpendLimit = liveSpendLimit + amountToAccount;
+  const newRemaining = newSpendLimit - liveSpent;
+
+  return (
+    <div className="space-y-4">
+      <div className="space-y-2">
+        <Label className="text-foreground">Amount (USD)</Label>
+        <div className="relative">
+          <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input type="number" min="10" placeholder="50" value={transferAmount} onChange={(e: any) => setTransferAmount(e.target.value)} className="pl-10 bg-secondary border-border text-foreground" />
+          {amount > 0 && amount < 10 && <p className="text-xs text-destructive">Minimum top-up amount is $10.</p>}
+        </div>
+        <p className="text-xs text-muted-foreground">Available: ${walletBalance.toFixed(2)}</p>
+      </div>
+      {amount > 0 && (
+        <div className="bg-secondary rounded-xl p-4 space-y-1 text-sm">
+          <div className="flex justify-between text-muted-foreground"><span>Amount from wallet</span><span className="text-foreground">${amount.toFixed(2)}</span></div>
+          <div className="flex justify-between text-muted-foreground"><span>Commission ({commissionRate}%)</span><span className="text-destructive">-${commission.toFixed(2)}</span></div>
+          <div className="flex justify-between text-muted-foreground"><span>Amount added to account</span><span className="text-primary">${amountToAccount.toFixed(2)}</span></div>
+          <div className="border-t border-border pt-1 mt-1 space-y-1">
+            <div className="flex justify-between text-muted-foreground"><span>Current spending limit</span><span className="text-foreground">${liveSpendLimit.toFixed(2)}</span></div>
+            <div className="flex justify-between font-medium text-foreground"><span>New spending limit</span><span className="text-primary">${newSpendLimit.toFixed(2)}</span></div>
+            <div className="flex justify-between font-medium text-foreground"><span>New remaining balance</span><span className="text-primary">${newRemaining.toFixed(2)}</span></div>
+          </div>
+        </div>
+      )}
+      <p className="text-[10px] text-muted-foreground text-center">Account data updates every 60s</p>
+      <Button onClick={onSubmit} disabled={loading || !transferAmount || amount < 10 || amount > walletBalance} className="w-full bg-primary text-primary-foreground font-bold rounded-full">
+        {loading ? "Processing..." : "Transfer to Account"}
+      </Button>
+    </div>
+  );
+}
+
+// Withdraw dialog with live refresh
+function WithdrawDialogBody({ account, commissionRate, withdrawAmount, setWithdrawAmount, onSubmit, loading, getAccountSpendLimit, getAccountSpent, getAccountRemaining, refreshAccountBalance }: any) {
+  const [liveRemaining, setLiveRemaining] = useState(0);
+  const [liveSpendLimit, setLiveSpendLimit] = useState(0);
+  const [liveSpent, setLiveSpent] = useState(0);
+
+  useEffect(() => {
+    if (!account) return;
+    setLiveRemaining(getAccountRemaining(account));
+    setLiveSpendLimit(getAccountSpendLimit(account));
+    setLiveSpent(getAccountSpent(account));
+    const interval = setInterval(() => {
+      refreshAccountBalance(account.account_id);
+      setLiveRemaining(getAccountRemaining(account));
+      setLiveSpendLimit(getAccountSpendLimit(account));
+      setLiveSpent(getAccountSpent(account));
+    }, 60000);
+    return () => clearInterval(interval);
+  }, [account?.account_id]);
+
+  const amount = Number(withdrawAmount) || 0;
+  const maxWithdraw = Math.max(0, liveRemaining - 0.01);
+  const withdrawRefund = amount / (1 - commissionRate / 100);
+  const wouldExceed = amount > 0 && amount > maxWithdraw;
+
+  return (
+    <div className="space-y-4">
+      <div className="space-y-2">
+        <Label className="text-foreground">Amount to withdraw from account (USD)</Label>
+        <div className="relative">
+          <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input type="number" min="1" placeholder="30" value={withdrawAmount} onChange={(e: any) => setWithdrawAmount(e.target.value)} className="pl-10 bg-secondary border-border text-foreground" />
+        </div>
+        <p className="text-xs text-muted-foreground">Remaining Balance: ${liveRemaining.toFixed(2)}</p>
+        <p className="text-xs text-primary">Minimum remaining balance $0.01 required. Max withdraw: ${maxWithdraw.toFixed(2)}</p>
+        {wouldExceed && <p className="text-xs text-destructive font-medium">Amount exceeds maximum withdrawable balance.</p>}
+      </div>
+      {amount > 0 && (
+        <div className="bg-secondary rounded-xl p-4 space-y-1 text-sm">
+          <div className="flex justify-between text-muted-foreground"><span>Withdrawn from account</span><span className="text-foreground">${amount.toFixed(2)}</span></div>
+          <div className="flex justify-between text-muted-foreground"><span>Commission refund</span><span className="text-green-500">+${(withdrawRefund - amount).toFixed(2)}</span></div>
+          <div className="flex justify-between font-medium text-foreground"><span>Added to wallet</span><span className="text-primary">${withdrawRefund.toFixed(2)}</span></div>
+          <div className="border-t border-border pt-1 mt-1 space-y-1">
+            <div className="flex justify-between font-medium text-foreground"><span>New spending limit</span><span>${(liveSpendLimit - amount).toFixed(2)}</span></div>
+            <div className="flex justify-between font-medium text-foreground"><span>New remaining</span><span>${(liveRemaining - amount).toFixed(2)}</span></div>
+          </div>
+        </div>
+      )}
+      <p className="text-[10px] text-muted-foreground text-center">Account data updates every 60s</p>
+      <Button onClick={onSubmit} disabled={loading || !withdrawAmount || amount <= 0 || wouldExceed} className="w-full bg-primary text-primary-foreground font-bold rounded-full">
+        {loading ? "Processing..." : "Withdraw to Wallet"}
+      </Button>
+    </div>
+  );
+}
+
 export default function Dashboard() {
   const { user, profile, signOut, refreshProfile } = useAuth();
   const { toast } = useToast();
