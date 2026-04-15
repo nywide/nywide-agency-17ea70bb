@@ -91,18 +91,21 @@ export type Database = {
       ad_account_cards: {
         Row: {
           ad_account_id: string
+          bank_name: string | null
           created_at: string
           id: string
           last4: string
         }
         Insert: {
           ad_account_id: string
+          bank_name?: string | null
           created_at?: string
           id?: string
           last4: string
         }
         Update: {
           ad_account_id?: string
+          bank_name?: string | null
           created_at?: string
           id?: string
           last4?: string

@@ -24,6 +24,116 @@ import { formatDateTime, getCurrentTime } from "@/lib/timezone";
 
 const PAGE_SIZE = 50;
 
+// Deposit dialog with preview and live refresh
+function DepositDialogBody({ account, commissionRate, walletBalance, transferAmount, setTransferAmount, onSubmit, loading, getAccountSpendLimit, getAccountSpent, refreshAccountBalance }: any) {
+  const [liveSpendLimit, setLiveSpendLimit] = useState(0);
+  const [liveSpent, setLiveSpent] = useState(0);
+
+  useEffect(() => {
+    if (!account) return;
+    setLiveSpendLimit(getAccountSpendLimit(account));
+    setLiveSpent(getAccountSpent(account));
+    const interval = setInterval(() => {
+      refreshAccountBalance(account.account_id);
+      setLiveSpendLimit(getAccountSpendLimit(account));
+      setLiveSpent(getAccountSpent(account));
+    }, 60000);
+    return () => clearInterval(interval);
+  }, [account?.account_id]);
+
+  const amount = Number(transferAmount) || 0;
+  const commission = amount * (commissionRate / 100);
+  const amountToAccount = amount - commission;
+  const newSpendLimit = liveSpendLimit + amountToAccount;
+  const newRemaining = newSpendLimit - liveSpent;
+
+  return (
+    <div className="space-y-4">
+      <div className="space-y-2">
+        <Label className="text-foreground">Amount (USD)</Label>
+        <div className="relative">
+          <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input type="number" min="10" placeholder="50" value={transferAmount} onChange={(e: any) => setTransferAmount(e.target.value)} className="pl-10 bg-secondary border-border text-foreground" />
+          {amount > 0 && amount < 10 && <p className="text-xs text-destructive">Minimum top-up amount is $10.</p>}
+        </div>
+        <p className="text-xs text-muted-foreground">Available: ${walletBalance.toFixed(2)}</p>
+      </div>
+      {amount > 0 && (
+        <div className="bg-secondary rounded-xl p-4 space-y-1 text-sm">
+          <div className="flex justify-between text-muted-foreground"><span>Amount from wallet</span><span className="text-foreground">${amount.toFixed(2)}</span></div>
+          <div className="flex justify-between text-muted-foreground"><span>Commission ({commissionRate}%)</span><span className="text-destructive">-${commission.toFixed(2)}</span></div>
+          <div className="flex justify-between text-muted-foreground"><span>Amount added to account</span><span className="text-primary">${amountToAccount.toFixed(2)}</span></div>
+          <div className="border-t border-border pt-1 mt-1 space-y-1">
+            <div className="flex justify-between text-muted-foreground"><span>Current spending limit</span><span className="text-foreground">${liveSpendLimit.toFixed(2)}</span></div>
+            <div className="flex justify-between font-medium text-foreground"><span>New spending limit</span><span className="text-primary">${newSpendLimit.toFixed(2)}</span></div>
+            <div className="flex justify-between font-medium text-foreground"><span>New remaining balance</span><span className="text-primary">${newRemaining.toFixed(2)}</span></div>
+          </div>
+        </div>
+      )}
+      <p className="text-[10px] text-muted-foreground text-center">Account data updates every 60s</p>
+      <Button onClick={onSubmit} disabled={loading || !transferAmount || amount < 10 || amount > walletBalance} className="w-full bg-primary text-primary-foreground font-bold rounded-full">
+        {loading ? "Processing..." : "Transfer to Account"}
+      </Button>
+    </div>
+  );
+}
+
+// Withdraw dialog with live refresh
+function WithdrawDialogBody({ account, commissionRate, withdrawAmount, setWithdrawAmount, onSubmit, loading, getAccountSpendLimit, getAccountSpent, getAccountRemaining, refreshAccountBalance }: any) {
+  const [liveRemaining, setLiveRemaining] = useState(0);
+  const [liveSpendLimit, setLiveSpendLimit] = useState(0);
+  const [liveSpent, setLiveSpent] = useState(0);
+
+  useEffect(() => {
+    if (!account) return;
+    setLiveRemaining(getAccountRemaining(account));
+    setLiveSpendLimit(getAccountSpendLimit(account));
+    setLiveSpent(getAccountSpent(account));
+    const interval = setInterval(() => {
+      refreshAccountBalance(account.account_id);
+      setLiveRemaining(getAccountRemaining(account));
+      setLiveSpendLimit(getAccountSpendLimit(account));
+      setLiveSpent(getAccountSpent(account));
+    }, 60000);
+    return () => clearInterval(interval);
+  }, [account?.account_id]);
+
+  const amount = Number(withdrawAmount) || 0;
+  const maxWithdraw = Math.max(0, liveRemaining - 0.01);
+  const withdrawRefund = amount / (1 - commissionRate / 100);
+  const wouldExceed = amount > 0 && amount > maxWithdraw;
+
+  return (
+    <div className="space-y-4">
+      <div className="space-y-2">
+        <Label className="text-foreground">Amount to withdraw from account (USD)</Label>
+        <div className="relative">
+          <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input type="number" min="1" placeholder="30" value={withdrawAmount} onChange={(e: any) => setWithdrawAmount(e.target.value)} className="pl-10 bg-secondary border-border text-foreground" />
+        </div>
+        <p className="text-xs text-muted-foreground">Remaining Balance: ${liveRemaining.toFixed(2)}</p>
+        <p className="text-xs text-primary">Minimum remaining balance $0.01 required. Max withdraw: ${maxWithdraw.toFixed(2)}</p>
+        {wouldExceed && <p className="text-xs text-destructive font-medium">Amount exceeds maximum withdrawable balance.</p>}
+      </div>
+      {amount > 0 && (
+        <div className="bg-secondary rounded-xl p-4 space-y-1 text-sm">
+          <div className="flex justify-between text-muted-foreground"><span>Withdrawn from account</span><span className="text-foreground">${amount.toFixed(2)}</span></div>
+          <div className="flex justify-between text-muted-foreground"><span>Commission refund</span><span className="text-green-500">+${(withdrawRefund - amount).toFixed(2)}</span></div>
+          <div className="flex justify-between font-medium text-foreground"><span>Added to wallet</span><span className="text-primary">${withdrawRefund.toFixed(2)}</span></div>
+          <div className="border-t border-border pt-1 mt-1 space-y-1">
+            <div className="flex justify-between font-medium text-foreground"><span>New spending limit</span><span>${(liveSpendLimit - amount).toFixed(2)}</span></div>
+            <div className="flex justify-between font-medium text-foreground"><span>New remaining</span><span>${(liveRemaining - amount).toFixed(2)}</span></div>
+          </div>
+        </div>
+      )}
+      <p className="text-[10px] text-muted-foreground text-center">Account data updates every 60s</p>
+      <Button onClick={onSubmit} disabled={loading || !withdrawAmount || amount <= 0 || wouldExceed} className="w-full bg-primary text-primary-foreground font-bold rounded-full">
+        {loading ? "Processing..." : "Withdraw to Wallet"}
+      </Button>
+    </div>
+  );
+}
+
 export default function Dashboard() {
   const { user, profile, signOut, refreshProfile } = useAuth();
   const { toast } = useToast();
@@ -284,6 +394,9 @@ export default function Dashboard() {
     }
   };
 
+  // Count pending requests for first-request logic
+  const pendingRequestCount = accountRequests.filter(r => r.status === "pending").length;
+  const isFirstRequest = adAccounts.length + pendingRequestCount === 0;
   const hasActiveAccounts = adAccounts.some(a => a.status === "active");
 
   const handleRequestAccount = async () => {
@@ -292,15 +405,22 @@ export default function Dashboard() {
       return;
     }
     const preferredLimit = Number(requestPreferredLimit) || 0;
-    if (hasActiveAccounts && preferredLimit < 10) {
+    // For subsequent requests (not first), require $10 min
+    if (!isFirstRequest && preferredLimit < 10) {
       toast({ title: "Initial Balance required (min $10)", description: "Please specify an initial balance of at least $10 for additional accounts.", variant: "destructive" });
+      return;
+    }
+    // For first request, if balance is specified it must be >= $10
+    if (isFirstRequest && requestPreferredLimit && preferredLimit > 0 && preferredLimit < 10) {
+      toast({ title: "Minimum $10", description: "If providing an initial balance, it must be at least $10.", variant: "destructive" });
       return;
     }
     setRequestLoading(true);
     try {
       let balanceDeducted = false;
-      if (hasActiveAccounts && preferredLimit >= 10) {
-        // Deduct balance immediately for non-first accounts
+      const shouldDeduct = preferredLimit >= 10;
+      if (shouldDeduct) {
+        // Deduct balance immediately for any request with initial balance >= $10
         const commission = preferredLimit * (commissionRate / 100);
         const totalDeduction = preferredLimit;
         const walletBalance = Number(profile?.wallet_balance || 0);
@@ -309,7 +429,6 @@ export default function Dashboard() {
           setRequestLoading(false);
           return;
         }
-        // Deduct from wallet
         const { error: walletError } = await supabase.from("profiles").update({
           wallet_balance: walletBalance - totalDeduction,
         }).eq("id", user!.id);
@@ -318,7 +437,6 @@ export default function Dashboard() {
           setRequestLoading(false);
           return;
         }
-        // Log pending transaction
         await supabase.from("transactions").insert({
           user_id: user!.id, type: "wallet_to_account", amount: totalDeduction,
           commission, status: "pending", payment_method: "platform",
@@ -1161,91 +1279,52 @@ export default function Dashboard() {
       </Dialog>
 
       {/* Transfer to Account Dialog */}
-      <Dialog open={transferOpen.open} onOpenChange={(open) => setTransferOpen({ ...transferOpen, open })}>
+      <Dialog open={transferOpen.open} onOpenChange={(open) => {
+        setTransferOpen({ ...transferOpen, open });
+        if (!open) setTransferAmount("");
+      }}>
         <DialogContent className="bg-card border-border">
           <DialogHeader>
             <DialogTitle className="text-foreground">Transfer to Account</DialogTitle>
             <DialogDescription>Add funds from your wallet to {transferOpen.account?.account_name}. A {commissionRate}% commission applies.</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label className="text-foreground">Amount (USD)</Label>
-              <div className="relative">
-                <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input type="number" min="10" placeholder="50" value={transferAmount} onChange={(e) => setTransferAmount(e.target.value)} className="pl-10 bg-secondary border-border text-foreground" />
-              {Number(transferAmount) > 0 && Number(transferAmount) < 10 && (
-                <p className="text-xs text-destructive">Minimum top-up amount is $10.</p>
-              )}
-              </div>
-              <p className="text-xs text-muted-foreground">Available: ${Number(profile?.wallet_balance || 0).toFixed(2)}</p>
-            </div>
-            {Number(transferAmount) > 0 && (
-              <div className="bg-secondary rounded-xl p-4 space-y-1 text-sm">
-                <div className="flex justify-between text-muted-foreground">
-                  <span>Amount from wallet</span><span className="text-foreground">${Number(transferAmount).toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between text-muted-foreground">
-                  <span>Commission ({commissionRate}%)</span><span className="text-destructive">-${transferCommission.toFixed(2)}</span>
-                </div>
-                <div className="border-t border-border pt-1 flex justify-between font-medium text-foreground">
-                  <span>Sent to account</span><span className="text-primary">${transferNet.toFixed(2)}</span>
-                </div>
-              </div>
-            )}
-            <Button onClick={handleTransferToAccount} disabled={transferLoading || !transferAmount || Number(transferAmount) < 10 || Number(transferAmount) > Number(profile?.wallet_balance || 0)} className="w-full bg-primary text-primary-foreground font-bold rounded-full">
-              {transferLoading ? "Processing..." : "Transfer to Account"}
-            </Button>
-          </div>
+          <DepositDialogBody
+            account={transferOpen.account}
+            commissionRate={commissionRate}
+            walletBalance={Number(profile?.wallet_balance || 0)}
+            transferAmount={transferAmount}
+            setTransferAmount={setTransferAmount}
+            onSubmit={handleTransferToAccount}
+            loading={transferLoading}
+            getAccountSpendLimit={getAccountSpendLimit}
+            getAccountSpent={getAccountSpent}
+            refreshAccountBalance={refreshAccountBalance}
+          />
         </DialogContent>
       </Dialog>
 
       {/* Withdraw to Wallet Dialog */}
-      <Dialog open={withdrawOpen.open} onOpenChange={(open) => setWithdrawOpen({ ...withdrawOpen, open })}>
+      <Dialog open={withdrawOpen.open} onOpenChange={(open) => {
+        setWithdrawOpen({ ...withdrawOpen, open });
+        if (!open) setWithdrawAmount("");
+      }}>
         <DialogContent className="bg-card border-border">
           <DialogHeader>
             <DialogTitle className="text-foreground">Withdraw to Wallet</DialogTitle>
             <DialogDescription>Withdraw funds from {withdrawOpen.account?.account_name} back to your wallet. Commission is refunded proportionally.</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label className="text-foreground">Amount to withdraw from account (USD)</Label>
-              <div className="relative">
-                <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input type="number" min="1" placeholder="30" value={withdrawAmount} onChange={(e) => setWithdrawAmount(e.target.value)} className="pl-10 bg-secondary border-border text-foreground" />
-              </div>
-              {(() => {
-                const remaining = getAccountRemaining(withdrawOpen.account || {});
-                const maxWithdraw = Math.max(0, remaining - 0.01);
-                const amount = Number(withdrawAmount);
-                const wouldExceed = amount > 0 && amount > maxWithdraw;
-                return (
-                  <>
-                    <p className="text-xs text-muted-foreground">Remaining Balance: ${remaining.toFixed(2)}</p>
-                    <p className="text-xs text-primary">Minimum remaining balance $0.01 required. Max withdraw: ${maxWithdraw.toFixed(2)}</p>
-                    {wouldExceed && (
-                      <p className="text-xs text-destructive font-medium">Amount exceeds maximum withdrawable balance.</p>
-                    )}
-                  </>
-                );
-              })()}
-            </div>
-            {Number(withdrawAmount) > 0 && (
-              <div className="bg-secondary rounded-xl p-4 space-y-1 text-sm">
-                <div className="flex justify-between text-muted-foreground">
-                  <span>Withdrawn from account</span><span className="text-foreground">${Number(withdrawAmount).toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between text-muted-foreground">
-                  <span>Commission refund</span><span className="text-green-500">+${(withdrawRefund - Number(withdrawAmount)).toFixed(2)}</span>
-                </div>
-                <div className="border-t border-border pt-1 flex justify-between font-medium text-foreground">
-                  <span>Added to wallet</span><span className="text-primary">${withdrawRefund.toFixed(2)}</span>
-                </div>
-              </div>
-            )}
-            <Button onClick={handleWithdrawToWallet} disabled={withdrawLoading || !withdrawAmount || Number(withdrawAmount) <= 0 || Number(withdrawAmount) > Math.max(0, getAccountRemaining(withdrawOpen.account || {}) - 0.01)} className="w-full bg-primary text-primary-foreground font-bold rounded-full">
-              {withdrawLoading ? "Processing..." : "Withdraw to Wallet"}
-            </Button>
-          </div>
+          <WithdrawDialogBody
+            account={withdrawOpen.account}
+            commissionRate={commissionRate}
+            withdrawAmount={withdrawAmount}
+            setWithdrawAmount={setWithdrawAmount}
+            onSubmit={handleWithdrawToWallet}
+            loading={withdrawLoading}
+            getAccountSpendLimit={getAccountSpendLimit}
+            getAccountSpent={getAccountSpent}
+            getAccountRemaining={getAccountRemaining}
+            refreshAccountBalance={refreshAccountBalance}
+          />
         </DialogContent>
       </Dialog>
 
@@ -1286,16 +1365,23 @@ export default function Dashboard() {
                 <p className="text-xs text-muted-foreground">The email associated with your Facebook account.</p>
               </div>
             )}
-            {hasActiveAccounts && (
+            {!isFirstRequest && (
               <div className="space-y-2">
                 <Label className="text-foreground">Initial Balance (USD) *</Label>
                 <Input type="number" min="10" placeholder="Minimum $10"
                   value={requestPreferredLimit} onChange={(e) => setRequestPreferredLimit(e.target.value)}
                   className="bg-secondary border-border text-foreground" required />
+                <p className="text-xs text-muted-foreground">Amount will be deducted from your wallet immediately (including {commissionRate}% commission).</p>
               </div>
             )}
-            {!hasActiveAccounts && (
-              <p className="text-xs text-muted-foreground">Your first account is free — no initial balance required.</p>
+            {isFirstRequest && (
+              <div className="space-y-2">
+                <Label className="text-foreground">Initial Balance (USD) <span className="text-muted-foreground">(optional, min $10 if provided)</span></Label>
+                <Input type="number" min="10" placeholder="Optional"
+                  value={requestPreferredLimit} onChange={(e) => setRequestPreferredLimit(e.target.value)}
+                  className="bg-secondary border-border text-foreground" />
+                <p className="text-xs text-muted-foreground">Your first account is free. If you provide a balance (≥$10), it will be deducted from your wallet.</p>
+              </div>
             )}
             <Button onClick={handleRequestAccount} disabled={requestLoading || requestPlatform !== "facebook" || (requestPlatform === "facebook" && !requestFacebookEmail)} className="w-full bg-primary text-primary-foreground font-bold rounded-full">
               {requestLoading ? "Submitting..." : "Submit Request"}
