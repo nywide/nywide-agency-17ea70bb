@@ -284,6 +284,9 @@ export default function Dashboard() {
     }
   };
 
+  // Count pending requests for first-request logic
+  const pendingRequestCount = accountRequests.filter(r => r.status === "pending").length;
+  const isFirstRequest = adAccounts.length + pendingRequestCount === 0;
   const hasActiveAccounts = adAccounts.some(a => a.status === "active");
 
   const handleRequestAccount = async () => {
@@ -292,8 +295,14 @@ export default function Dashboard() {
       return;
     }
     const preferredLimit = Number(requestPreferredLimit) || 0;
-    if (hasActiveAccounts && preferredLimit < 10) {
+    // For subsequent requests (not first), require $10 min
+    if (!isFirstRequest && preferredLimit < 10) {
       toast({ title: "Initial Balance required (min $10)", description: "Please specify an initial balance of at least $10 for additional accounts.", variant: "destructive" });
+      return;
+    }
+    // For first request, if balance is specified it must be >= $10
+    if (isFirstRequest && requestPreferredLimit && preferredLimit > 0 && preferredLimit < 10) {
+      toast({ title: "Minimum $10", description: "If providing an initial balance, it must be at least $10.", variant: "destructive" });
       return;
     }
     setRequestLoading(true);
