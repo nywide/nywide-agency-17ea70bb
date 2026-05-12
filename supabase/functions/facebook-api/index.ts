@@ -46,7 +46,9 @@ async function fbUpdateSpendCap(adAccountId: string, newCapDollars: number, toke
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: `spend_cap=${newCapDollars}&access_token=${token}`,
   });
-  return res.json();
+  const json = await res.json();
+  console.log(`[FB API] FB response status=${res.status} body=${JSON.stringify(json)}`);
+  return json;
 }
 
 function toNumber(val: number | string | null | undefined): number {
